@@ -1,0 +1,20 @@
+<svg width="700" height="520" viewBox="0 0 700 520" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="700" height="520" rx="42" fill="#F7F8FB"/>
+  <path d="M60 120L640 120" stroke="#D7DFEA" stroke-width="16" stroke-linecap="round"/>
+  <path d="M80 210L660 210" stroke="#D7DFEA" stroke-width="12" stroke-linecap="round"/>
+  <path d="M60 320L620 320" stroke="#D7DFEA" stroke-width="16" stroke-linecap="round"/>
+  <path d="M150 55L210 455" stroke="#C7D2E0" stroke-width="20" stroke-linecap="round"/>
+  <path d="M330 40L380 480" stroke="#C7D2E0" stroke-width="14" stroke-linecap="round"/>
+  <path d="M520 50L565 460" stroke="#C7D2E0" stroke-width="18" stroke-linecap="round"/>
+  <path d="M60 390L630 115" stroke="#DDE5EF" stroke-width="10" stroke-linecap="round"/>
+  <path d="M95 140L640 385" stroke="#E4EAF2" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="448" cy="197" r="20" fill="#D84438"/>
+  <path d="M448 240C463 219 472 205 472 190C472 176.745 461.255 166 448 166C434.745 166 424 176.745 424 190C424 205 433 219 448 240Z" fill="#D84438"/>
+  <circle cx="262" cy="279" r="18" fill="#58B7AE"/>
+  <path d="M262 317C275 299 282 288 282 275C282 263.954 273.046 255 262 255C250.954 255 242 263.954 242 275C242 288 249 299 262 317Z" fill="#58B7AE"/>
+  <rect x="352" y="96" width="214" height="50" rx="25" fill="white"/>
+  <text x="459" y="127" text-anchor="middle" fill="#6C1D12" font-family="Arial, sans-serif" font-size="20" font-weight="700">Map Placeholder</text>
+  <rect x="205" y="405" width="286" height="46" rx="23" fill="white"/>
+  <text x="348" y="434" text-anchor="middle" fill="#6C1D12" font-family="Arial, sans-serif" font-size="18" font-weight="700">Replace with final map or location image</text>
+</svg>
+

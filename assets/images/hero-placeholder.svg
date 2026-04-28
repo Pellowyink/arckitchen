@@ -1,0 +1,12 @@
+<svg width="700" height="620" viewBox="0 0 700 620" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="700" height="620" rx="54" fill="#F5E6C7"/>
+  <rect x="58" y="56" width="584" height="508" rx="42" fill="#FFF8ED" stroke="#DAB66A" stroke-width="4" stroke-dasharray="14 14"/>
+  <circle cx="520" cy="150" r="72" fill="#E7C26F" opacity="0.55"/>
+  <circle cx="175" cy="465" r="92" fill="#D7A44D" opacity="0.32"/>
+  <rect x="120" y="136" width="462" height="270" rx="34" fill="#EED8A9"/>
+  <text x="351" y="262" text-anchor="middle" fill="#6C1D12" font-family="Arial, sans-serif" font-size="34" font-weight="700">Hero Image Here</text>
+  <text x="351" y="305" text-anchor="middle" fill="#8A6D57" font-family="Arial, sans-serif" font-size="20">Replace with final homepage food image</text>
+  <rect x="218" y="439" width="266" height="52" rx="26" fill="#6C1D12" opacity="0.12"/>
+  <text x="351" y="472" text-anchor="middle" fill="#6C1D12" font-family="Arial, sans-serif" font-size="20" font-weight="700">Hero Placeholder Asset</text>
+</svg>
+
