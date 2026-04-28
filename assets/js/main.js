@@ -48,10 +48,16 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         };
 
+        var nextSlide = function () {
+            activeIndex = (activeIndex + 1) % slides.length;
+            setActiveSlide(activeIndex);
+        };
+
         if (slides.length > 1) {
+            heroCarousel.addEventListener('click', nextSlide);
+
             window.setInterval(function () {
-                activeIndex = (activeIndex + 1) % slides.length;
-                setActiveSlide(activeIndex);
+                nextSlide();
             }, 3500);
         }
     }
