@@ -12,9 +12,9 @@ require_once __DIR__ . '/includes/header.php';
 <section class="page-hero">
     <div class="container">
         <div class="page-hero-card reveal">
-            <span class="eyebrow">Menu &amp; Packages</span>
-            <h1>Menu and package layout placeholder ready for final content</h1>
-            <p>Use this page to swap in your final menu names, dish images, package inclusions, and pricing while keeping the finished layout intact.</p>
+            <span class="eyebrow">Our Menu &amp; Packages</span>
+            <h1>Thoughtfully crafted catering menu and packages.</h1>
+            <p>Fixed pax or freestyle headcount—we’re all about serving good food that fits your kind of party.</p>
         </div>
     </div>
 </section>
@@ -25,7 +25,7 @@ require_once __DIR__ . '/includes/header.php';
             <div class="section-heading">
                 <div>
                     <span class="eyebrow">Menu Items</span>
-                    <h2>Editable food cards with placeholder media</h2>
+                    <h2>Generous portions made for sharing… or not, we won’t judge.</h2>
                 </div>
                 <a href="booking.php" class="button button-small">Book a Tray</a>
             </div>
@@ -52,7 +52,7 @@ require_once __DIR__ . '/includes/header.php';
             <div class="section-heading">
                 <div>
                     <span class="eyebrow">Packages</span>
-                    <h2>Package cards styled for later replacement</h2>
+                    <h2>Whatever the occasion, there’s a package ready to get the party started.</h2>
                 </div>
             </div>
             <div class="grid-3">

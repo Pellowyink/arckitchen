@@ -49,9 +49,9 @@ require_once __DIR__ . '/includes/header.php';
         <div class="section-card reveal">
             <div class="section-heading">
                 <div>
-                    <span class="eyebrow">Menu Placeholder</span>
-                    <h2>Menu layout section ready for your final food content</h2>
-                    <p>This section keeps the intended card layout and spacing while using editable placeholder dishes and descriptions.</p>
+                    <span class="eyebrow">Our Menu</span>
+                    <h2>Big portions for any occasion, with flexible choices to build your perfect spread.</h2>
+                    <p>Big crowd, small crew, or somewhere in between—we serve it up just how your party needs it.</p>
                 </div>
                 <a href="menu.php" class="button button-small">See Full Menu</a>
             </div>
@@ -77,9 +77,9 @@ require_once __DIR__ . '/includes/header.php';
         <div class="section-card reveal">
             <div class="section-heading">
                 <div>
-                    <span class="eyebrow">Package Placeholder</span>
-                    <h2>Package cards arranged for future content replacement</h2>
-                    <p>Use this section for your final package names, serving sizes, inclusions, and prices.</p>
+                    <span class="eyebrow">Our Packages</span>
+                    <h2>Thoughtfully crafted catering packages for every occasion and every budget.</h2>
+                    <p>Plans changing? Guests adding up? We roll with it so your catering stays spot-on.</p>
                 </div>
             </div>
             <div class="grid-3">

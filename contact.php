@@ -43,8 +43,8 @@ require_once __DIR__ . '/includes/header.php';
     <div class="container">
         <div class="page-hero-card reveal">
             <span class="eyebrow">Contact Us</span>
-            <h1>Contact page placeholder with final layout already in place</h1>
-            <p>Replace the text, contact details, and map image later while keeping the same spacing, card shape, and overall composition.</p>
+            <h1>Reach out to us for bookings, inquiries, and customized party packages—we’ll be happy to assist you in making your event memorable.</h1>
+            <p>We’d love to hear from you! Whether you’re planning a celebration, need a catering package, or have special requests, ARC Kitchen is ready to serve you.</p>
         </div>
     </div>
 </section>
@@ -55,7 +55,7 @@ require_once __DIR__ . '/includes/header.php';
             <div class="contact-grid">
                 <div class="form-card">
                     <h2>Get in touch!</h2>
-                    <p class="lead">Contact section placeholder copy. Replace this with your final support and inquiry message.</p>
+                    <p class="lead">We would love to hear from you. Reach us through any of the channels below.</p>
 
                     <?php if ($flashMessage): ?>
                         <div class="flash success"><?php echo escape($flashMessage); ?></div>
@@ -72,10 +72,10 @@ require_once __DIR__ . '/includes/header.php';
                     <?php endif; ?>
 
                     <div class="info-card spacer-bottom-md">
-                        <p><strong>Facebook:</strong> Social Link Placeholder</p>
-                        <p><strong>Address:</strong> Address Placeholder</p>
-                        <p><strong>Email:</strong> email@example.com</p>
-                        <p><strong>Phone:</strong> Phone Placeholder</p>
+                        <p><strong>Facebook:</strong> <a href="https://www.facebook.com/aRCsKitchen.2020" target="_blank" rel="noopener noreferrer"> facebook.com/aRCsKitchen.2020 </a> </p>
+                        <p><strong>Address:</strong> #1032 Marlboro Street, Villa Leoncia Subdivision, Santo Domingo, Angeles City</p>
+                        <p><strong>Email:</strong> <a href="mailto:arckitchen@gmail.com">arckitchen@gmail.com</p>
+                        <p><strong>Phone:</strong> 0975 272 1171</p>
                     </div>
 
                     <form method="post" data-validate>
