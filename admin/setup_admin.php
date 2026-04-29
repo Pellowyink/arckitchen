@@ -200,165 +200,193 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ARC Kitchen Admin Setup</title>
+    <title>Admin Setup - ARC Kitchen Admin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=League+Spartan:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../assets/css/style.css">
     <link rel="stylesheet" href="../assets/css/admin.css">
 </head>
 <body>
-    <div class="container">
-        <!-- Header -->
-        <div class="header">
-            <h1>🔐 ARC Kitchen Admin Setup</h1>
-            <p>Manage admin accounts and passwords securely</p>
-        </div>
+    <div class="admin-shell">
+        <?php require_once __DIR__ . '/../includes/admin_sidebar.php'; ?>
 
-        <!-- Security Warning -->
-        <div class="warning">
-            <div>
-                <strong>⚠️ SECURITY WARNING</strong>
-                <p>This setup page should only be accessed from localhost. <strong>Delete this file (setup_admin.php) immediately after setting up all admin accounts.</strong> Leaving it accessible is a serious security risk.</p>
+        <!-- Main Content -->
+        <main class="admin-main">
+            <div class="admin-header">
+                <h1 class="admin-title">⚙️ Admin Setup</h1>
             </div>
-        </div>
 
-        <!-- Messages -->
-        <?php if ($message): ?>
-            <div class="message <?php echo htmlspecialchars($message_type); ?>">
-                <?php echo $message; ?>
+            <!-- Security Warning -->
+            <div class="admin-card" style="border-left: 4px solid #f0a500; background: #fffbf0;">
+                <div style="display: flex; gap: 1rem; align-items: flex-start;">
+                    <span style="font-size: 1.5rem; line-height: 1;">⚠️</span>
+                    <div>
+                        <p style="font-weight: 700; color: #7a5200; margin-bottom: 0.35rem;">Security Warning</p>
+                        <p style="color: #7a5200; font-size: 0.875rem; line-height: 1.6;">
+                            This setup page is only accessible from localhost. 
+                            <strong>Delete <code style="background: rgba(0,0,0,0.07); padding: 0.1rem 0.35rem; border-radius: 4px;">setup_admin.php</code> immediately after setting up all admin accounts.</strong>
+                            Leaving it accessible is a serious security risk.
+                        </p>
+                    </div>
+                </div>
             </div>
-        <?php endif; ?>
 
-        <!-- Create New Admin Section -->
-        <div class="form-section">
-            <h2>➕ Create New Admin Account</h2>
-            <form method="post">
-                <input type="hidden" name="action" value="create">
-                
-                <div class="form-group">
-                    <label for="username">Username</label>
-                    <input 
-                        type="text" 
-                        id="username" 
-                        name="username" 
-                        placeholder="e.g., john_doe"
-                        required
-                    >
-                    <p class="help-text">Alphanumeric, dots, hyphens, and underscores. Min 3 characters.</p>
+            <!-- Alert Message -->
+            <?php if ($message): ?>
+            <div class="admin-card" style="border-left: 4px solid <?php echo $message_type === 'success' ? '#22a355' : '#dc3545'; ?>; background: <?php echo $message_type === 'success' ? '#f0faf4' : '#fff5f5'; ?>;">
+                <p style="color: <?php echo $message_type === 'success' ? '#155724' : '#721c24'; ?>; font-size: 0.9rem; line-height: 1.6;">
+                    <?php echo $message; ?>
+                </p>
+            </div>
+            <?php endif; ?>
+
+            <!-- Two-column: Create + Manage -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; align-items: start;">
+
+                <!-- Create New Admin -->
+                <div class="admin-card">
+                    <h2>➕ Create New Admin Account</h2>
+                    <form method="post" data-validate>
+                        <input type="hidden" name="action" value="create">
+                        <div class="form-group">
+                            <label class="form-label" for="username">Username</label>
+                            <input type="text" id="username" name="username" class="form-input" placeholder="e.g., john_doe" required>
+                            <p style="font-size: 0.78rem; color: var(--text-soft); margin-top: 0.35rem;">Alphanumeric, dots, hyphens, underscores. Min 3 characters.</p>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="full_name">Full Name</label>
+                            <input type="text" id="full_name" name="full_name" class="form-input" placeholder="e.g., John Doe" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="password">Password</label>
+                            <input type="password" id="password" name="password" class="form-input" placeholder="Minimum 8 characters" required>
+                            <p style="font-size: 0.78rem; color: var(--text-soft); margin-top: 0.35rem;">Use a strong password with mixed case, numbers, and symbols.</p>
+                        </div>
+                        <div style="display: flex; gap: 0.75rem; margin-top: 1.25rem;">
+                            <button type="submit" class="btn-admin btn-primary-admin" style="flex: 1;">Create Account</button>
+                            <button type="reset" class="btn-admin btn-secondary-admin">Clear</button>
+                        </div>
+                    </form>
                 </div>
 
-                <div class="form-group">
-                    <label for="full_name">Full Name</label>
-                    <input 
-                        type="text" 
-                        id="full_name" 
-                        name="full_name" 
-                        placeholder="e.g., John Doe"
-                        required
-                    >
+                <!-- Info Panel -->
+                <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+                    <!-- Default Credentials -->
+                    <div class="admin-card" style="border-left: 4px solid #dc3545;">
+                        <h2 style="color: #dc3545;">🔑 Default Credentials</h2>
+                        <p style="font-size: 0.875rem; color: var(--text-soft); margin-bottom: 0.75rem;">Created during initial database setup:</p>
+                        <table style="width: 100%; font-size: 0.875rem; border-collapse: collapse;">
+                            <tr>
+                                <td style="padding: 0.4rem 0; color: var(--text-soft); width: 35%;">Username</td>
+                                <td><code style="background: rgba(53,21,15,0.07); padding: 0.2rem 0.5rem; border-radius: 5px; font-size: 0.82rem;">admin</code></td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.4rem 0; color: var(--text-soft);">Password</td>
+                                <td><code style="background: rgba(53,21,15,0.07); padding: 0.2rem 0.5rem; border-radius: 5px; font-size: 0.82rem;">admin123</code></td>
+                            </tr>
+                        </table>
+                        <p style="font-size: 0.8rem; color: #dc3545; font-weight: 700; margin-top: 0.75rem;">⚠️ Change this password immediately!</p>
+                    </div>
+
+                    <!-- Security Info -->
+                    <div class="admin-card">
+                        <h2>🔒 Password Security</h2>
+                        <p style="font-size: 0.875rem; color: var(--text-soft); margin-bottom: 0.75rem;">
+                            Passwords use <strong>bcrypt</strong> (PHP PASSWORD_DEFAULT):
+                        </p>
+                        <ul style="list-style: none; padding: 0; display: flex; flex-direction: column; gap: 0.4rem;">
+                            <?php foreach ([
+                                'Industry standard secure hashing',
+                                'Resistant to GPU attacks',
+                                'Automatically salted',
+                                'Future-proof algorithm upgrades',
+                            ] as $point): ?>
+                            <li style="font-size: 0.82rem; color: var(--text-soft); display: flex; gap: 0.5rem; align-items: center;">
+                                <span style="color: #22a355; font-size: 0.9rem;">✅</span> <?php echo $point; ?>
+                            </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </div>
+
+                    <!-- When to delete -->
+                    <div class="admin-card">
+                        <h2>🗑️ When to Delete This File</h2>
+                        <ul style="list-style: none; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.5rem;">
+                            <?php foreach ([
+                                'All admin accounts created',
+                                'Logins tested and working',
+                                'Default password changed',
+                                'Moving to production',
+                            ] as $step): ?>
+                            <li style="font-size: 0.82rem; color: var(--text-soft); display: flex; gap: 0.5rem; align-items: center;">
+                                <span style="color: #22a355;">✅</span> <?php echo $step; ?>
+                            </li>
+                            <?php endforeach; ?>
+                        </ul>
+                        <p style="font-size: 0.8rem; margin-top: 0.9rem; color: var(--text-soft);">
+                            Login page: 
+                            <code style="background: rgba(53,21,15,0.07); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.78rem; word-break: break-all;">
+                                <?php echo htmlspecialchars($_SERVER['HTTP_HOST'] ?? 'localhost'); ?>/arckitchen/admin/login.php
+                            </code>
+                        </p>
+                    </div>
                 </div>
+            </div>
 
-                <div class="form-group">
-                    <label for="password">Password</label>
-                    <input 
-                        type="password" 
-                        id="password" 
-                        name="password" 
-                        placeholder="Minimum 8 characters"
-                        required
-                    >
-                    <p class="help-text">Use a strong password with mixed case, numbers, and symbols.</p>
-                </div>
+            <!-- Manage Existing Admins -->
+            <?php if (!empty($all_admins)): ?>
+            <div class="admin-card" style="margin-top: 0;">
+                <h2>👥 Manage Admin Accounts <span style="font-size: 0.9rem; font-weight: 500; opacity: 0.6;">(<?php echo count($all_admins); ?>)</span></h2>
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Full Name</th>
+                            <th>Created</th>
+                            <th>Reset Password</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($all_admins as $admin): ?>
+                        <tr>
+                            <td>
+                                <code style="background: rgba(53,21,15,0.07); padding: 0.2rem 0.5rem; border-radius: 5px; font-size: 0.82rem; font-family: monospace;">
+                                    <?php echo htmlspecialchars($admin['username']); ?>
+                                </code>
+                            </td>
+                            <td><strong><?php echo htmlspecialchars($admin['full_name'] ?? 'N/A'); ?></strong></td>
+                            <td><?php echo date('M d, Y', strtotime($admin['created_at'])); ?></td>
+                            <td>
+                                <form method="post" style="display: inline-flex; gap: 0.5rem; align-items: center;">
+                                    <input type="hidden" name="action" value="reset_password">
+                                    <input type="hidden" name="admin_id" value="<?php echo $admin['id']; ?>">
+                                    <input type="password" name="new_password" class="form-input" placeholder="New password" style="width: 160px; padding: 0.4rem 0.65rem; font-size: 0.82rem;" required>
+                                    <button type="submit" class="btn-admin btn-primary-admin btn-small">Reset</button>
+                                </form>
+                            </td>
+                            <td>
+                                <?php if (count($all_admins) > 1): ?>
+                                <form method="post" style="display: inline;" onsubmit="return confirm('Delete this admin account?');">
+                                    <input type="hidden" name="action" value="delete">
+                                    <input type="hidden" name="admin_id" value="<?php echo $admin['id']; ?>">
+                                    <button type="submit" class="btn-admin btn-small" style="background: #dc3545; color: #fff; border: none;">Delete</button>
+                                </form>
+                                <?php else: ?>
+                                <span style="font-size: 0.78rem; color: var(--text-soft);">Last admin</span>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <?php endif; ?>
 
-                <div class="button-group">
-                    <button type="submit" class="btn-primary">Create Admin Account</button>
-                    <button type="reset" class="btn-secondary">Clear Form</button>
-                </div>
-            </form>
-        </div>
-
-        <!-- Manage Admin Accounts Section -->
-        <?php if (!empty($all_admins)): ?>
-        <div class="form-section">
-            <h2>👥 Manage Admin Accounts (<?php echo count($all_admins); ?>)</h2>
-            
-            <table class="admins-table">
-                <thead>
-                    <tr>
-                        <th>Username</th>
-                        <th>Full Name</th>
-                        <th>Created</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($all_admins as $admin): ?>
-                    <tr>
-                        <td><code class="code"><?php echo htmlspecialchars($admin['username']); ?></code></td>
-                        <td><?php echo htmlspecialchars($admin['full_name'] ?? 'N/A'); ?></td>
-                        <td><?php echo date('M d, Y', strtotime($admin['created_at'])); ?></td>
-                        <td>
-                            <!-- Reset Password Form -->
-                            <form method="post" style="display: inline;">
-                                <input type="hidden" name="action" value="reset_password">
-                                <input type="hidden" name="admin_id" value="<?php echo $admin['id']; ?>">
-                                <input 
-                                    type="password" 
-                                    name="new_password" 
-                                    placeholder="New password"
-                                    style="width: 150px; display: inline-block; margin-right: 0.5rem;"
-                                    required
-                                >
-                                <button type="submit" class="btn-secondary" style="padding: 0.5rem 0.75rem; font-size: 0.85rem;">Reset</button>
-                            </form>
-                            
-                            <!-- Delete Form -->
-                            <?php if (count($all_admins) > 1): ?>
-                            <form method="post" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this admin account?');">
-                                <input type="hidden" name="action" value="delete">
-                                <input type="hidden" name="admin_id" value="<?php echo $admin['id']; ?>">
-                                <button type="submit" class="btn-danger">Delete</button>
-                            </form>
-                            <?php endif; ?>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-        <?php endif; ?>
-
-        <!-- Info Section -->
-        <div class="form-section">
-            <h2>ℹ️ Setup Information</h2>
-            
-            <h3 style="color: #333; margin-top: 1rem; margin-bottom: 0.75rem;">Default Admin Account</h3>
-            <p>The following account was created during initial database setup:</p>
-            <ul style="margin-left: 2rem; margin-top: 0.5rem;">
-                <li><strong>Username:</strong> <code class="code">admin</code></li>
-                <li><strong>Password:</strong> <code class="code">admin123</code></li>
-            </ul>
-            <p style="color: #dc3545; font-weight: 600; margin-top: 1rem;">⚠️ Change this password immediately!</p>
-
-            <h3 style="color: #333; margin-top: 1.5rem; margin-bottom: 0.75rem;">Password Security</h3>
-            <p>All passwords are hashed using <strong>bcrypt</strong> (PHP's PASSWORD_DEFAULT), which is:</p>
-            <ul style="margin-left: 2rem; margin-top: 0.5rem;">
-                <li>✅ Industry standard secure hashing</li>
-                <li>✅ Resistant to GPU attacks (high computation cost)</li>
-                <li>✅ Automatically salted</li>
-                <li>✅ Future-proof (PHP will upgrade algorithm as needed)</li>
-            </ul>
-
-            <h3 style="color: #333; margin-top: 1.5rem; margin-bottom: 0.75rem;">When to Delete This File</h3>
-            <p>Delete <code class="code">setup_admin.php</code> after:</p>
-            <ul style="margin-left: 2rem; margin-top: 0.5rem;">
-                <li>✅ Creating all necessary admin accounts</li>
-                <li>✅ Testing that logins work correctly</li>
-                <li>✅ Changing the default admin password</li>
-                <li>✅ Moving to production</li>
-            </ul>
-
-            <h3 style="color: #333; margin-top: 1.5rem; margin-bottom: 0.75rem;">Login Page</h3>
-            <p>Your admin login is at: <code class="code"><?php echo htmlspecialchars($_SERVER['HTTP_HOST'] ?? 'localhost'); ?>/arckitchen/admin/login.php</code></p>
-        </div>
+        </main>
     </div>
+
+    <script src="../assets/js/main.js"></script>
 </body>
 </html>

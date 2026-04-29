@@ -76,7 +76,7 @@ $packages = getPackages();?><!DOCTYPE html>
                             <label for="menu_image">Image Path</label>
                             <input id="menu_image" name="image" type="text" class="form-input" placeholder="assets/images/food-placeholder.svg">
                         </div>
-                        <button type="submit" class="btn-admin btn-primary-admin" style="width: 100%;">Save Menu Item</button>
+                        <button type="submit" class="btn-admin btn-primary-admin" style="width: 100%; margin-top: 0.5rem; padding: 0.75rem 1rem;">Save Menu Item</button>
                     </form>
                 </div>
 
@@ -101,7 +101,7 @@ $packages = getPackages();?><!DOCTYPE html>
                             <label for="serves">Serves</label>
                             <input id="serves" name="serves" type="text" class="form-input" placeholder="e.g., 20 - 30 pax" required>
                         </div>
-                        <button type="submit" class="btn-admin btn-primary-admin" style="width: 100%;">Save Package</button>
+                        <button type="submit" class="btn-admin btn-primary-admin" style="width: 100%; margin-top: 0.5rem; padding: 0.75rem 1rem;">Save Package</button>
                     </form>
                 </div>
             </div>
@@ -187,4 +187,3 @@ $packages = getPackages();?><!DOCTYPE html>
     <script src="../assets/js/main.js"></script>
 </body>
 </html>
-
