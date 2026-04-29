@@ -1,7 +1,7 @@
 <?php
 
 require_once __DIR__ . '/../includes/functions.php';
-requireAdmin();
+require_once __DIR__ . '/../includes/admin_sidebar.php';
 
 if (isPostRequest()) {
     $action = $_POST['action'] ?? '';
@@ -19,48 +19,36 @@ if (isPostRequest()) {
 }
 
 $inquiries = getInquiries();
-$page = basename($_SERVER['PHP_SELF']);
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ARC Kitchen Admin Bookings</title>
+    <title>Bookings - ARC Kitchen Admin</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=League+Spartan:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../assets/css/style.css">
 </head>
 <body>
-    <div class="admin-layout">
-        <aside class="admin-sidebar">
-            <div class="brand brand-light">
-                <span class="brand-mark" aria-hidden="true">
-                    <img src="../assets/images/arc-logo.png" alt="ARC Kitchen logo" class="brand-logo-image">
-                </span>
-                <span>ARC Kitchen</span>
-            </div>
-            <div class="sidebar-note">Booking controls</div>
-            <nav>
-                <a href="dashboard.php">Dashboard</a>
-                <a href="bookings.php" class="<?php echo $page === 'bookings.php' ? 'active' : ''; ?>">Bookings</a>
-                <a href="menu-manager.php">Menu Manager</a>
-                <a href="logout.php">Logout</a>
-            </nav>
-        </aside>
-
+    <div class="admin-shell">
+        <!-- Main Content -->
         <main class="admin-main">
-            <h1 class="admin-title">Manage Inquiries</h1>
-            <div class="table-card">
+            <div class="admin-header">
+                <h1 class="admin-title">📅 Manage Bookings</h1>
+            </div>
+
+            <!-- Bookings Table Card -->
+            <div class="admin-card">
                 <?php if ($inquiries): ?>
-                    <table>
+                    <table class="admin-table">
                         <thead>
                             <tr>
                                 <th>Client</th>
-                                <th>Event</th>
+                                <th>Event Type</th>
+                                <th>Date</th>
                                 <th>Guests</th>
-                                <th>Preferred Package</th>
                                 <th>Status</th>
                                 <th>Actions</th>
                             </tr>
@@ -70,49 +58,46 @@ $page = basename($_SERVER['PHP_SELF']);
                                 <tr>
                                     <td>
                                         <strong><?php echo escape($inquiry['full_name']); ?></strong><br>
-                                        <?php echo escape($inquiry['email']); ?><br>
-                                        <?php echo escape($inquiry['phone']); ?>
+                                        <small><?php echo escape($inquiry['email']); ?></small><br>
+                                        <small><?php echo escape($inquiry['phone']); ?></small>
                                     </td>
+                                    <td><?php echo escape($inquiry['event_type']); ?></td>
+                                    <td><?php echo date('M d, Y', strtotime($inquiry['event_date'])); ?></td>
+                                    <td><?php echo (int)$inquiry['guest_count']; ?> pax</td>
                                     <td>
-                                        <?php echo escape($inquiry['event_type']); ?><br>
-                                        <small><?php echo escape($inquiry['event_date']); ?></small>
-                                    </td>
-                                    <td><?php echo escape((string) $inquiry['guest_count']); ?></td>
-                                    <td><?php echo escape($inquiry['package_interest']); ?></td>
-                                    <td>
-                                        <form method="post">
+                                        <form method="post" style="display: inline-flex; gap: 0.5rem; align-items: center;">
                                             <input type="hidden" name="action" value="update_status">
                                             <input type="hidden" name="id" value="<?php echo (int) $inquiry['id']; ?>">
-                                            <select name="status">
+                                            <select name="status" style="padding: 0.4rem; border-radius: 6px; border: 1px solid rgba(53, 21, 15, 0.15); font-size: 0.85rem;">
                                                 <?php foreach (bookingStatuses() as $status): ?>
                                                     <option value="<?php echo escape($status); ?>" <?php echo $status === $inquiry['status'] ? 'selected' : ''; ?>>
                                                         <?php echo escape($status); ?>
                                                     </option>
                                                 <?php endforeach; ?>
                                             </select>
-                                            <button type="submit" class="button button-small spacer-top-sm">Update</button>
+                                            <button type="submit" class="btn-admin btn-primary-admin btn-small">Save</button>
                                         </form>
                                     </td>
                                     <td>
-                                        <div class="table-actions">
-                                            <form method="post">
-                                                <input type="hidden" name="action" value="delete">
-                                                <input type="hidden" name="id" value="<?php echo (int) $inquiry['id']; ?>">
-                                                <button type="submit" class="button button-small">Delete</button>
-                                            </form>
-                                        </div>
+                                        <form method="post" style="display: inline;">
+                                            <input type="hidden" name="action" value="delete">
+                                            <input type="hidden" name="id" value="<?php echo (int) $inquiry['id']; ?>">
+                                            <button type="submit" class="btn-admin btn-secondary-admin btn-small" onclick="return confirm('Are you sure?');">Delete</button>
+                                        </form>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
                     </table>
                 <?php else: ?>
-                    <div class="empty-state">No inquiries found yet. Submit a booking form from the customer site to populate this list.</div>
+                    <div class="empty-state">
+                        <p>📭 No bookings found yet.</p>
+                    </div>
                 <?php endif; ?>
             </div>
         </main>
     </div>
+
     <script src="../assets/js/main.js"></script>
 </body>
 </html>
-

@@ -1,9 +1,8 @@
 <?php
 
 require_once __DIR__ . '/../includes/functions.php';
-requireAdmin();
+require_once __DIR__ . '/../includes/admin_sidebar.php';
 
-$page = basename($_SERVER['PHP_SELF']);
 $inquiries = getInquiries();
 $messages = getContactMessages();
 ?>
@@ -12,42 +11,125 @@ $messages = getContactMessages();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ARC Kitchen Admin Dashboard</title>
+    <title>Dashboard - ARC Kitchen Admin</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=League+Spartan:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../assets/css/style.css">
 </head>
 <body>
-    <div class="admin-layout">
-        <aside class="admin-sidebar">
-            <div class="brand brand-light">
-                <span class="brand-mark" aria-hidden="true">
-                    <img src="../assets/images/arc-logo.png" alt="ARC Kitchen logo" class="brand-logo-image">
-                </span>
-                <span>ARC Kitchen</span>
-            </div>
-            <div class="sidebar-note">
-                Logged in as <strong><?php echo escape($_SESSION['admin_username'] ?? 'admin'); ?></strong>
-            </div>
-            <nav>
-                <a href="dashboard.php" class="<?php echo $page === 'dashboard.php' ? 'active' : ''; ?>">Dashboard</a>
-                <a href="bookings.php">Bookings</a>
-                <a href="menu-manager.php">Menu Manager</a>
-                <a href="logout.php">Logout</a>
-            </nav>
-        </aside>
+    <div class="admin-shell">
+        <!-- Sidebar (included via admin_sidebar.php) -->
 
+        <!-- Main Content -->
         <main class="admin-main">
-            <h1 class="admin-title">Dashboard Overview</h1>
+            <div class="admin-header">
+                <h1 class="admin-title">Dashboard Overview</h1>
+            </div>
+
+            <!-- Stats Grid -->
             <div class="stats-grid">
-                <div class="metric-card">
-                    <span>Total Inquiries</span>
-                    <strong><?php echo countRows('inquiries'); ?></strong>
+                <div class="stat-card">
+                    <div class="stat-icon">📋</div>
+                    <div class="stat-label">Total Inquiries</div>
+                    <div class="stat-value"><?php echo countRows('inquiries'); ?></div>
                 </div>
-                <div class="metric-card">
-                    <span>Contact Messages</span>
-                    <strong><?php echo countRows('contact_messages'); ?></strong>
+                <div class="stat-card">
+                    <div class="stat-icon">💬</div>
+                    <div class="stat-label">Contact Messages</div>
+                    <div class="stat-value"><?php echo countRows('contact_messages'); ?></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">🍽️</div>
+                    <div class="stat-label">Menu Items</div>
+                    <div class="stat-value"><?php echo countRows('menu_items'); ?></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">📦</div>
+                    <div class="stat-label">Packages</div>
+                    <div class="stat-value"><?php echo countRows('packages'); ?></div>
+                </div>
+            </div>
+
+            <!-- Recent Inquiries Card -->
+            <div class="admin-card">
+                <h2>📋 Recent Inquiries</h2>
+                <?php if (!empty($inquiries)): ?>
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Customer</th>
+                                <th>Email</th>
+                                <th>Event Date</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach (array_slice($inquiries, 0, 5) as $inquiry): ?>
+                            <tr>
+                                <td><strong><?php echo escape($inquiry['full_name']); ?></strong></td>
+                                <td><?php echo escape($inquiry['email']); ?></td>
+                                <td><?php echo date('M d, Y', strtotime($inquiry['event_date'])); ?></td>
+                                <td>
+                                    <span class="badge badge-<?php echo strtolower($inquiry['status']); ?>">
+                                        <?php echo escape($inquiry['status']); ?>
+                                    </span>
+                                </td>
+                                <td>
+                                    <a href="inquiries.php" class="btn-admin btn-secondary-admin btn-small">View</a>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                <?php else: ?>
+                    <div class="empty-state">
+                        <p>No inquiries yet. Check back later!</p>
+                    </div>
+                <?php endif; ?>
+            </div>
+
+            <!-- Recent Messages Card -->
+            <div class="admin-card">
+                <h2>💬 Recent Contact Messages</h2>
+                <?php if (!empty($messages)): ?>
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Subject</th>
+                                <th>Date</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach (array_slice($messages, 0, 5) as $message): ?>
+                            <tr>
+                                <td><strong><?php echo escape($message['full_name']); ?></strong></td>
+                                <td><?php echo escape($message['email']); ?></td>
+                                <td><?php echo escape($message['subject']); ?></td>
+                                <td><?php echo date('M d, Y', strtotime($message['created_at'])); ?></td>
+                                <td>
+                                    <a href="#" class="btn-admin btn-secondary-admin btn-small">View</a>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                <?php else: ?>
+                    <div class="empty-state">
+                        <p>No contact messages yet.</p>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </main>
+    </div>
+
+    <script src="../assets/js/main.js"></script>
+</body>
+</html>
                 </div>
                 <div class="metric-card">
                     <span>Menu Items</span>

@@ -8,14 +8,14 @@
                 </span>
                 <div>
                     <h3>ARC Kitchen</h3>
-                    <p>Placeholder brand footer copy. Replace this text with your final brand message later.</p>
+                    <p>Got questions? We’re just a message away.</p>
                 </div>
             </div>
 
             <div class="footer-contact">
-                <p><strong>Call:</strong> Phone Placeholder</p>
-                <p><strong>Visit:</strong> Address Placeholder</p>
-                <p><strong>Email:</strong> email@example.com</p>
+                <p><strong>Call:</strong> 0975 272 1171</p>
+                <p><strong>Visit:</strong> Marlboro Street, Villa Leoncia Subdivision, Santo Domingo, Angeles City</p>
+                <p><strong>Email:</strong> arckitchen@gmail.com</p>
             </div>
 
             <div class="footer-action">

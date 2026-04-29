@@ -640,12 +640,187 @@ textarea:focus {
     display: grid;
     place-items: center;
     padding: 2rem 1rem;
-    background: radial-gradient(circle at top, rgba(213, 164, 55, 0.16), transparent 35%), linear-gradient(180deg, #fffaf1, #f7ead8);
+    background: #6c1d12;
+    background-image: 
+        radial-gradient(circle at 20% 30%, rgba(108, 29, 18, 0.8) 0%, transparent 40%),
+        radial-gradient(circle at 80% 70%, rgba(108, 29, 18, 0.8) 0%, transparent 40%);
 }
 
 .auth-card {
-    width: min(460px, 100%);
-    padding: 2.25rem;
+    width: min(480px, 100%);
+    padding: 3rem;
+    background: var(--surface);
+    border-radius: 32px;
+    box-shadow: 0 32px 64px rgba(0, 0, 0, 0.32);
+    animation: slideUp 0.6s ease-out;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(24px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.auth-header {
+    text-align: center;
+    margin-bottom: 2.5rem;
+}
+
+.auth-brand {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 1.25rem;
+}
+
+.auth-brand .brand-mark {
+    width: 80px;
+    height: 80px;
+}
+
+.auth-header h1 {
+    margin: 1rem 0 0.5rem;
+    font-size: 2rem;
+    font-family: 'League Spartan', sans-serif;
+    font-weight: 700;
+    color: var(--surface-dark);
+}
+
+.auth-subtitle {
+    margin: 0.5rem 0 0;
+    font-size: 0.95rem;
+    color: var(--text-soft);
+    font-weight: 500;
+}
+
+.auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.form-label {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-soft);
+}
+
+.form-input {
+    padding: 0.85rem 1rem;
+    border: 1px solid rgba(53, 21, 15, 0.15);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text);
+    font-size: 1rem;
+    font-family: inherit;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(213, 164, 55, 0.1);
+}
+
+.form-input::placeholder {
+    color: rgba(53, 21, 15, 0.5);
+}
+
+.password-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.password-wrapper .form-input {
+    flex: 1;
+    padding-right: 2.5rem;
+}
+
+.password-toggle {
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-soft);
+    transition: color 0.2s;
+}
+
+.password-toggle:hover {
+    color: var(--text);
+}
+
+.eye-icon {
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+}
+
+.auth-button {
+    padding: 1rem 1.5rem;
+    background: #8a2927;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s;
+}
+
+.auth-button:hover {
+    background: #7a2420;
+}
+
+.auth-button:active {
+    transform: scale(0.98);
+}
+
+.auth-footer {
+    text-align: center;
+}
+
+.auth-link {
+    font-size: 0.95rem;
+    color: var(--surface-dark);
+    font-weight: 500;
+    transition: color 0.2s;
+}
+
+.auth-link:hover {
+    color: #8a2927;
+}
+
+.alert {
+    padding: 1rem 1.25rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+    font-size: 0.95rem;
+}
+
+.alert-error {
+    background: rgba(138, 41, 39, 0.1);
+    color: #8a2927;
+    border: 1px solid rgba(138, 41, 39, 0.2);
 }
 
 .admin-layout {
@@ -821,6 +996,445 @@ th {
 
     .hero-actions .button-outline {
         width: 100%;
+    }
+}
+
+/* =====================================================
+   ADMIN SIDEBAR & DASHBOARD STYLES
+   ===================================================== */
+
+.admin-sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 280px;
+    height: 100vh;
+    background: linear-gradient(180deg, var(--surface-dark) 0%, var(--surface-dark-2) 100%);
+    color: #fff;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    z-index: 40;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+.sidebar-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(0, 0, 0, 0.15);
+}
+
+.brand-admin {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    color: #fff;
+}
+
+.brand-admin .brand-mark {
+    width: 60px;
+    height: 60px;
+    padding: 0.5rem;
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.brand-text {
+    display: flex;
+    flex-direction: column;
+}
+
+.brand-name {
+    font-size: 1.1rem;
+    font-weight: 700;
+    font-family: 'League Spartan', sans-serif;
+    letter-spacing: -0.02em;
+}
+
+.brand-subtitle {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.7);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.sidebar-user-info {
+    padding: 1rem 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.user-avatar {
+    font-size: 1.8rem;
+    min-width: 40px;
+    text-align: center;
+}
+
+.user-details {
+    flex: 1;
+    min-width: 0;
+}
+
+.user-name {
+    font-size: 0.9rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.user-role {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.6);
+    margin-top: 0.2rem;
+}
+
+.sidebar-nav {
+    flex: 1;
+    padding: 1.5rem 0;
+    overflow-y: auto;
+}
+
+.nav-group {
+    margin-bottom: 1rem;
+}
+
+.nav-group:first-child {
+    margin-top: 0;
+}
+
+.nav-group-label {
+    padding: 0 1.5rem 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.5);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.nav-items {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.nav-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    margin: 0 0.75rem;
+    color: rgba(255, 255, 255, 0.8);
+    font-weight: 500;
+    font-size: 0.95rem;
+    border-radius: 16px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.nav-item:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+    transform: translateX(4px);
+}
+
+.nav-item.active {
+    background: #8a2927;
+    color: #fff;
+    font-weight: 600;
+    box-shadow: 0 4px 12px rgba(138, 41, 39, 0.3);
+}
+
+.nav-icon {
+    font-size: 1.2rem;
+    min-width: 24px;
+    text-align: center;
+}
+
+.nav-label {
+    flex: 1;
+}
+
+.sidebar-footer {
+    padding: 1.5rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    text-align: center;
+}
+
+.sidebar-version {
+    margin: 0;
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+/* Admin Layout */
+.admin-shell {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    min-height: 100vh;
+}
+
+.admin-main {
+    padding: 2rem;
+    background: linear-gradient(135deg, #f7f1e7 0%, #f3ebe0 100%);
+    overflow-y: auto;
+}
+
+.admin-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 2rem;
+}
+
+.admin-title {
+    font-size: 2rem;
+    margin: 0;
+    color: var(--surface-dark);
+}
+
+/* Admin Cards */
+.admin-card {
+    background: var(--surface);
+    border-radius: 24px;
+    padding: 2rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    margin-bottom: 1.5rem;
+}
+
+.admin-card h2 {
+    font-size: 1.3rem;
+    color: var(--surface-dark);
+    margin: 0 0 1.5rem;
+    font-family: 'League Spartan', sans-serif;
+}
+
+/* Admin Table */
+.admin-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--surface);
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    margin-bottom: 1.5rem;
+}
+
+.admin-table thead {
+    background: linear-gradient(135deg, #f7f1e7 0%, #f3ebe0 100%);
+}
+
+.admin-table th {
+    padding: 1rem;
+    font-weight: 600;
+    color: var(--surface-dark);
+    text-align: left;
+    border-bottom: 2px solid rgba(53, 21, 15, 0.08);
+    font-family: 'League Spartan', sans-serif;
+}
+
+.admin-table td {
+    padding: 1rem;
+    border-bottom: 1px solid rgba(53, 21, 15, 0.06);
+    color: var(--text);
+}
+
+.admin-table tbody tr:hover {
+    background: rgba(213, 164, 55, 0.04);
+}
+
+/* Admin Status Badges */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.4rem 0.85rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.badge-pending {
+    background: rgba(255, 193, 7, 0.15);
+    color: #f57f17;
+}
+
+.badge-confirmed {
+    background: rgba(76, 175, 80, 0.15);
+    color: #2e7d32;
+}
+
+.badge-completed {
+    background: rgba(63, 81, 181, 0.15);
+    color: #1a237e;
+}
+
+.badge-cancelled {
+    background: rgba(244, 67, 54, 0.15);
+    color: #b71c1c;
+}
+
+/* Admin Buttons */
+.btn-admin {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.6rem 1rem;
+    border: none;
+    border-radius: 14px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: inherit;
+}
+
+.btn-primary-admin {
+    background: #8a2927;
+    color: white;
+}
+
+.btn-primary-admin:hover {
+    background: #7a2420;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(138, 41, 39, 0.25);
+}
+
+.btn-secondary-admin {
+    background: rgba(213, 164, 55, 0.15);
+    color: var(--surface-dark);
+}
+
+.btn-secondary-admin:hover {
+    background: rgba(213, 164, 55, 0.25);
+}
+
+.btn-small {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85rem;
+}
+
+/* Dashboard Stats */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.stat-card {
+    background: var(--surface);
+    border-radius: 20px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.stat-label {
+    font-size: 0.9rem;
+    color: var(--text-soft);
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    font-family: 'League Spartan', sans-serif;
+    color: var(--surface-dark);
+}
+
+.stat-icon {
+    font-size: 1.8rem;
+    margin-bottom: 0.5rem;
+}
+
+/* Responsive Admin */
+@media (max-width: 1024px) {
+    .admin-shell {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-sidebar {
+        width: 240px;
+        position: fixed;
+        left: -240px;
+        transition: left 0.3s ease;
+    }
+
+    .admin-sidebar.is-open {
+        left: 0;
+    }
+
+    .admin-main {
+        padding: 1.5rem;
+    }
+
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .admin-shell {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-sidebar {
+        width: 240px;
+    }
+
+    .admin-main {
+        padding: 1rem;
+    }
+
+    .admin-title {
+        font-size: 1.5rem;
+    }
+
+    .admin-card {
+        padding: 1.5rem;
+    }
+
+    .admin-table {
+        font-size: 0.9rem;
+    }
+
+    .admin-table th,
+    .admin-table td {
+        padding: 0.75rem;
+    }
+
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .btn-admin {
+        padding: 0.5rem 0.8rem;
+        font-size: 0.85rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .admin-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .admin-title {
+        font-size: 1.3rem;
+    }
+
+    .admin-card {
+        padding: 1rem;
+    }
+
+    .badge {
+        padding: 0.35rem 0.65rem;
+        font-size: 0.75rem;
     }
 }
 

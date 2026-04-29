@@ -1,4 +1,20 @@
 document.addEventListener('DOMContentLoaded', function () {
+    // Password visibility toggle
+    var passwordToggles = document.querySelectorAll('[data-password-toggle]');
+    passwordToggles.forEach(function (toggle) {
+        toggle.addEventListener('click', function (event) {
+            event.preventDefault();
+            var passwordInput = toggle.parentElement.querySelector('input[type="password"], input[type="text"]');
+            if (passwordInput) {
+                var isPassword = passwordInput.type === 'password';
+                passwordInput.type = isPassword ? 'text' : 'password';
+                toggle.setAttribute('aria-pressed', isPassword);
+                toggle.classList.toggle('is-visible');
+            }
+        });
+    });
+
+    // Navigation menu toggle
     var toggleButton = document.querySelector('[data-nav-toggle]');
     var navMenu = document.querySelector('[data-nav-menu]');
 
