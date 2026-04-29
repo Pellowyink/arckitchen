@@ -8,6 +8,10 @@
  * 3. View all admin accounts
  * 
  * SECURITY WARNING: Delete this file after creating all admin accounts!
+ */
+
+require_once __DIR__ . '/../includes/functions.php';
+requireAdminCheck();
  * This script should NOT be left accessible on a production server.
  * 
  * Usage: Navigate to http://localhost/arckitchen/admin/setup_admin.php

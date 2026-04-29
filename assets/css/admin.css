@@ -149,6 +149,29 @@
     font-size: 1.1rem;
     font-weight: 700;
     margin: 0 0 1.25rem;
+}
+
+/* Card header for section titles */
+.card-header {
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid rgba(138, 41, 39, 0.1);
+}
+
+.card-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #4a1414;
+    margin: 0 0 0.35rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.card-subtitle {
+    font-size: 0.85rem;
+    color: #666;
+    margin: 0;
     letter-spacing: -0.01em;
 }
 
@@ -174,38 +197,42 @@
 /* ── Stat cards ──────────────────────────────────── */
 
 .stats-grid {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
     gap: 1rem;
-    margin-bottom: 1.25rem;
+    margin-bottom: 1.5rem;
 }
 
 .stat-card {
-    border-radius: 14px;
-    padding: 1.25rem 1.5rem;
+    border-radius: 16px;
+    padding: 1.4rem 1.5rem 1.25rem;
     min-width: 0;
-    flex: 0 0 200px;
-    max-width: 220px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
 }
 
 .stat-icon {
-    font-size: 1.5rem;
+    font-size: 1.6rem;
     margin-bottom: 0.5rem;
+    line-height: 1;
 }
 
 .stat-label {
-    font-size: 0.75rem;
-    font-weight: 600;
+    font-size: 0.68rem;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
-    margin-bottom: 0.4rem;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.3rem;
     opacity: 0.7;
+    line-height: 1.3;
 }
 
 .stat-value {
-    font-size: 2rem;
-    font-weight: 700;
+    font-size: 2.2rem;
+    font-weight: 800;
     line-height: 1;
+    margin-bottom: 0.15rem;
 }
 
 
@@ -558,4 +585,354 @@
     .admin-card {
         padding: 1rem;
     }
+}
+
+/* =====================================================
+   NEW: UNIFIED FILTER BAR STYLING
+   ===================================================== */
+
+.filter-bar {
+    background: white;
+    border-radius: 14px;
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+}
+
+.filter-section {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: flex-end;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 160px;
+}
+
+.filter-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #4a1414;
+    margin-bottom: 0.4rem;
+}
+
+.filter-input {
+    padding: 0.6rem 0.8rem;
+    border: 1px solid #d5a437;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-family: inherit;
+    background: white;
+    color: #333;
+    transition: all 0.2s ease;
+}
+
+.filter-input:focus {
+    outline: none;
+    border-color: #8a2927;
+    box-shadow: 0 0 0 3px rgba(138, 41, 39, 0.1);
+}
+
+.btn-filter-clear,
+.btn-filter-sort {
+    padding: 0.6rem 1rem;
+    border: 1px solid #d5a437;
+    border-radius: 8px;
+    background: white;
+    color: #4a1414;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-filter-clear:hover,
+.btn-filter-sort:hover {
+    background: #f5f1eb;
+    border-color: #8a2927;
+}
+
+.filter-info {
+    padding: 0.8rem 1rem;
+    background: rgba(138, 41, 39, 0.08);
+    border-left: 3px solid #8a2927;
+    border-radius: 6px;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+    color: #333;
+}
+
+/* =====================================================
+   STATE MACHINE STATUS CARD COLORS
+   ===================================================== */
+
+/* Pending Inquiries - Orange */
+.stat-card-inquiries {
+    background: linear-gradient(135deg, #fff5eb 0%, #ffe8d6 100%);
+    border: 1px solid #ffcc99;
+    color: #b8400b;
+}
+
+.stat-card-inquiries .stat-value {
+    color: #b8400b;
+}
+
+/* Confirmed Bookings - Green */
+.stat-card-confirmed {
+    background: linear-gradient(135deg, #ecf5eb 0%, #d6f0d6 100%);
+    border: 1px solid #99dd99;
+    color: #0b7b0b;
+}
+
+.stat-card-confirmed .stat-value {
+    color: #0b7b0b;
+}
+
+/* Completed Bookings - Gold */
+.stat-card-completed {
+    background: linear-gradient(135deg, #fffaeb 0%, #fff3d6 100%);
+    border: 1px solid #ffd966;
+    color: #b89500;
+}
+
+.stat-card-completed .stat-value {
+    color: #b89500;
+}
+
+/* Active Packages - Purple */
+.stat-card-packages {
+    background: linear-gradient(135deg, #f5ebff 0%, #ead6ff 100%);
+    border: 1px solid #cc99ff;
+    color: #6b0b7b;
+}
+
+.stat-card-packages .stat-value {
+    color: #6b0b7b;
+}
+
+/* Active Menu Items - Teal */
+.stat-card-menu {
+    background: linear-gradient(135deg, #ebf5f5 0%, #d6f0f0 100%);
+    border: 1px solid #99dddd;
+    color: #0b7b7b;
+}
+
+.stat-card-menu .stat-value {
+    color: #0b7b7b;
+}
+
+.stat-card {
+    position: relative;
+    overflow: hidden;
+}
+
+.stat-card::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -50%;
+    width: 200px;
+    height: 200px;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.3) 0%, transparent 70%);
+    border-radius: 50%;
+}
+
+.stat-card .stat-content {
+    position: relative;
+    z-index: 1;
+}
+
+.stat-subtitle {
+    font-size: 0.72rem;
+    opacity: 0.75;
+    margin-top: 0.2rem;
+    line-height: 1.3;
+}
+
+.stat-link {
+    display: inline-block;
+    margin-top: 0.85rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-decoration: none;
+    opacity: 0.65;
+    transition: opacity 0.2s ease;
+    letter-spacing: 0.01em;
+}
+
+.stat-link:hover {
+    opacity: 1;
+}
+
+/* =====================================================
+   BADGE STYLING FOR STATUS VALUES
+   ===================================================== */
+
+.badge {
+    display: inline-block;
+    padding: 0.4rem 0.8rem;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+}
+
+.badge-pending {
+    background: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffe69c;
+}
+
+.badge-approved {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.badge-confirmed {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.badge-completed {
+    background: #d1ecf1;
+    color: #0c5460;
+    border: 1px solid #bee5eb;
+}
+
+.badge-rejected {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+.badge-cancelled {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+.badge-blocked {
+    background: #d4d4d4;
+    color: #333;
+    border: 1px solid #ccc;
+}
+
+/* =====================================================
+   ACTION BUTTONS STYLING
+   ===================================================== */
+
+.action-buttons {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.btn-admin {
+    padding: 0.5rem 0.8rem;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.btn-primary-admin {
+    background: #8a2927;
+    color: white;
+}
+
+.btn-primary-admin:hover {
+    background: #6b1f1f;
+    box-shadow: 0 2px 8px rgba(138, 41, 39, 0.3);
+}
+
+.btn-secondary-admin {
+    background: #e8dfd5;
+    color: #4a1414;
+    border: 1px solid #d5a437;
+}
+
+.btn-secondary-admin:hover {
+    background: #dcd1c0;
+}
+
+.btn-success-admin {
+    background: #28a745;
+    color: white;
+}
+
+.btn-success-admin:hover {
+    background: #218838;
+}
+
+.btn-danger-admin {
+    background: #dc3545;
+    color: white;
+}
+
+.btn-danger-admin:hover {
+    background: #c82333;
+}
+
+.btn-small {
+    padding: 0.35rem 0.6rem;
+    font-size: 0.75rem;
+}
+
+/* =====================================================
+   TABLE RESPONSIVENESS
+   ===================================================== */
+
+.table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.empty-cell {
+    text-align: center;
+    padding: 2rem 1rem;
+    color: #999;
+    font-style: italic;
+}
+
+.empty-state {
+    padding: 2rem;
+    text-align: center;
+    color: #999;
+}
+
+/* =====================================================
+   HEADER ENHANCEMENTS
+   ===================================================== */
+
+.admin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 2rem;
+}
+
+.admin-subtitle {
+    font-size: 0.9rem;
+    color: #666;
+    margin: 0;
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
 }

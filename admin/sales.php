@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/../includes/functions.php';
+requireAdminCheck();
 
 // Calculate sales stats
 $bookings = getInquiries();
