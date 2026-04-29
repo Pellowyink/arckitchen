@@ -1,7 +1,6 @@
 <?php
 
 require_once __DIR__ . '/../includes/functions.php';
-require_once __DIR__ . '/../includes/admin_sidebar.php';
 
 if (isPostRequest()) {
     $action = $_POST['action'] ?? '';
@@ -18,9 +17,7 @@ if (isPostRequest()) {
     redirect('bookings.php');
 }
 
-$inquiries = getInquiries();
-?>
-<!DOCTYPE html>
+$inquiries = getInquiries();?><!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -30,9 +27,12 @@ $inquiries = getInquiries();
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=League+Spartan:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../assets/css/style.css">
+    <link rel="stylesheet" href="../assets/css/admin.css">
 </head>
 <body>
     <div class="admin-shell">
+        <?php require_once __DIR__ . '/../includes/admin_sidebar.php'; ?>
+
         <!-- Main Content -->
         <main class="admin-main">
             <div class="admin-header">

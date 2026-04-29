@@ -197,12 +197,17 @@ button.button:hover {
 .hero-card,
 .section-card,
 .contact-card,
-.admin-card,
 .auth-card {
     position: relative;
     background: var(--surface);
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow);
+    overflow: hidden;
+}
+
+.admin-card {
+    position: relative;
+    background: var(--surface);
     overflow: hidden;
 }
 
@@ -352,8 +357,7 @@ button.button:hover {
 }
 
 .section-card,
-.contact-card,
-.admin-card {
+.contact-card {
     padding: 3rem;
 }
 
@@ -368,8 +372,7 @@ button.button:hover {
 .grid-3,
 .grid-2,
 .contact-grid,
-.admin-grid,
-.stats-grid {
+.admin-grid {
     display: grid;
     gap: 1.5rem;
 }
@@ -848,16 +851,6 @@ textarea:focus {
     color: #fff;
 }
 
-.admin-main {
-    padding: 2rem;
-    background: #f7f1e7;
-}
-
-.stats-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    margin-bottom: 1.5rem;
-}
-
 .metric-card strong {
     display: block;
     font-size: 2rem;
@@ -1007,7 +1000,7 @@ th {
     position: fixed;
     left: 0;
     top: 0;
-    width: 280px;
+    width: 240px;
     height: 100vh;
     background: linear-gradient(180deg, var(--surface-dark) 0%, var(--surface-dark-2) 100%);
     color: #fff;
@@ -1097,6 +1090,12 @@ th {
     flex: 1;
     padding: 1.5rem 0;
     overflow-y: auto;
+    /* Hide scrollbar for a cleaner look */
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE 10+ */
+}
+.sidebar-nav::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
 }
 
 .nav-group {
@@ -1174,14 +1173,16 @@ th {
 /* Admin Layout */
 .admin-shell {
     display: grid;
-    grid-template-columns: 280px 1fr;
+    grid-template-columns: 240px 1fr;
     min-height: 100vh;
 }
 
 .admin-main {
-    padding: 2rem;
+    padding: 2rem 2.5rem;
     background: linear-gradient(135deg, #f7f1e7 0%, #f3ebe0 100%);
     overflow-y: auto;
+    grid-column: 2;
+    min-width: 0;
 }
 
 .admin-header {
@@ -1200,10 +1201,10 @@ th {
 /* Admin Cards */
 .admin-card {
     background: var(--surface);
-    border-radius: 24px;
-    padding: 2rem;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-    margin-bottom: 1.5rem;
+    border-radius: 18px;
+    padding: 1.5rem 1.75rem;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+    margin-bottom: 1.25rem;
 }
 
 .admin-card h2 {
@@ -1321,34 +1322,38 @@ th {
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 1.5rem;
-    margin-bottom: 2rem;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
 }
 
 .stat-card {
     background: var(--surface);
-    border-radius: 20px;
-    padding: 1.5rem;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    border-radius: 16px;
+    padding: 1.25rem 1.5rem;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
 }
 
 .stat-label {
-    font-size: 0.9rem;
+    font-size: 0.78rem;
     color: var(--text-soft);
-    font-weight: 500;
-    margin-bottom: 0.5rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.35rem;
+    opacity: 0.8;
 }
 
 .stat-value {
-    font-size: 2rem;
+    font-size: 1.9rem;
     font-weight: 700;
     font-family: 'League Spartan', sans-serif;
     color: var(--surface-dark);
+    line-height: 1;
 }
 
 .stat-icon {
-    font-size: 1.8rem;
-    margin-bottom: 0.5rem;
+    font-size: 1.4rem;
+    margin-bottom: 0.4rem;
 }
 
 /* Responsive Admin */
@@ -1370,10 +1375,15 @@ th {
 
     .admin-main {
         padding: 1.5rem;
+        grid-column: 1;
     }
 
     .stats-grid {
         grid-template-columns: repeat(2, 1fr);
+    }
+
+    .stat-card {
+        min-width: 0;
     }
 }
 
@@ -1388,6 +1398,7 @@ th {
 
     .admin-main {
         padding: 1rem;
+        grid-column: 1;
     }
 
     .admin-title {
@@ -1408,7 +1419,12 @@ th {
     }
 
     .stats-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.75rem;
+    }
+
+    .stat-card {
+        min-width: 0;
     }
 
     .btn-admin {
@@ -1437,4 +1453,3 @@ th {
         font-size: 0.75rem;
     }
 }
-

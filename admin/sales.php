@@ -1,7 +1,6 @@
 <?php
 
 require_once __DIR__ . '/../includes/functions.php';
-require_once __DIR__ . '/../includes/admin_sidebar.php';
 
 // Calculate sales stats
 $bookings = getInquiries();
@@ -13,8 +12,7 @@ foreach ($bookings as $booking) {
         $confirmed_events++;
     }
 }
-?>
-<!DOCTYPE html>
+?><!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -24,9 +22,11 @@ foreach ($bookings as $booking) {
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=League+Spartan:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../assets/css/style.css">
+    <link rel="stylesheet" href="../assets/css/admin.css">
 </head>
 <body>
     <div class="admin-shell">
+        <?php require_once __DIR__ . '/../includes/admin_sidebar.php'; ?>
         <!-- Main Content -->
         <main class="admin-main">
             <div class="admin-header">

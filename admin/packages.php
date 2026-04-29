@@ -1,11 +1,8 @@
 <?php
 
 require_once __DIR__ . '/../includes/functions.php';
-require_once __DIR__ . '/../includes/admin_sidebar.php';
 
-$packages = getPackages();
-?>
-<!DOCTYPE html>
+$packages = getPackages();?><!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -15,9 +12,11 @@ $packages = getPackages();
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=League+Spartan:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../assets/css/style.css">
+    <link rel="stylesheet" href="../assets/css/admin.css">
 </head>
 <body>
     <div class="admin-shell">
+        <?php require_once __DIR__ . '/../includes/admin_sidebar.php'; ?>
         <!-- Main Content -->
         <main class="admin-main">
             <div class="admin-header">
@@ -45,8 +44,9 @@ $packages = getPackages();
                                 <td><?php echo escape($package['serves'] ?? 'N/A'); ?></td>
                                 <td>₱<?php echo number_format($package['price'], 2); ?></td>
                                 <td>
-                                    <span class="badge badge-<?php echo ($package['is_active'] ? 'confirmed' : 'cancelled'); ?>">
-                                        <?php echo ($package['is_active'] ? 'Active' : 'Inactive'); ?>
+                                    <?php $isActive = !empty($package['is_active']); ?>
+                                    <span class="badge badge-<?php echo ($isActive ? 'confirmed' : 'cancelled'); ?>">
+                                        <?php echo ($isActive ? 'Active' : 'Inactive'); ?>
                                     </span>
                                 </td>
                                 <td>
