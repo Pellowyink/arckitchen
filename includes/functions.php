@@ -116,22 +116,6 @@ function fetchAllRecords(string $sql, array $fallback = []): array
     return $records ?: $fallback;
 }
 
-function getMenuItems(): array
-{
-    return fetchAllRecords(
-        "SELECT id, name, description, price, image, category FROM menu_items WHERE is_active = 1 ORDER BY id DESC",
-        defaultMenuItems()
-    );
-}
-
-function getPackages(): array
-{
-    return fetchAllRecords(
-        "SELECT id, name, description, price, serves FROM packages WHERE is_active = 1 ORDER BY id DESC",
-        defaultPackages()
-    );
-}
-
 function getInquiries(): array
 {
     return fetchAllRecords("SELECT * FROM inquiries ORDER BY created_at DESC");
@@ -780,5 +764,346 @@ function requireAdminCheck(): void
         header('Location: login.php');
         exit;
     }
+}
+
+/* =====================================================
+   MENU SYSTEM - Database Driven
+   ===================================================== */
+
+/**
+ * Get all menu items from database
+ */
+function getMenuItems(?string $category = null): array
+{
+    $connection = getDbConnection();
+    if (!$connection) return defaultMenuItems();
+    
+    $sql = "SELECT * FROM menu_items WHERE is_active = 1";
+    if ($category) {
+        $cat = $connection->real_escape_string($category);
+        $sql .= " AND category = '$cat'";
+    }
+    $sql .= " ORDER BY category, name";
+    
+    $result = $connection->query($sql);
+    if (!$result || $result->num_rows === 0) {
+        return defaultMenuItems();
+    }
+    
+    return $result->fetch_all(MYSQLI_ASSOC);
+}
+
+/**
+ * Get all menu categories
+ */
+function getMenuCategories(): array
+{
+    $connection = getDbConnection();
+    if (!$connection) return ['Sample Category'];
+    
+    $sql = "SELECT DISTINCT category FROM menu_items WHERE is_active = 1 ORDER BY category";
+    $result = $connection->query($sql);
+    if (!$result) return ['Sample Category'];
+    
+    $categories = [];
+    while ($row = $result->fetch_assoc()) {
+        $categories[] = $row['category'];
+    }
+    return $categories ?: ['Sample Category'];
+}
+
+/**
+ * Get single menu item by ID
+ */
+function getMenuItem(int $id): ?array
+{
+    $connection = getDbConnection();
+    if (!$connection) return null;
+    
+    $statement = $connection->prepare("SELECT * FROM menu_items WHERE id = ? AND is_active = 1");
+    if (!$statement) return null;
+    
+    $statement->bind_param('i', $id);
+    $statement->execute();
+    $result = $statement->get_result();
+    $item = $result->fetch_assoc();
+    $statement->close();
+    
+    return $item ?: null;
+}
+
+/* =====================================================
+   PACKAGES SYSTEM - Database Driven
+   ===================================================== */
+
+/**
+ * Get all packages from database
+ */
+function getPackages(): array
+{
+    $connection = getDbConnection();
+    if (!$connection) return defaultPackages();
+    
+    $sql = "SELECT * FROM packages WHERE is_active = 1 ORDER BY total_price ASC";
+    $result = $connection->query($sql);
+    if (!$result || $result->num_rows === 0) {
+        return defaultPackages();
+    }
+    
+    return $result->fetch_all(MYSQLI_ASSOC);
+}
+
+/**
+ * Get single package with items
+ */
+function getPackage(int $id): ?array
+{
+    $connection = getDbConnection();
+    if (!$connection) return null;
+    
+    // Get package details
+    $statement = $connection->prepare("SELECT * FROM packages WHERE id = ? AND is_active = 1");
+    if (!$statement) return null;
+    
+    $statement->bind_param('i', $id);
+    $statement->execute();
+    $result = $statement->get_result();
+    $package = $result->fetch_assoc();
+    $statement->close();
+    
+    if (!$package) return null;
+    
+    // Get package items with menu details
+    $sql = "SELECT pi.*, mi.name, mi.category, mi.price, mi.description, mi.image 
+            FROM package_items pi 
+            JOIN menu_items mi ON pi.menu_item_id = mi.id 
+            WHERE pi.package_id = ?";
+    $statement = $connection->prepare($sql);
+    if ($statement) {
+        $statement->bind_param('i', $id);
+        $statement->execute();
+        $result = $statement->get_result();
+        $package['items'] = $result->fetch_all(MYSQLI_ASSOC);
+        $statement->close();
+    }
+    
+    return $package;
+}
+
+/**
+ * Get package items only
+ */
+function getPackageItems(int $packageId): array
+{
+    $connection = getDbConnection();
+    if (!$connection) return [];
+    
+    $sql = "SELECT pi.*, mi.name, mi.category, mi.price, mi.description, mi.image 
+            FROM package_items pi 
+            JOIN menu_items mi ON pi.menu_item_id = mi.id 
+            WHERE pi.package_id = ?";
+    $statement = $connection->prepare($sql);
+    if (!$statement) return [];
+    
+    $statement->bind_param('i', $packageId);
+    $statement->execute();
+    $result = $statement->get_result();
+    $items = $result->fetch_all(MYSQLI_ASSOC);
+    $statement->close();
+    
+    return $items;
+}
+
+/* =====================================================
+   CALENDAR & UNAVAILABLE DATES
+   ===================================================== */
+
+/**
+ * Get unavailable dates for calendar
+ */
+function getUnavailableDates(string $month, string $year): array
+{
+    $connection = getDbConnection();
+    if (!$connection) return [];
+    
+    $startDate = "$year-$month-01";
+    $endDate = date('Y-m-t', strtotime($startDate));
+    
+    $sql = "SELECT date, reason, status FROM unavailable_dates 
+            WHERE date BETWEEN ? AND ?
+            ORDER BY date";
+    $statement = $connection->prepare($sql);
+    if (!$statement) return [];
+    
+    $statement->bind_param('ss', $startDate, $endDate);
+    $statement->execute();
+    $result = $statement->get_result();
+    $dates = $result->fetch_all(MYSQLI_ASSOC);
+    $statement->close();
+    
+    return $dates;
+}
+
+/**
+ * Check if a specific date is available
+ */
+function isDateAvailable(string $date): bool
+{
+    // Check if date is in the past
+    if (strtotime($date) < strtotime(date('Y-m-d'))) {
+        return false;
+    }
+    
+    $connection = getDbConnection();
+    if (!$connection) return true;
+    
+    $statement = $connection->prepare("SELECT id FROM unavailable_dates WHERE date = ?");
+    if (!$statement) return true;
+    
+    $statement->bind_param('s', $date);
+    $statement->execute();
+    $result = $statement->get_result();
+    $unavailable = $result->num_rows > 0;
+    $statement->close();
+    
+    return !$unavailable;
+}
+
+/**
+ * Get all booked dates (confirmed bookings)
+ */
+function getBookedDates(string $month, string $year): array
+{
+    $connection = getDbConnection();
+    if (!$connection) return [];
+    
+    $startDate = "$year-$month-01";
+    $endDate = date('Y-m-t', strtotime($startDate));
+    
+    $sql = "SELECT event_date as date, COUNT(*) as booking_count 
+            FROM bookings 
+            WHERE status IN ('confirmed', 'pending') 
+            AND event_date BETWEEN ? AND ? 
+            GROUP BY event_date";
+    $statement = $connection->prepare($sql);
+    if (!$statement) return [];
+    
+    $statement->bind_param('ss', $startDate, $endDate);
+    $statement->execute();
+    $result = $statement->get_result();
+    $dates = $result->fetch_all(MYSQLI_ASSOC);
+    $statement->close();
+    
+    return $dates;
+}
+
+/**
+ * Mark date as unavailable (admin function)
+ */
+function blockDate(string $date, string $reason = '', string $status = 'blocked'): bool
+{
+    $connection = getDbConnection();
+    if (!$connection) return false;
+    
+    $statement = $connection->prepare("INSERT INTO unavailable_dates (date, reason, status) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE reason = ?, status = ?");
+    if (!$statement) return false;
+    
+    $statement->bind_param('sssss', $date, $reason, $status, $reason, $status);
+    $saved = $statement->execute();
+    $statement->close();
+    
+    return $saved;
+}
+
+/**
+ * Unblock a date (admin function)
+ */
+function unblockDate(string $date): bool
+{
+    $connection = getDbConnection();
+    if (!$connection) return false;
+    
+    $statement = $connection->prepare("DELETE FROM unavailable_dates WHERE date = ?");
+    if (!$statement) return false;
+    
+    $statement->bind_param('s', $date);
+    $deleted = $statement->execute();
+    $statement->close();
+    
+    return $deleted;
+}
+
+/* =====================================================
+   INQUIRY ITEMS / ORDER MANAGEMENT
+   ===================================================== */
+
+/**
+ * Save inquiry items from order
+ */
+function saveInquiryItems(int $inquiryId, array $items): bool
+{
+    $connection = getDbConnection();
+    if (!$connection) return false;
+    
+    // First clear existing items
+    $statement = $connection->prepare("DELETE FROM inquiry_items WHERE inquiry_id = ?");
+    if (!$statement) return false;
+    $statement->bind_param('i', $inquiryId);
+    $statement->execute();
+    $statement->close();
+    
+    // Insert new items
+    foreach ($items as $item) {
+        $menuItemId = $item['menu_item_id'];
+        $quantity = $item['quantity'];
+        $unitPrice = $item['unit_price'];
+        $subtotal = $quantity * $unitPrice;
+        $notes = $item['notes'] ?? '';
+        
+        $statement = $connection->prepare("INSERT INTO inquiry_items (inquiry_id, menu_item_id, quantity, unit_price, subtotal, notes) VALUES (?, ?, ?, ?, ?, ?)");
+        if (!$statement) continue;
+        
+        $statement->bind_param('iiidds', $inquiryId, $menuItemId, $quantity, $unitPrice, $subtotal, $notes);
+        $statement->execute();
+        $statement->close();
+    }
+    
+    return true;
+}
+
+/**
+ * Get inquiry items
+ */
+function getInquiryItems(int $inquiryId): array
+{
+    $connection = getDbConnection();
+    if (!$connection) return [];
+    
+    $sql = "SELECT ii.*, mi.name, mi.category, mi.image 
+            FROM inquiry_items ii 
+            JOIN menu_items mi ON ii.menu_item_id = mi.id 
+            WHERE ii.inquiry_id = ?";
+    $statement = $connection->prepare($sql);
+    if (!$statement) return [];
+    
+    $statement->bind_param('i', $inquiryId);
+    $statement->execute();
+    $result = $statement->get_result();
+    $items = $result->fetch_all(MYSQLI_ASSOC);
+    $statement->close();
+    
+    return $items;
+}
+
+/**
+ * Calculate order total
+ */
+function calculateOrderTotal(array $items): float
+{
+    $total = 0;
+    foreach ($items as $item) {
+        $total += ($item['unit_price'] * $item['quantity']);
+    }
+    return $total;
 }
 

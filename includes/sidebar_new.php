@@ -4,7 +4,6 @@
  * Dynamic ordering sidebar for product and package customization
  * Included in menu.php and inquiry.php
  */
-require_once __DIR__ . '/functions.php';
 
 // Initialize session cart if not exists
 if (!isset($_SESSION['cart'])) {
@@ -629,6 +628,9 @@ function populateSidebar(item, type) {
     } else {
         container.innerHTML = generateProductHTML(item);
     }
+    
+    // Initialize quantity handlers
+    initQuantityHandlers();
 }
 
 function generateProductHTML(product) {
@@ -746,6 +748,10 @@ function updateQty(delta) {
     if (val < 1) val = 1;
     if (val > 99) val = 99;
     input.value = val;
+}
+
+function initQuantityHandlers() {
+    // Handlers are inline in generated HTML
 }
 
 function addToCart(event) {

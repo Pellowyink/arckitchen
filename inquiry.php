@@ -7,6 +7,13 @@ $menuItems = getMenuItems();
 $packages = getPackages();
 $errors = [];
 
+// Get cart items if coming from menu
+$cartItems = $_SESSION['cart'] ?? [];
+$cartTotal = 0;
+foreach ($cartItems as $item) {
+    $cartTotal += ($item['product_price'] * $item['quantity']);
+}
+
 if (isPostRequest()) {
     $errors = validateRequiredFields([
         'full_name' => 'Full name',
@@ -97,76 +104,36 @@ require_once __DIR__ . '/includes/sidebar.php';
             }
             ?>
             
-            <div class="calendar-navigation" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                <a href="?month=<?php echo $prevMonth; ?>&year=<?php echo $prevYear; ?>" class="btn-secondary-admin" style="padding: 0.5rem 1rem;">&larr; <?php echo date('M', mktime(0, 0, 0, $prevMonth, 1, $prevYear)); ?></a>
-                <h3 style="margin: 0; color: var(--surface-dark); font-family: 'League Spartan', sans-serif;"><?php echo $monthName; ?> <?php echo $currentYear; ?></h3>
-                <a href="?month=<?php echo $nextMonth; ?>&year=<?php echo $nextYear; ?>" class="btn-secondary-admin" style="padding: 0.5rem 1rem;"><?php echo date('M', mktime(0, 0, 0, $nextMonth, 1, $nextYear)); ?> &rarr;</a>
+            <?php require_once __DIR__ . '/includes/calendar.php'; ?>
+        </div>
+        
+        <?php if (!empty($cartItems)): ?>
+        <!-- Order Summary from Cart -->
+        <div class="admin-card" style="margin-top: 1.5rem;">
+            <h2>📦 Your Selected Order</h2>
+            <div class="order-summary-list">
+                <?php foreach ($cartItems as $item): ?>
+                <div class="order-item">
+                    <div class="order-item-info">
+                        <strong><?php echo escape($item['product_name']); ?></strong>
+                        <?php if ($item['notes']): ?>
+                        <small><?php echo escape($item['notes']); ?></small>
+                        <?php endif; ?>
+                    </div>
+                    <div class="order-item-qty">x<?php echo $item['quantity']; ?></div>
+                    <div class="order-item-price">₱<?php echo number_format($item['product_price'] * $item['quantity'], 2); ?></div>
+                </div>
+                <?php endforeach; ?>
             </div>
-            
-            <div class="calendar-grid" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.5rem;">
-                <?php
-                $weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-                foreach ($weekDays as $day) {
-                    echo '<div style="text-align: center; font-weight: 700; color: var(--surface-dark); padding: 0.75rem 0; font-size: 0.9rem;">' . $day . '</div>';
-                }
-                
-                // Empty cells for days before the first day
-                for ($i = 0; $i < $firstDayOfWeek; $i++) {
-                    echo '<div style="background: rgba(108, 29, 18, 0.03); aspect-ratio: 1; border-radius: 12px;"></div>';
-                }
-                
-                // Days of the month
-                for ($day = 1; $day <= $daysInMonth; $day++) {
-                    $dateStr = sprintf('%04d-%02d-%02d', $currentYear, $currentMonth, $day);
-                    $isPast = $dateStr < $today;
-                    $isBooked = in_array($dateStr, $bookedDates);
-                    $isToday = $dateStr === $today;
-                    
-                    $bgColor = '#fff';
-                    $textColor = 'var(--text)';
-                    $borderColor = 'rgba(108, 29, 18, 0.15)';
-                    $cursor = 'pointer';
-                    
-                    if ($isPast || $isBooked) {
-                        $bgColor = $isPast ? '#f5f5f5' : '#8a2927';
-                        $textColor = $isPast ? '#ccc' : '#fff';
-                        $borderColor = $isPast ? '#eee' : '#8a2927';
-                        $cursor = 'not-allowed';
-                    } elseif ($isToday) {
-                        $bgColor = 'rgba(213, 164, 55, 0.2)';
-                        $borderColor = '#d5a437';
-                        $textColor = 'var(--surface-dark)';
-                        $cursor = 'pointer';
-                    } else {
-                        $bgColor = '#fff';
-                        $textColor = 'var(--text)';
-                        $borderColor = 'rgba(108, 29, 18, 0.15)';
-                        $cursor = 'pointer';
-                    }
-                    
-                    $disabled = $isPast ? 'disabled' : '';
-                    $onClick = $isPast ? '' : "selectDate('$dateStr')";
-                    
-                    echo "<button type='button' class='calendar-day' onclick='$onClick' $disabled style='background: $bgColor; color: $textColor; border: 2px solid $borderColor; border-radius: 14px; aspect-ratio: 1; cursor: $cursor; font-weight: 600; font-size: 0.95rem; transition: all 0.2s;' onmouseover='this.style.transform=\"scale(1.05)\"' onmouseout='this.style.transform=\"scale(1)\"'>$day</button>";
-                }
-                ?>
+            <div class="order-total-bar">
+                <span>Order Total:</span>
+                <strong>₱<?php echo number_format($cartTotal, 2); ?></strong>
             </div>
-            
-            <div style="display: flex; gap: 1rem; margin-top: 1rem; flex-wrap: wrap; justify-content: center;">
-                <span style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem;">
-                    <span style="display: inline-block; width: 16px; height: 16px; background: #8a2927; border-radius: 4px;"></span>
-                    Confirmed Booking
-                </span>
-                <span style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem;">
-                    <span style="display: inline-block; width: 16px; height: 16px; background: #fff; border: 2px solid rgba(108, 29, 18, 0.15); border-radius: 4px;"></span>
-                    Available
-                </span>
-                <span style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem;">
-                    <span style="display: inline-block; width: 16px; height: 16px; background: #f5f5f5; border-radius: 4px;"></span>
-                    Past Date
-                </span>
+            <div style="margin-top: 1rem;">
+                <a href="menu.php" class="button button-small">← Modify Order</a>
             </div>
         </div>
+        <?php endif; ?>
         
         <div id="selectedDateDisplay" style="display: none; text-align: center; margin: 1rem 0; padding: 1rem; background: rgba(213, 164, 55, 0.1); border-radius: 16px; border: 2px solid #d5a437;">
             <p style="margin: 0; color: var(--surface-dark); font-weight: 600;">
@@ -228,7 +195,7 @@ require_once __DIR__ . '/includes/sidebar.php';
                             <?php foreach ($packages as $package): ?>
                                 <?php $selected = ($_POST['package_interest'] ?? '') === $package['name'] ? 'selected' : ''; ?>
                                 <option value="<?php echo escape($package['name']); ?>" <?php echo $selected; ?>>
-                                    <?php echo escape($package['name']); ?> (PHP <?php echo number_format((float)$package['price'], 2); ?>)
+                                    <?php echo escape($package['name']); ?> (₱<?php echo number_format((float)$package['total_price'], 2); ?>)
                                 </option>
                             <?php endforeach; ?>
                         </select>
@@ -249,9 +216,15 @@ require_once __DIR__ . '/includes/sidebar.php';
 </section>
 
 <script>
+// Override calendar component's selectDate to also update inquiry form
 function selectDate(dateStr) {
     document.getElementById('selectedDate').value = dateStr;
-    document.getElementById('selectedDateValue').textContent = dateStr;
+    document.getElementById('selectedDateValue').textContent = new Date(dateStr).toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+    });
     document.getElementById('selectedDateDisplay').style.display = 'block';
     
     // Scroll to form
@@ -267,5 +240,59 @@ window.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
+
+<style>
+.order-summary-list {
+    margin: 1rem 0;
+}
+
+.order-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    background: rgba(247, 241, 231, 0.5);
+    border-radius: 10px;
+    margin-bottom: 0.5rem;
+}
+
+.order-item-info {
+    flex: 1;
+}
+
+.order-item-info small {
+    display: block;
+    color: #888;
+    font-size: 0.8rem;
+    margin-top: 0.25rem;
+}
+
+.order-item-qty {
+    margin: 0 1rem;
+    color: #666;
+}
+
+.order-item-price {
+    font-weight: 600;
+    color: #8a2927;
+    min-width: 80px;
+    text-align: right;
+}
+
+.order-total-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background: linear-gradient(135deg, #8a2927 0%, #6c1d12 100%);
+    border-radius: 12px;
+    color: white;
+    margin-top: 1rem;
+}
+
+.order-total-bar strong {
+    font-size: 1.3rem;
+}
+</style>
 
 <?php require_once __DIR__ . '/includes/footer.php'; ?>
