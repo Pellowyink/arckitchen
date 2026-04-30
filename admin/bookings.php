@@ -88,7 +88,7 @@ $cancelled_bookings = getBookings(['status' => 'cancelled']);
                                                 <button class="btn-admin btn-primary-admin btn-small" onclick="updateBookingStatus(<?php echo (int)$booking['id']; ?>, 'confirmed')">Confirm</button>
                                                 <button class="btn-admin btn-danger-admin btn-small" onclick="updateBookingStatus(<?php echo (int)$booking['id']; ?>, 'cancelled')">Cancel</button>
                                             <?php elseif ($status === 'confirmed'): ?>
-                                                <button class="btn-admin btn-success-admin btn-small" onclick="updateBookingStatus(<?php echo (int)$booking['id']; ?>, 'completed')">Complete</button>
+                                                <button class="btn-admin btn-success-admin btn-small" onclick="updateBookingStatus(<?php echo (int)$booking['id']; ?>, 'completed')">Complete & Pay</button>
                                                 <button class="btn-admin btn-danger-admin btn-small" onclick="updateBookingStatus(<?php echo (int)$booking['id']; ?>, 'cancelled')">Cancel</button>
                                             <?php endif; ?>
                                         </div>
@@ -219,6 +219,11 @@ $cancelled_bookings = getBookings(['status' => 'cancelled']);
     <?php require_once __DIR__ . '/../includes/edit_sidebar.php'; ?>
 
     <!-- ========================================
+         PAYMENT CALCULATOR SIDEBAR
+         ======================================== -->
+    <?php require_once __DIR__ . '/../includes/payment_calculator.php'; ?>
+
+    <!-- ========================================
          ACTION SCRIPTS
          ======================================== -->
     <script>
@@ -231,9 +236,23 @@ $cancelled_bookings = getBookings(['status' => 'cancelled']);
         }
 
         /**
+         * Complete booking with payment - opens payment calculator
+         */
+        function completeWithPayment(bookingId) {
+            openPaymentCalculator(bookingId, 'booking', 'completed');
+        }
+
+        /**
          * Update booking status
          */
         function updateBookingStatus(bookingId, newStatus) {
+            
+            // Complete booking with payment calculator
+            if (newStatus === 'completed') {
+                completeWithPayment(bookingId);
+                return;
+            }
+            
             if (!confirm(`Change status to ${newStatus}?`)) return;
             
             fetch(`../api/update-booking-status.php`, {

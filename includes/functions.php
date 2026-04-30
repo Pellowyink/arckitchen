@@ -1072,17 +1072,33 @@ function saveInquiryItems(int $inquiryId, array $items): bool
 }
 
 /**
- * Get inquiry items
+ * Get inquiry items with package handling
  */
 function getInquiryItems(int $inquiryId): array
 {
     $connection = getDbConnection();
     if (!$connection) return [];
     
-    $sql = "SELECT ii.*, mi.name, mi.category, mi.image 
+    // Get all items including packages
+    $sql = "SELECT ii.*, 
+            CASE 
+                WHEN ii.is_package = 1 THEN p.name 
+                ELSE mi.name 
+            END as name,
+            CASE 
+                WHEN ii.is_package = 1 THEN 'Package' 
+                ELSE mi.category 
+            END as category,
+            CASE 
+                WHEN ii.is_package = 1 THEN 'package' 
+                ELSE 'item' 
+            END as type,
+            p.serves as package_serves
             FROM inquiry_items ii 
-            JOIN menu_items mi ON ii.menu_item_id = mi.id 
+            LEFT JOIN menu_items mi ON ii.menu_item_id = mi.id 
+            LEFT JOIN packages p ON ii.package_id = p.id
             WHERE ii.inquiry_id = ?";
+            
     $statement = $connection->prepare($sql);
     if (!$statement) return [];
     
@@ -1105,5 +1121,211 @@ function calculateOrderTotal(array $items): float
         $total += ($item['unit_price'] * $item['quantity']);
     }
     return $total;
+}
+
+/**
+ * Approve inquiry with payment data and create booking
+ */
+function approveInquiryWithPayment(int $inquiryId, float $downPayment, float $fullPayment, float $totalAmount): bool
+{
+    $connection = getDbConnection();
+    if (!$connection) {
+        error_log("approveInquiryWithPayment: No database connection");
+        return false;
+    }
+    
+    // Start transaction
+    $connection->begin_transaction();
+    
+    try {
+        // Calculate payment status
+        $totalPaid = $downPayment + $fullPayment;
+        $balance = $totalAmount - $totalPaid;
+        $paymentStatus = $balance <= 0 ? 'fully_paid' : ($totalPaid > 0 ? 'partial' : 'pending');
+        
+        error_log("approveInquiryWithPayment: Inquiry $inquiryId, Total: $totalAmount, Down: $downPayment, Full: $fullPayment, Status: $paymentStatus");
+        
+        // Update inquiry with payment data and mark as approved
+        $stmt = $connection->prepare(
+            "UPDATE inquiries 
+             SET status = 'approved', 
+                 down_payment = ?, 
+                 full_payment = ?, 
+                 total_amount = ?,
+                 payment_status = ?
+             WHERE id = ? AND status = 'pending'"
+        );
+        
+        if (!$stmt) {
+            error_log("approveInquiryWithPayment: Prepare failed for UPDATE: " . $connection->error);
+            $connection->rollback();
+            return false;
+        }
+        
+        $stmt->bind_param('dddsi', $downPayment, $fullPayment, $totalAmount, $paymentStatus, $inquiryId);
+        $result = $stmt->execute();
+        
+        if (!$result) {
+            error_log("approveInquiryWithPayment: UPDATE execute failed: " . $stmt->error);
+            $stmt->close();
+            $connection->rollback();
+            return false;
+        }
+        
+        if ($stmt->affected_rows === 0) {
+            error_log("approveInquiryWithPayment: No rows updated for inquiry $inquiryId");
+            $stmt->close();
+            $connection->rollback();
+            return false;
+        }
+        $stmt->close();
+        
+        // Get inquiry data for booking creation
+        $stmt = $connection->prepare("SELECT * FROM inquiries WHERE id = ?");
+        $stmt->bind_param('i', $inquiryId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $inquiry = $result->fetch_assoc();
+        $stmt->close();
+        
+        if (!$inquiry) {
+            $connection->rollback();
+            return false;
+        }
+        
+        // Get inquiry items for booking
+        $items = getInquiryItems($inquiryId);
+        $itemsJson = json_encode($items);
+        
+        // Create booking from inquiry
+        $bookingStmt = $connection->prepare(
+            "INSERT INTO bookings (inquiry_id, customer_name, customer_email, customer_phone, 
+             event_date, event_type, guest_count, items_json, total_amount, down_payment, full_payment, 
+             payment_status, special_requests, status, created_at) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW())"
+        );
+        
+        if (!$bookingStmt) {
+            error_log("approveInquiryWithPayment: Prepare failed for booking INSERT: " . $connection->error);
+            $connection->rollback();
+            return false;
+        }
+        
+        $bookingStmt->bind_param(
+            'issssisdddsss',
+            $inquiryId,
+            $inquiry['full_name'],
+            $inquiry['email'],
+            $inquiry['phone'],
+            $inquiry['event_date'],
+            $inquiry['event_type'],
+            $inquiry['guest_count'],
+            $itemsJson,
+            $totalAmount,
+            $downPayment,
+            $fullPayment,
+            $paymentStatus,
+            $inquiry['message']
+        );
+        
+        if (!$bookingStmt->execute()) {
+            error_log("approveInquiryWithPayment: Booking INSERT execute failed: " . $bookingStmt->error);
+            $bookingStmt->close();
+            $connection->rollback();
+            return false;
+        }
+        
+        error_log("approveInquiryWithPayment: Successfully created booking for inquiry $inquiryId");
+        $bookingStmt->close();
+        $connection->commit();
+        return true;
+        
+    } catch (Exception $e) {
+        $connection->rollback();
+        error_log("Error approving inquiry with payment: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Update booking status with payment data
+ */
+function updateBookingStatusWithPayment(int $bookingId, string $status, ?float $downPayment, ?float $fullPayment, ?float $totalAmount): bool
+{
+    $connection = getDbConnection();
+    if (!$connection) return false;
+    
+    // Build query based on what payment data is provided
+    $updates = ["status = ?"];
+    $types = 's';
+    $params = [$status];
+    
+    if ($downPayment !== null) {
+        $updates[] = "down_payment = ?";
+        $types .= 'd';
+        $params[] = $downPayment;
+    }
+    
+    if ($fullPayment !== null) {
+        $updates[] = "full_payment = ?";
+        $types .= 'd';
+        $params[] = $fullPayment;
+    }
+    
+    if ($totalAmount !== null && $totalAmount > 0) {
+        $updates[] = "total_amount = ?";
+        $types .= 'd';
+        $params[] = $totalAmount;
+    }
+    
+    // Calculate payment status
+    $currentBooking = getBookingById($bookingId);
+    if ($currentBooking) {
+        $dp = $downPayment !== null ? $downPayment : ($currentBooking['down_payment'] ?? 0);
+        $fp = $fullPayment !== null ? $fullPayment : ($currentBooking['full_payment'] ?? 0);
+        $total = $totalAmount !== null && $totalAmount > 0 ? $totalAmount : ($currentBooking['total_amount'] ?? 0);
+        
+        $totalPaid = $dp + $fp;
+        $paymentStatus = ($totalPaid >= $total && $total > 0) ? 'fully_paid' : ($totalPaid > 0 ? 'partial' : 'pending');
+        
+        $updates[] = "payment_status = ?";
+        $types .= 's';
+        $params[] = $paymentStatus;
+    }
+    
+    $sql = "UPDATE bookings SET " . implode(', ', $updates) . " WHERE id = ?";
+    $types .= 'i';
+    $params[] = $bookingId;
+    
+    $stmt = $connection->prepare($sql);
+    if (!$stmt) return false;
+    
+    $stmt->bind_param($types, ...$params);
+    $result = $stmt->execute();
+    $stmt->close();
+    
+    return $result;
+}
+
+/**
+ * Get payment status label and color
+ */
+function getPaymentStatusInfo(string $status): array
+{
+    $labels = [
+        'pending' => ['label' => 'Pending Payment', 'class' => 'badge-pending', 'icon' => '⏳'],
+        'partial' => ['label' => 'Partially Paid', 'class' => 'badge-partial', 'icon' => '💳'],
+        'fully_paid' => ['label' => 'Fully Paid', 'class' => 'badge-success', 'icon' => '✅'],
+    ];
+    
+    return $labels[$status] ?? $labels['pending'];
+}
+
+/**
+ * Format currency for display
+ */
+function formatCurrency(float $amount): string
+{
+    return '₱' . number_format($amount, 2);
 }
 

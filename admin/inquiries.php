@@ -154,6 +154,11 @@ $rejected_inquiries = getInquiriesFiltered(['status' => 'rejected']);
     <?php require_once __DIR__ . '/../includes/edit_sidebar.php'; ?>
 
     <!-- ========================================
+         PAYMENT CALCULATOR SIDEBAR
+         ======================================== -->
+    <?php require_once __DIR__ . '/../includes/payment_calculator.php'; ?>
+
+    <!-- ========================================
          ACTION SCRIPTS
          ======================================== -->
     <script>
@@ -165,26 +170,10 @@ $rejected_inquiries = getInquiriesFiltered(['status' => 'rejected']);
         }
 
         /**
-         * Approve an inquiry and create a corresponding booking
+         * Approve an inquiry - opens payment calculator
          */
         function approveInquiry(inquiryId) {
-            if (!confirm('Approve this inquiry? It will be converted to a pending booking.')) return;
-
-            fetch(`../api/update-inquiry-status.php`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: inquiryId, action: 'approve' }),
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    alert('✅ Inquiry approved and booking created!');
-                    refreshAllTables();
-                } else {
-                    alert('Error: ' + data.message);
-                }
-            })
-            .catch(error => console.error('Error:', error));
+            openPaymentCalculator(inquiryId, 'inquiry', 'approve');
         }
 
         /**

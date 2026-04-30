@@ -1,7 +1,7 @@
 <?php
 /**
  * AJAX Endpoint to Get Inquiry Details
- * Returns: JSON with inquiry data
+ * Returns: JSON with inquiry data + items + total
  * Security: Requires admin session
  */
 
@@ -45,7 +45,26 @@ if (!$inquiry) {
     exit;
 }
 
+// Get inquiry items
+$items = getInquiryItems($inquiry_id);
+
+// Calculate total
+$total = calculateOrderTotal($items);
+
+// Add payment fields if not present
+if (!isset($inquiry['down_payment'])) $inquiry['down_payment'] = 0;
+if (!isset($inquiry['full_payment'])) $inquiry['full_payment'] = 0;
+
+// Calculate payment status
+$totalPaid = (float)$inquiry['down_payment'] + (float)$inquiry['full_payment'];
+$balance = $total - $totalPaid;
+
 echo json_encode([
     'success' => true,
     'record' => $inquiry,
+    'items' => $items,
+    'total' => $total,
+    'total_paid' => $totalPaid,
+    'balance' => $balance,
+    'payment_status' => $balance <= 0 ? 'fully_paid' : ($totalPaid > 0 ? 'partial' : 'pending')
 ]);

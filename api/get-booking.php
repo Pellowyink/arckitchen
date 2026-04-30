@@ -1,7 +1,7 @@
 <?php
 /**
  * AJAX Endpoint to Get Booking Details
- * Returns: JSON with booking data
+ * Returns: JSON with booking data + items + total + payment info
  * Security: Requires admin session
  */
 
@@ -45,7 +45,31 @@ if (!$booking) {
     exit;
 }
 
+// Get items from items_json or inquiry
+$items = [];
+if (!empty($booking['items_json'])) {
+    $items = json_decode($booking['items_json'], true) ?? [];
+} elseif (!empty($booking['inquiry_id'])) {
+    $items = getInquiryItems((int)$booking['inquiry_id']);
+}
+
+// Calculate total
+$total = !empty($booking['total_amount']) ? (float)$booking['total_amount'] : calculateOrderTotal($items);
+
+// Add payment fields if not present
+if (!isset($booking['down_payment'])) $booking['down_payment'] = 0;
+if (!isset($booking['full_payment'])) $booking['full_payment'] = 0;
+
+// Calculate payment status
+$totalPaid = (float)$booking['down_payment'] + (float)$booking['full_payment'];
+$balance = $total - $totalPaid;
+
 echo json_encode([
     'success' => true,
     'record' => $booking,
+    'items' => $items,
+    'total' => $total,
+    'total_paid' => $totalPaid,
+    'balance' => $balance,
+    'payment_status' => $balance <= 0 ? 'fully_paid' : ($totalPaid > 0 ? 'partial' : 'pending')
 ]);

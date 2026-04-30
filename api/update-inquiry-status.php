@@ -26,12 +26,66 @@ if ($inquiry_id <= 0 || !$action) {
     exit;
 }
 
+// Get payment data if provided
+$down_payment = isset($data['down_payment']) ? (float)$data['down_payment'] : 0;
+$full_payment = isset($data['full_payment']) ? (float)$data['full_payment'] : 0;
+$total_amount = isset($data['total_amount']) ? (float)$data['total_amount'] : 0;
+
+// Enable error reporting for debugging - SHOW ERRORS DIRECTLY
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
+// Capture any errors and include in response
+$lastError = null;
+set_error_handler(function($errno, $errstr, $errfile, $errline) use (&$lastError) {
+    $lastError = "PHP Error: $errstr in $errfile:$errline";
+    error_log($lastError);
+    return false;
+});
+
 if ($action === 'approve') {
-    if (approveInquiry($inquiry_id)) {
-        echo json_encode(['success' => true, 'message' => 'Inquiry approved and booking created']);
-    } else {
+    // Check if inquiry exists and is pending first
+    $conn = getDbConnection();
+    $checkStmt = $conn->prepare("SELECT id, status FROM inquiries WHERE id = ?");
+    $checkStmt->bind_param('i', $inquiry_id);
+    $checkStmt->execute();
+    $checkResult = $checkStmt->get_result();
+    $inquiryCheck = $checkResult->fetch_assoc();
+    $checkStmt->close();
+    
+    if (!$inquiryCheck) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'message' => "Inquiry ID $inquiry_id not found in database"]);
+        exit;
+    }
+    
+    if ($inquiryCheck['status'] !== 'pending') {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => "Inquiry status is '{$inquiryCheck['status']}', must be 'pending' to approve"]);
+        exit;
+    }
+    
+    // Approve inquiry with payment data
+    try {
+        $result = approveInquiryWithPayment($inquiry_id, $down_payment, $full_payment, $total_amount);
+        if ($result) {
+            echo json_encode(['success' => true, 'message' => 'Inquiry approved and booking created with payment recorded']);
+        } else {
+            $errorMsg = $lastError ?: 'Function returned false - check error logs';
+            error_log("Failed to approve inquiry ID: $inquiry_id. Error: $errorMsg");
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => $errorMsg]);
+        }
+    } catch (Exception $e) {
+        $errorMsg = 'Exception: ' . $e->getMessage();
+        error_log("Exception in inquiry approval: " . $errorMsg);
         http_response_code(500);
-        echo json_encode(['success' => false, 'message' => 'Failed to approve inquiry']);
+        echo json_encode(['success' => false, 'message' => $errorMsg]);
+    } catch (Error $e) {
+        $errorMsg = 'Fatal Error: ' . $e->getMessage();
+        error_log("Fatal Error in inquiry approval: " . $errorMsg);
+        http_response_code(500);
+        echo json_encode(['success' => false, 'message' => $errorMsg]);
     }
 } elseif ($action === 'reject') {
     if (rejectInquiry($inquiry_id)) {

@@ -251,31 +251,44 @@
 }
 
 .items-list {
-    margin-bottom: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
 }
 
 .item-row {
     display: flex;
-    gap: 0.5rem;
-    margin-bottom: 0.8rem;
-    padding: 0.8rem;
-    background: rgba(74, 20, 20, 0.05);
-    border-radius: 8px;
+    gap: 0.75rem;
     align-items: center;
+    padding: 0.75rem;
+    background: rgba(247, 241, 231, 0.5);
+    border-radius: 10px;
+    border: 1px solid transparent;
+}
+
+.item-row.package-row {
+    background: linear-gradient(135deg, #fffdf8 0%, #f7efe2 100%);
+    border-color: #d5a437;
 }
 
 .item-row input {
-    flex: 1;
-    font-size: 0.85rem;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.9rem;
 }
 
-.item-row .btn-remove {
-    background: #c41e1e;
+.item-row .item-name {
+    flex: 1;
+}
+
+.package-badge {
+    background: linear-gradient(135deg, #8a2927 0%, #6c1d12 100%);
     color: white;
-    border: none;
-    padding: 0.4rem 0.8rem;
+    font-size: 0.7rem;
+    padding: 0.2rem 0.5rem;
     border-radius: 4px;
-    cursor: pointer;
+    font-weight: 600;
     font-size: 0.8rem;
 }
 
@@ -380,7 +393,7 @@ function openEditModal(recordId, type) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                populateSidebarForm(data.record, type);
+                populateSidebarForm(data.record, type, data);
                 loading.style.display = 'none';
                 body.style.display = 'block';
             }
@@ -395,14 +408,14 @@ function openEditModal(recordId, type) {
 /**
  * Populate sidebar form with record data
  */
-function populateSidebarForm(record, type) {
+function populateSidebarForm(record, type, data) {
     document.getElementById('edit-customer-name').value = record.customer_name || record.full_name || '';
     document.getElementById('edit-customer-email').value = record.customer_email || record.email || '';
     document.getElementById('edit-customer-phone').value = record.customer_phone || record.phone || '';
     document.getElementById('edit-event-date').value = record.event_date || '';
     document.getElementById('edit-event-type').value = record.event_type || '';
     document.getElementById('edit-guest-count').value = record.guest_count || '';
-    document.getElementById('edit-special-requests').value = record.special_requests || '';
+    document.getElementById('edit-special-requests').value = record.special_requests || record.message || '';
     
     // Show status section only for bookings
     const statusSection = document.getElementById('status-section');
@@ -413,30 +426,28 @@ function populateSidebarForm(record, type) {
         statusSection.style.display = 'none';
     }
     
-    // Populate items if available
-    populateItemsList(record);
-    
-    // Update totals
-    updateTotals();
+    // Populate items if available from data.items
+    populateItemsList(data.items || [], data.total || 0);
 }
 
 /**
- * Populate the items list from record data
+ * Populate the items list from API data
  */
-function populateItemsList(record) {
+function populateItemsList(items, total) {
     const itemsList = document.getElementById('items-list');
     itemsList.innerHTML = '';
     
-    if (record.items_json) {
-        try {
-            const items = JSON.parse(record.items_json);
-            items.forEach((item, index) => {
-                addItemRow(item, index);
-            });
-        } catch (e) {
-            console.error('Error parsing items:', e);
-        }
+    if (items && items.length > 0) {
+        items.forEach((item, index) => {
+            addItemRow(item, index);
+        });
+    } else {
+        // Show empty state
+        itemsList.innerHTML = '<p style="color: #888; text-align: center; padding: 1rem;">No items in this order</p>';
     }
+    
+    // Update totals display with actual total from database
+    updateTotalsDisplay(total, items);
 }
 
 /**
@@ -444,12 +455,27 @@ function populateItemsList(record) {
  */
 function addItemRow(item = {}, index = null) {
     const itemsList = document.getElementById('items-list');
+    const isPackage = item.is_package == 1 || item.type === 'package';
+    const icon = isPackage ? '📦' : '🍽️';
+    const name = item.name || 'Unknown Item';
+    const qty = item.quantity || 1;
+    const price = item.unit_price || item.price || 0;
+    const subtotal = item.subtotal || (qty * price) || 0;
+    const category = item.category || (isPackage ? 'Package' : 'Item');
+    
     const html = `
-        <div class="item-row" data-item-index="${index || 'new'}">
-            <input type="text" placeholder="Item name" value="${item.name || ''}" class="item-name">
-            <input type="number" placeholder="Qty" value="${item.quantity || 1}" class="item-qty" min="1" style="width: 60px;">
-            <input type="number" placeholder="Price" value="${item.price || 0}" class="item-price" min="0" step="0.01" style="width: 80px;">
-            <button type="button" class="btn-remove" onclick="removeItemRow(this)">Remove</button>
+        <div class="item-row ${isPackage ? 'package-row' : ''}" data-item-index="${index || 'new'}">
+            <div class="item-info" style="flex: 1;">
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <span style="font-size: 1.2rem;">${icon}</span>
+                    <strong>${name}</strong>
+                    ${isPackage ? '<span class="package-badge">PACKAGE</span>' : ''}
+                </div>
+                <small style="color: #888;">${category} • Qty: ${qty} • ₱${parseFloat(price).toFixed(2)} each</small>
+            </div>
+            <div class="item-subtotal" style="font-weight: 600; color: #8a2927;">
+                ₱${parseFloat(subtotal).toFixed(2)}
+            </div>
         </div>
     `;
     itemsList.insertAdjacentHTML('beforeend', html);
@@ -464,13 +490,13 @@ function removeItemRow(btn) {
 }
 
 /**
- * Update total amounts based on items
+ * Update total amounts based on items (for editable mode)
  */
 function updateTotals() {
     let subtotal = 0;
     document.querySelectorAll('.item-row').forEach(row => {
-        const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
-        const price = parseFloat(row.querySelector('.item-price').value) || 0;
+        const qty = parseFloat(row.querySelector('.item-qty')?.value) || 0;
+        const price = parseFloat(row.querySelector('.item-price')?.value) || 0;
         subtotal += qty * price;
     });
     
@@ -480,6 +506,25 @@ function updateTotals() {
     document.getElementById('subtotal').textContent = '₱' + subtotal.toFixed(2);
     document.getElementById('tax').textContent = '₱' + tax.toFixed(2);
     document.getElementById('total-amount').textContent = '₱' + total.toFixed(2);
+}
+
+/**
+ * Display totals from database/API (for view mode)
+ */
+function updateTotalsDisplay(total, items) {
+    // Calculate subtotal from items
+    let subtotal = 0;
+    if (items && items.length > 0) {
+        items.forEach(item => {
+            subtotal += (parseFloat(item.subtotal) || (item.unit_price * item.quantity) || 0);
+        });
+    }
+    
+    const tax = total > subtotal ? total - subtotal : 0;
+    
+    document.getElementById('subtotal').textContent = '₱' + subtotal.toFixed(2);
+    document.getElementById('tax').textContent = tax > 0 ? '₱' + tax.toFixed(2) : '₱0.00';
+    document.getElementById('total-amount').textContent = '₱' + parseFloat(total).toFixed(2);
 }
 
 /**
