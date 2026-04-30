@@ -48,7 +48,7 @@ $navItems = [
                         <?php echo escape($label); ?>
                     </a>
                 <?php endforeach; ?>
-                <a href="<?php echo $basePrefix; ?>booking.php" class="button button-small">Book Now</a>
+                <a href="<?php echo $basePrefix; ?>inquiry.php" class="button button-small">Book Now</a>
             </nav>
         </div>
     </header>

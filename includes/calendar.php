@@ -266,31 +266,172 @@ $monthName = date('F Y', $firstDay);
 </style>
 
 <script>
+// Store current calendar state
+let currentCalendarMonth = <?php echo (int)$currentMonth; ?>;
+let currentCalendarYear = <?php echo (int)$currentYear; ?>;
+
 function changeMonth(month, year) {
-    // Reload the page with new month/year
-    const url = new URL(window.location.href);
-    url.searchParams.set('month', month);
-    url.searchParams.set('year', year);
-    window.location.href = url.toString();
+    // Save form data before loading new month
+    saveFormData();
+    
+    // Fetch new calendar via AJAX
+    const url = `includes/calendar-ajax.php?month=${month}&year=${year}`;
+    
+    fetch(url)
+        .then(r => r.text())
+        .then(html => {
+            // Update calendar container
+            const container = document.getElementById('calendarComponent');
+            if (container) {
+                // Extract just the calendar table and header from the response
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const newCalendar = doc.getElementById('calendarComponent');
+                
+                if (newCalendar) {
+                    container.innerHTML = newCalendar.innerHTML;
+                    
+                    // Re-attach event listeners to new calendar cells
+                    attachCalendarListeners();
+                    
+                    // Restore selected date if exists
+                    const savedDate = document.getElementById('eventDateInput')?.value;
+                    if (savedDate) {
+                        const cell = document.querySelector(`td[data-date="${savedDate}"]`);
+                        if (cell && cell.classList.contains('available')) {
+                            cell.classList.add('selected');
+                        }
+                    }
+                }
+            }
+            
+            currentCalendarMonth = month;
+            currentCalendarYear = year;
+            
+            // Restore form data
+            restoreFormData();
+        })
+        .catch(err => {
+            console.error('Failed to load calendar:', err);
+            // Fallback: reload page with saved data in sessionStorage
+            sessionStorage.setItem('calendar_month', month);
+            sessionStorage.setItem('calendar_year', year);
+            window.location.href = window.location.pathname + `?month=${month}&year=${year}`;
+        });
+}
+
+function attachCalendarListeners() {
+    // Re-attach click handlers to available dates
+    document.querySelectorAll('.calendar-table td.available, .calendar-table td.today').forEach(td => {
+        const date = td.dataset.date;
+        if (date) {
+            td.onclick = () => selectDate(date);
+        }
+    });
 }
 
 function selectDate(date) {
     // Update display
-    document.getElementById('selectedDateText').textContent = new Date(date).toLocaleDateString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-    });
-    document.getElementById('selectedDateDisplay').style.display = 'block';
+    const display = document.getElementById('selectedDateDisplay');
+    const text = document.getElementById('selectedDateText');
+    const input = document.getElementById('eventDateInput');
     
-    // Update hidden input
-    document.getElementById('eventDateInput').value = date;
+    if (text) {
+        text.textContent = new Date(date).toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+    }
+    if (display) display.style.display = 'block';
+    if (input) input.value = date;
     
     // Highlight selected
     document.querySelectorAll('.calendar-table td').forEach(td => {
         td.classList.remove('selected');
     });
-    document.querySelector(`td[data-date="${date}"]`).classList.add('selected');
+    const selectedCell = document.querySelector(`td[data-date="${date}"]`);
+    if (selectedCell) selectedCell.classList.add('selected');
+    
+    // Also update the sidebar display if it exists
+    const sidebarDateValue = document.getElementById('selectedDateValue');
+    const sidebarDateDisplay = document.getElementById('selectedDateDisplay');
+    const sidebarDateInput = document.getElementById('selectedDate');
+    
+    if (sidebarDateValue) {
+        sidebarDateValue.textContent = new Date(date).toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+    }
+    if (sidebarDateDisplay) {
+        sidebarDateDisplay.style.display = 'block';
+        sidebarDateDisplay.classList.add('has-date');
+    }
+    if (sidebarDateInput) sidebarDateInput.value = date;
 }
+
+// Save form data to sessionStorage
+function saveFormData() {
+    const fields = ['full_name', 'email', 'phone', 'event_type', 'guest_count', 'package_interest', 'message'];
+    fields.forEach(field => {
+        const el = document.getElementById(field);
+        if (el) {
+            sessionStorage.setItem('form_' + field, el.value);
+        }
+    });
+    // Also save selected date
+    const dateInput = document.getElementById('eventDateInput') || document.getElementById('selectedDate');
+    if (dateInput && dateInput.value) {
+        sessionStorage.setItem('form_event_date', dateInput.value);
+    }
+}
+
+// Restore form data from sessionStorage
+function restoreFormData() {
+    const fields = ['full_name', 'email', 'phone', 'event_type', 'guest_count', 'package_interest', 'message'];
+    fields.forEach(field => {
+        const saved = sessionStorage.getItem('form_' + field);
+        if (saved) {
+            const el = document.getElementById(field);
+            if (el && !el.value) { // Only restore if field is empty
+                el.value = saved;
+            }
+        }
+    });
+    // Restore date
+    const savedDate = sessionStorage.getItem('form_event_date');
+    if (savedDate) {
+        const dateInput = document.getElementById('eventDateInput') || document.getElementById('selectedDate');
+        if (dateInput && !dateInput.value) {
+            selectDate(savedDate);
+        }
+    }
+}
+
+// Auto-save form data as user types
+document.addEventListener('DOMContentLoaded', function() {
+    const fields = ['full_name', 'email', 'phone', 'event_type', 'guest_count', 'package_interest', 'message'];
+    fields.forEach(field => {
+        const el = document.getElementById(field);
+        if (el) {
+            el.addEventListener('change', saveFormData);
+            el.addEventListener('input', saveFormData);
+        }
+    });
+    
+    // Attach initial calendar listeners
+    attachCalendarListeners();
+    
+    // Check for stored calendar month/year from fallback
+    const storedMonth = sessionStorage.getItem('calendar_month');
+    const storedYear = sessionStorage.getItem('calendar_year');
+    if (storedMonth && storedYear) {
+        sessionStorage.removeItem('calendar_month');
+        sessionStorage.removeItem('calendar_year');
+    }
+});
 </script>

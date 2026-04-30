@@ -225,15 +225,20 @@ CREATE TABLE IF NOT EXISTS bookings (
 CREATE TABLE IF NOT EXISTS inquiry_items (
     id INT AUTO_INCREMENT PRIMARY KEY,
     inquiry_id INT NOT NULL,
-    menu_item_id INT NOT NULL,
+    menu_item_id INT NULL,
+    is_package TINYINT(1) NOT NULL DEFAULT 0,
+    package_id INT NULL,
     quantity INT NOT NULL DEFAULT 1,
     unit_price DECIMAL(10,2) NOT NULL,
     subtotal DECIMAL(10,2) NOT NULL,
     notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (inquiry_id) REFERENCES inquiries(id) ON DELETE CASCADE,
-    FOREIGN KEY (menu_item_id) REFERENCES menu_items(id) ON DELETE CASCADE,
+    FOREIGN KEY (menu_item_id) REFERENCES menu_items(id) ON DELETE SET NULL,
+    FOREIGN KEY (package_id) REFERENCES packages(id) ON DELETE SET NULL,
     INDEX idx_inquiry_items_inquiry (inquiry_id),
-    INDEX idx_inquiry_items_menu (menu_item_id)
+    INDEX idx_inquiry_items_menu (menu_item_id),
+    INDEX idx_inquiry_items_package (package_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =====================================================

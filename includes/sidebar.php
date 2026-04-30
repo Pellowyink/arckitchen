@@ -167,7 +167,7 @@ $cartTotal = calculateCartTotal();
 
             <div class="sidebar-actions">
                 <button type="button" class="btn-secondary" onclick="clearCart()">Clear Cart</button>
-                <button type="button" class="btn-primary" onclick="proceedToInquiry()">Confirm Order</button>
+                <button type="button" class="btn-primary" onclick="proceedToInquiry()">📩 Go to Booking</button>
             </div>
         </div>
         <?php endif; ?>

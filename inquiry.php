@@ -10,8 +10,14 @@ $errors = [];
 // Get cart items if coming from menu
 $cartItems = $_SESSION['cart'] ?? [];
 $cartTotal = 0;
+$cartPackage = null; // Track if there's a package in cart
+
 foreach ($cartItems as $item) {
     $cartTotal += ($item['product_price'] * $item['quantity']);
+    // Check if this is a package
+    if ($item['type'] === 'package') {
+        $cartPackage = $item;
+    }
 }
 
 if (isPostRequest()) {
@@ -26,124 +32,227 @@ if (isPostRequest()) {
         $errors[] = 'Please enter a valid email address.';
     }
 
-        if (!$errors) {
-            $saved = saveBooking([
-                'full_name' => trim($_POST['full_name']),
-                'email' => trim($_POST['email']),
-                'phone' => trim($_POST['phone']),
-                'event_date' => trim($_POST['event_date']),
-                'event_type' => trim($_POST['event_type'] ?? 'Catering'),
-                'guest_count' => (int) ($_POST['guest_count'] ?? 1),
-                'package_interest' => trim($_POST['package_interest'] ?? ''),
-                'message' => trim($_POST['message'] ?? ''),
-            ]);
+    // Check if cart is empty
+    if (empty($_SESSION['cart'])) {
+        $errors[] = 'Please add at least one menu item or package to your order.';
+    }
 
-            if ($saved) {
-                setFlashMessage('success', 'Your booking inquiry has been submitted. ARC Kitchen will contact you shortly to confirm.');
-                redirect('inquiry.php');
+    if (!$errors) {
+        // Save inquiry first
+        $connection = getDbConnection();
+        if ($connection) {
+            $stmt = $connection->prepare(
+                "INSERT INTO inquiries (full_name, email, phone, event_date, event_type, guest_count, package_interest, message, status)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')"
+            );
+            
+            if ($stmt) {
+                $stmt->bind_param(
+                    'sssssiss',
+                    $_POST['full_name'],
+                    $_POST['email'],
+                    $_POST['phone'],
+                    $_POST['event_date'],
+                    $_POST['event_type'],
+                    $_POST['guest_count'],
+                    $_POST['package_interest'],
+                    $_POST['message']
+                );
+                
+                if ($stmt->execute()) {
+                    $inquiryId = $connection->insert_id;
+                    
+                    // Save cart items as inquiry items
+                    $cartItems = $_SESSION['cart'] ?? [];
+                    $savedItems = 0;
+                    $failedItems = [];
+                    
+                    foreach ($cartItems as $item) {
+                        // For items, save directly. For packages, save with package flag
+                        $menuItemId = $item['type'] === 'package' ? null : ($item['product_id'] ?? null);
+                        $isPackage = $item['type'] === 'package' ? 1 : 0;
+                        $packageId = $item['type'] === 'package' ? ($item['product_id'] ?? null) : null;
+                        
+                        $itemStmt = $connection->prepare(
+                            "INSERT INTO inquiry_items (inquiry_id, menu_item_id, is_package, package_id, quantity, unit_price, subtotal, notes) 
+                             VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+                        );
+                        
+                        if (!$itemStmt) {
+                            // Track failed item
+                            $failedItems[] = $item['product_name'];
+                            error_log("Prepare failed for item {$item['product_name']}: " . $connection->error);
+                            continue;
+                        }
+                        
+                        $subtotal = $item['product_price'] * $item['quantity'];
+                        $notes = $item['notes'] ?? '';
+                        
+                        $itemStmt->bind_param(
+                            'iiiiddsd',
+                            $inquiryId,
+                            $menuItemId,
+                            $isPackage,
+                            $packageId,
+                            $item['quantity'],
+                            $item['product_price'],
+                            $subtotal,
+                            $notes
+                        );
+                        
+                        if ($itemStmt->execute()) {
+                            $savedItems++;
+                        } else {
+                            $failedItems[] = $item['product_name'];
+                            error_log("Execute failed for item {$item['product_name']}: " . $itemStmt->error);
+                        }
+                        $itemStmt->close();
+                    }
+                    
+                    // Clear cart after successful submission
+                    $_SESSION['cart'] = [];
+                    
+                    // Build success message
+                    $successMsg = "Your order has been submitted successfully! ARC Kitchen will contact you shortly to confirm your booking.";
+                    if (!empty($failedItems)) {
+                        $successMsg .= " Note: Some items could not be saved (" . implode(", ", $failedItems) . "). Please contact us.";
+                    }
+                    
+                    setFlashMessage('success', $successMsg);
+                    redirect('inquiry.php?success=1&inquiry_id=' . $inquiryId);
+                }
+                $stmt->close();
             }
-
-            $errors[] = 'Database connection is unavailable. Please try again later.';
         }
+        
+        $errors[] = 'Failed to save your order. Please try again later.';
+    }
 }
 
 require_once __DIR__ . '/includes/header.php';
 require_once __DIR__ . '/includes/sidebar.php';
 ?>
 
-<!-- Booking Calendar Section -->
+<!-- Booking Hero -->
 <section class="page-hero">
     <div class="container">
         <div class="page-hero-card reveal">
-            <span class="eyebrow">Reserve Your Date</span>
-            <h1>Select your event date from our booking calendar</h1>
-            <p>Click on an available date to select it. Red dates are confirmed bookings, gray dates are past or blocked.</p>
+            <span class="eyebrow">Complete Your Order</span>
+            <h1>Review your order and select your event date</h1>
+            <p>Your cart items are shown below. Select a date from the calendar, then fill in your details to confirm your booking.</p>
         </div>
     </div>
 </section>
 
 <section class="section">
     <div class="container">
-        <!-- Calendar Card -->
-        <div class="section-card reveal">
-            <h2 style="text-align: center; margin-bottom: 1.5rem;">Calendar | Event Calendar</h2>
+        <!-- Order Summary with Edit Controls -->
+        <div class="section-card reveal" style="margin-bottom: 1.5rem;">
+            <div class="order-summary-header">
+                <h2>📦 Your Order Summary</h2>
+                <button type="button" class="button button-small" onclick="openAddItemsSidebar()">+ Add More Items</button>
+            </div>
             
-            <?php
-            // Get all booking dates
-            $allBookings = getBookings();
-            $bookedDates = [];
-            foreach ($allBookings as $b) {
-                if ($b['status'] === 'confirmed') {
-                    $bookedDates[] = date('Y-m-d', strtotime($b['event_date']));
-                }
-            }
-            $bookedDates = array_unique($bookedDates);
-            
-            // Generate calendar (current month)
-            $currentMonth = isset($_GET['month']) ? (int)$_GET['month'] : date('n');
-            $currentYear = isset($_GET['year']) ? (int)$_GET['year'] : date('Y');
-            
-            $firstDay = mktime(0, 0, 0, $currentMonth, 1, $currentYear);
-            $daysInMonth = date('t', $firstDay);
-            $monthName = date('F', $firstDay);
-            $firstDayOfWeek = date('w', $firstDay);
-            $today = date('Y-m-d');
-            
-            $prevMonth = $currentMonth - 1;
-            $prevYear = $currentYear;
-            if ($prevMonth < 1) {
-                $prevMonth = 12;
-                $prevYear--;
-            }
-            
-            $nextMonth = $currentMonth + 1;
-            $nextYear = $currentYear;
-            if ($nextMonth > 12) {
-                $nextMonth = 1;
-                $nextYear++;
-            }
-            ?>
-            
-            <?php require_once __DIR__ . '/includes/calendar.php'; ?>
-        </div>
-        
-        <?php if (!empty($cartItems)): ?>
-        <!-- Order Summary from Cart -->
-        <div class="admin-card" style="margin-top: 1.5rem;">
-            <h2>📦 Your Selected Order</h2>
-            <div class="order-summary-list">
-                <?php foreach ($cartItems as $item): ?>
-                <div class="order-item">
+            <?php if (!empty($cartItems)): ?>
+            <div class="order-summary-list" id="orderSummaryList">
+                <?php foreach ($cartItems as $index => $item): ?>
+                <div class="order-item editable" data-item-id="<?php echo $item['id']; ?>">
                     <div class="order-item-info">
                         <strong><?php echo escape($item['product_name']); ?></strong>
                         <?php if ($item['notes']): ?>
                         <small><?php echo escape($item['notes']); ?></small>
                         <?php endif; ?>
                     </div>
-                    <div class="order-item-qty">x<?php echo $item['quantity']; ?></div>
+                    <div class="order-item-controls">
+                        <button type="button" class="qty-btn" onclick="updateCartItemQty(<?php echo $item['id']; ?>, <?php echo $item['quantity'] - 1; ?>)" <?php echo $item['quantity'] <= 1 ? 'disabled' : ''; ?>>−</button>
+                        <span class="qty-display"><?php echo $item['quantity']; ?></span>
+                        <button type="button" class="qty-btn" onclick="updateCartItemQty(<?php echo $item['id']; ?>, <?php echo $item['quantity'] + 1; ?>)" <?php echo $item['quantity'] >= 99 ? 'disabled' : ''; ?>>+</button>
+                    </div>
                     <div class="order-item-price">₱<?php echo number_format($item['product_price'] * $item['quantity'], 2); ?></div>
+                    <button type="button" class="remove-btn-sm" onclick="removeCartItem(<?php echo $item['id']; ?>)" title="Remove">×</button>
                 </div>
                 <?php endforeach; ?>
             </div>
             <div class="order-total-bar">
                 <span>Order Total:</span>
-                <strong>₱<?php echo number_format($cartTotal, 2); ?></strong>
+                <strong id="cartTotalDisplay">₱<?php echo number_format($cartTotal, 2); ?></strong>
             </div>
-            <div style="margin-top: 1rem;">
-                <a href="menu.php" class="button button-small">← Modify Order</a>
+            <?php else: ?>
+            <div class="empty-cart-message" style="text-align: center; padding: 2rem; color: #666;">
+                <p>Your cart is empty. Add items from the menu to get started.</p>
+                <a href="menu.php" class="button" style="margin-top: 1rem;">Browse Menu</a>
             </div>
-        </div>
-        <?php endif; ?>
-        
-        <div id="selectedDateDisplay" style="display: none; text-align: center; margin: 1rem 0; padding: 1rem; background: rgba(213, 164, 55, 0.1); border-radius: 16px; border: 2px solid #d5a437;">
-            <p style="margin: 0; color: var(--surface-dark); font-weight: 600;">
-                Selected Date: <span id="selectedDateValue"></span>
-            </p>
+            <?php endif; ?>
         </div>
         
-        <!-- Inquiry Form -->
-        <div class="admin-card" style="margin-top: 1.5rem;">
-            <h2>Inquiry Form - Complete Your Booking Inquiry</h2>
+        <!-- Two Column Layout: Calendar + Form -->
+        <div class="booking-layout">
+            <!-- Left: Calendar -->
+            <div class="calendar-section">
+                <div class="section-card reveal">
+                    <h3>📅 Select Event Date</h3>
+                    <div id="selectedDateDisplay" class="selected-date-box" style="display: none;">
+                        <span id="selectedDateValue"></span>
+                    </div>
+                    
+                    <?php
+                    // Get all booking dates
+                    $allBookings = getBookings();
+                    $bookedDates = [];
+                    foreach ($allBookings as $b) {
+                        if ($b['status'] === 'confirmed') {
+                            $bookedDates[] = date('Y-m-d', strtotime($b['event_date']));
+                        }
+                    }
+                    $bookedDates = array_unique($bookedDates);
+                    
+                    // Generate calendar (current month)
+                    $currentMonth = isset($_GET['month']) ? (int)$_GET['month'] : date('n');
+                    $currentYear = isset($_GET['year']) ? (int)$_GET['year'] : date('Y');
+                    
+                    $firstDay = mktime(0, 0, 0, $currentMonth, 1, $currentYear);
+                    $daysInMonth = date('t', $firstDay);
+                    $monthName = date('F', $firstDay);
+                    $firstDayOfWeek = date('w', $firstDay);
+                    $today = date('Y-m-d');
+                    
+                    $prevMonth = $currentMonth - 1;
+                    $prevYear = $currentYear;
+                    if ($prevMonth < 1) {
+                        $prevMonth = 12;
+                        $prevYear--;
+                    }
+                    
+                    $nextMonth = $currentMonth + 1;
+                    $nextYear = $currentYear;
+                    if ($nextMonth > 12) {
+                        $nextMonth = 1;
+                        $nextYear++;
+                    }
+                    ?>
+                    
+                    <?php require_once __DIR__ . '/includes/calendar.php'; ?>
+                    
+                    <div class="calendar-legend" style="margin-top: 1rem; display: flex; gap: 1rem; justify-content: center; font-size: 0.8rem;">
+                        <span><span style="display: inline-block; width: 12px; height: 12px; background: #f44336; border-radius: 2px; margin-right: 4px;"></span>Booked</span>
+                        <span><span style="display: inline-block; width: 12px; height: 12px; background: #9e9e9e; border-radius: 2px; margin-right: 4px;"></span>Blocked</span>
+                        <span><span style="display: inline-block; width: 12px; height: 12px; background: #d5a437; border-radius: 2px; margin-right: 4px;"></span>Selected</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Right: Booking Form -->
+            <div class="form-section">
+                <div class="section-card reveal">
+            <h2>✅ Complete Your Booking</h2>
+            <p style="color: var(--text-soft); margin-bottom: 1rem;">Review your order above and fill in your details to confirm your booking.</p>
+            
+            <?php if (isset($_GET['success'])): ?>
+                <div class="success-message" style="background: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                    <strong>✓ Order Submitted!</strong><br>
+                    Your booking inquiry #<?php echo (int)$_GET['inquiry_id']; ?> has been received. ARC Kitchen will contact you shortly to confirm.
+                </div>
+            <?php endif; ?>
             
             <?php if ($errors): ?>
                 <div class="error-list">
@@ -189,16 +298,25 @@ require_once __DIR__ . '/includes/sidebar.php';
                         <input id="guest_count" name="guest_count" type="number" min="1" value="<?php echo escape($_POST['guest_count'] ?? '50'); ?>">
                     </div>
                     <div class="field">
-                        <label for="package_interest">Preferred Package</label>
-                        <select id="package_interest" name="package_interest">
+                        <label for="package_interest">Preferred Package <?php if ($cartPackage): ?><span style="color: #4CAF50;">(✓ In your cart)</span><?php endif; ?></label>
+                        <select id="package_interest" name="package_interest" <?php if ($cartPackage): ?>style="border-color: #4CAF50; background: #f8fff8;"<?php endif; ?>>
                             <option value="">No preference yet</option>
                             <?php foreach ($packages as $package): ?>
-                                <?php $selected = ($_POST['package_interest'] ?? '') === $package['name'] ? 'selected' : ''; ?>
-                                <option value="<?php echo escape($package['name']); ?>" <?php echo $selected; ?>>
-                                    <?php echo escape($package['name']); ?> (₱<?php echo number_format((float)$package['total_price'], 2); ?>)
+                                <?php 
+                                // Auto-select if package is in cart and matches this option
+                                $isCartPackage = $cartPackage && ($cartPackage['product_name'] === $package['name'] || $cartPackage['product_id'] == $package['id']);
+                                $selected = ($_POST['package_interest'] ?? '') === $package['name'] || $isCartPackage ? 'selected' : ''; 
+                                ?>
+                                <option value="<?php echo escape($package['name']); ?>" <?php echo $selected; ?><?php if ($isCartPackage): ?> style="font-weight: 600; color: #4CAF50;"<?php endif; ?>>
+                                    <?php echo escape($package['name']); ?> (₱<?php echo number_format((float)$package['total_price'], 2); ?>)<?php if ($isCartPackage): ?> ✓<?php endif; ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>
+                        <?php if ($cartPackage): ?>
+                        <small style="color: #4CAF50; display: block; margin-top: 0.25rem;">
+                            Package "<?php echo escape($cartPackage['product_name']); ?>" is already in your cart (Qty: <?php echo $cartPackage['quantity']; ?>)
+                        </small>
+                        <?php endif; ?>
                     </div>
                 </div>
                 
@@ -208,15 +326,64 @@ require_once __DIR__ . '/includes/sidebar.php';
                 </div>
                 
                 <div style="text-align: center; margin-top: 1.5rem;">
-                    <button type="submit" class="button" style="padding: 1rem 2.5rem; font-size: 1.1rem;">Submit Booking Inquiry</button>
+                    <button type="submit" class="button" style="padding: 1rem 2.5rem; font-size: 1.1rem; background: linear-gradient(135deg, #8a2927 0%, #6c1d12 100%);">📩 Confirm & Submit Order</button>
                 </div>
             </form>
+                </div>
+            </div>
         </div>
     </div>
 </section>
 
+<!-- Add Items Sidebar (Slide-out panel with menu) -->
+<div class="add-items-overlay" id="addItemsOverlay" onclick="closeAddItemsSidebar()"></div>
+<aside class="add-items-sidebar" id="addItemsSidebar">
+    <div class="add-items-header">
+        <h3>🍽️ Add to Your Order</h3>
+        <button type="button" class="close-btn" onclick="closeAddItemsSidebar()">×</button>
+    </div>
+    <div class="add-items-content">
+        <!-- Quick Add Menu Items -->
+        <div class="quick-add-section">
+            <h4>Menu Items</h4>
+            <div class="quick-add-list">
+                <?php foreach ($menuItems as $item): ?>
+                <div class="quick-add-item" onclick="quickAddToCart(<?php echo $item['id']; ?>, 'item', '<?php echo addslashes($item['name']); ?>', <?php echo $item['price']; ?>)">
+                    <div class="quick-add-info">
+                        <strong><?php echo escape($item['name']); ?></strong>
+                        <span class="quick-add-category"><?php echo escape($item['category']); ?></span>
+                    </div>
+                    <div class="quick-add-price">₱<?php echo number_format($item['price'], 0); ?></div>
+                    <button type="button" class="quick-add-btn">+</button>
+                </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+        
+        <!-- Quick Add Packages -->
+        <div class="quick-add-section">
+            <h4>Packages</h4>
+            <div class="quick-add-list">
+                <?php foreach ($packages as $package): ?>
+                <div class="quick-add-item package" onclick="quickAddToCart(<?php echo $package['id']; ?>, 'package', '<?php echo addslashes($package['name']); ?>', <?php echo $package['total_price']; ?>)">
+                    <div class="quick-add-info">
+                        <strong><?php echo escape($package['name']); ?></strong>
+                        <span class="quick-add-serves"><?php echo escape($package['serves']); ?></span>
+                    </div>
+                    <div class="quick-add-price">₱<?php echo number_format($package['total_price'], 0); ?></div>
+                    <button type="button" class="quick-add-btn">+</button>
+                </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    </div>
+    <div class="add-items-footer">
+        <button type="button" class="btn-done" onclick="closeAddItemsSidebar()">Done Adding Items</button>
+    </div>
+</aside>
+
 <script>
-// Override calendar component's selectDate to also update inquiry form
+// Override calendar component's selectDate
 function selectDate(dateStr) {
     document.getElementById('selectedDate').value = dateStr;
     document.getElementById('selectedDateValue').textContent = new Date(dateStr).toLocaleDateString('en-US', {
@@ -225,23 +392,372 @@ function selectDate(dateStr) {
         month: 'long',
         day: 'numeric'
     });
-    document.getElementById('selectedDateDisplay').style.display = 'block';
-    
-    // Scroll to form
-    document.querySelector('.admin-card').scrollIntoView({ behavior: 'smooth' });
+    const display = document.getElementById('selectedDateDisplay');
+    display.style.display = 'block';
+    display.classList.add('has-date');
 }
 
 // Initialize selected date if present
 window.addEventListener('DOMContentLoaded', function() {
     const selectedDateInput = document.getElementById('selectedDate');
-    if (selectedDateInput.value) {
+    if (selectedDateInput && selectedDateInput.value) {
         document.getElementById('selectedDateValue').textContent = selectedDateInput.value;
-        document.getElementById('selectedDateDisplay').style.display = 'block';
+        const display = document.getElementById('selectedDateDisplay');
+        display.style.display = 'block';
+        display.classList.add('has-date');
     }
 });
+
+// Cart Management on Booking Page
+function updateCartItemQty(itemId, newQty) {
+    if (newQty < 1) return;
+    
+    fetch('includes/sidebar.php?action=update_cart_item', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item_id: itemId, quantity: newQty })
+    })
+    .then(r => r.json())
+    .then(result => {
+        if (result.success) {
+            location.reload();
+        }
+    });
+}
+
+function removeCartItem(itemId) {
+    if (!confirm('Remove this item from your order?')) return;
+    
+    fetch('includes/sidebar.php?action=remove_cart_item', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item_id: itemId })
+    })
+    .then(r => r.json())
+    .then(result => {
+        if (result.success) {
+            location.reload();
+        }
+    });
+}
+
+// Add Items Sidebar
+function openAddItemsSidebar() {
+    document.getElementById('addItemsSidebar').classList.add('is-open');
+    document.getElementById('addItemsOverlay').classList.add('is-visible');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeAddItemsSidebar() {
+    document.getElementById('addItemsSidebar').classList.remove('is-open');
+    document.getElementById('addItemsOverlay').classList.remove('is-visible');
+    document.body.style.overflow = '';
+}
+
+function quickAddToCart(id, type, name, price) {
+    const data = {
+        product_id: id,
+        product_name: name,
+        product_price: price,
+        quantity: 1,
+        type: type,
+        special_instructions: ''
+    };
+    
+    fetch('includes/sidebar.php?action=add_to_cart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    })
+    .then(r => r.json())
+    .then(result => {
+        if (result.success) {
+            location.reload();
+        } else {
+            alert('Failed to add item');
+        }
+    })
+    .catch(err => {
+        console.error('Error:', err);
+        alert('Failed to add item');
+    });
+}
 </script>
 
 <style>
+/* Order Summary Header */
+.order-summary-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.order-summary-header h2 {
+    margin: 0;
+}
+
+/* Editable Order Items */
+.order-item.editable {
+    display: grid;
+    grid-template-columns: 1fr auto auto auto;
+    gap: 0.75rem;
+    align-items: center;
+    padding: 0.75rem;
+    background: rgba(247, 241, 231, 0.5);
+    border-radius: 10px;
+    margin-bottom: 0.5rem;
+}
+
+.order-item-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.qty-btn {
+    width: 28px;
+    height: 28px;
+    border: 1px solid #d5a437;
+    border-radius: 6px;
+    background: white;
+    color: #8a2927;
+    font-size: 1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.qty-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.qty-btn:hover:not(:disabled) {
+    background: #d5a437;
+    color: white;
+}
+
+.qty-display {
+    min-width: 24px;
+    text-align: center;
+    font-weight: 600;
+    color: #4a1414;
+}
+
+.remove-btn-sm {
+    width: 24px;
+    height: 24px;
+    border: none;
+    background: rgba(244, 67, 54, 0.1);
+    color: #f44336;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1.2rem;
+    line-height: 1;
+}
+
+.remove-btn-sm:hover {
+    background: #f44336;
+    color: white;
+}
+
+/* Two Column Layout */
+.booking-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+}
+
+@media (max-width: 900px) {
+    .booking-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+.calendar-section h3 {
+    margin: 0 0 1rem 0;
+    text-align: center;
+}
+
+.selected-date-box {
+    text-align: center;
+    padding: 0.75rem;
+    background: rgba(213, 164, 55, 0.1);
+    border-radius: 12px;
+    border: 2px solid #d5a437;
+    margin-bottom: 1rem;
+    font-weight: 600;
+    color: #4a1414;
+}
+
+.selected-date-box.has-date {
+    background: #d5a437;
+    color: white;
+}
+
+/* Add Items Sidebar */
+.add-items-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 998;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+}
+
+.add-items-overlay.is-visible {
+    opacity: 1;
+    visibility: visible;
+}
+
+.add-items-sidebar {
+    position: fixed;
+    top: 0;
+    right: -500px;
+    width: 500px;
+    max-width: 95vw;
+    height: 100vh;
+    background: #fffdf8;
+    z-index: 999;
+    transition: right 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    flex-direction: column;
+}
+
+.add-items-sidebar.is-open {
+    right: 0;
+}
+
+.add-items-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    border-bottom: 2px solid rgba(138, 41, 39, 0.1);
+}
+
+.add-items-header h3 {
+    margin: 0;
+    font-size: 1.3rem;
+    color: #4a1414;
+}
+
+.close-btn {
+    width: 36px;
+    height: 36px;
+    border: 2px solid rgba(138, 41, 39, 0.2);
+    border-radius: 10px;
+    background: transparent;
+    cursor: pointer;
+    font-size: 1.5rem;
+    color: #8a2927;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.add-items-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem 1.5rem;
+}
+
+.quick-add-section {
+    margin-bottom: 1.5rem;
+}
+
+.quick-add-section h4 {
+    margin: 0 0 0.75rem 0;
+    color: #8a2927;
+    font-size: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.quick-add-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    background: white;
+    border-radius: 10px;
+    margin-bottom: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+}
+
+.quick-add-item:hover {
+    border-color: #d5a437;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.quick-add-item.package {
+    background: linear-gradient(135deg, #fffdf8 0%, #f7efe2 100%);
+}
+
+.quick-add-info {
+    flex: 1;
+}
+
+.quick-add-info strong {
+    display: block;
+    color: #4a1414;
+    font-size: 0.95rem;
+}
+
+.quick-add-category,
+.quick-add-serves {
+    font-size: 0.75rem;
+    color: #888;
+}
+
+.quick-add-price {
+    font-weight: 600;
+    color: #8a2927;
+    font-size: 0.95rem;
+}
+
+.quick-add-btn {
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: linear-gradient(135deg, #8a2927 0%, #6c1d12 100%);
+    color: white;
+    border-radius: 8px;
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.quick-add-btn:hover {
+    transform: scale(1.1);
+}
+
+.add-items-footer {
+    padding: 1rem 1.5rem;
+    border-top: 2px solid rgba(138, 41, 39, 0.1);
+}
+
+.btn-done {
+    width: 100%;
+    padding: 1rem;
+    border: none;
+    background: linear-gradient(135deg, #8a2927 0%, #6c1d12 100%);
+    color: white;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+/* Original styles preserved */
 .order-summary-list {
     margin: 1rem 0;
 }

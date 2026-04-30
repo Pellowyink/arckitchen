@@ -37,7 +37,7 @@ require_once __DIR__ . '/includes/header.php';
                     <span class="eyebrow">Menu Items</span>
                     <h2>Generous portions made for sharing… or not, we won't judge.</h2>
                 </div>
-                <a href="booking.php" class="button button-small">Book a Tray</a>
+                <a href="inquiry.php" class="button button-small">Book a Tray</a>
             </div>
             
             <!-- Category Tabs -->
@@ -64,14 +64,17 @@ require_once __DIR__ . '/includes/header.php';
                 <div class="category-panel <?php echo $first ? 'active' : ''; ?>" data-category="<?php echo escape($category); ?>">
                     <div class="menu-items-row">
                         <?php foreach ($items as $item): ?>
-                            <article class="menu-card" onclick="openSidebar(<?php echo (int)$item['id']; ?>, 'item')" style="cursor: pointer;">
-                                <img src="<?php echo escape($item['image']); ?>" alt="<?php echo escape($item['name']); ?>">
+                            <article class="menu-card" data-item-id="<?php echo (int)$item['id']; ?>" data-item-type="item" data-item-name="<?php echo addslashes($item['name']); ?>" data-item-price="<?php echo $item['price']; ?>">
+                                <img src="<?php echo escape($item['image']); ?>" alt="<?php echo escape($item['name']); ?>" onclick="openSidebar(<?php echo (int)$item['id']; ?>, 'item')" style="cursor: pointer;">
                                 <p class="pill"><?php echo escape($item['category']); ?></p>
-                                <h3><?php echo escape($item['name']); ?></h3>
-                                <p><?php echo escape($item['description']); ?></p>
-                                <div class="stack-inline">
+                                <h3 onclick="openSidebar(<?php echo (int)$item['id']; ?>, 'item')" style="cursor: pointer;"><?php echo escape($item['name']); ?></h3>
+                                <p onclick="openSidebar(<?php echo (int)$item['id']; ?>, 'item')" style="cursor: pointer;"><?php echo escape($item['description']); ?></p>
+                                <div class="stack-inline menu-card-actions">
                                     <span class="price-tag">₱<?php echo number_format((float) $item['price'], 2); ?></span>
-                                    <button type="button" class="button button-small">Add to Order</button>
+                                    <div class="quick-add-group">
+                                        <button type="button" class="btn-quick-add" onclick="event.stopPropagation(); quickAddItem(<?php echo $item['id']; ?>, 'item', '<?php echo addslashes($item['name']); ?>', <?php echo $item['price']; ?>)">+</button>
+                                        <button type="button" class="button button-small" onclick="openSidebar(<?php echo (int)$item['id']; ?>, 'item')">Customize</button>
+                                    </div>
                                 </div>
                             </article>
                         <?php endforeach; ?>
@@ -97,13 +100,16 @@ require_once __DIR__ . '/includes/header.php';
             </div>
             <div class="grid-3">
                 <?php foreach ($packages as $package): ?>
-                    <article class="package-card" onclick="openSidebar(<?php echo (int)$package['id']; ?>, 'package')" style="cursor: pointer;">
+                    <article class="package-card" data-package-id="<?php echo (int)$package['id']; ?>">
                         <p class="pill">PACKAGE</p>
-                        <h3><?php echo escape($package['name']); ?></h3>
-                        <p><?php echo escape($package['description']); ?></p>
-                        <div class="stack-inline">
+                        <h3 onclick="openSidebar(<?php echo (int)$package['id']; ?>, 'package')" style="cursor: pointer;"><?php echo escape($package['name']); ?></h3>
+                        <p onclick="openSidebar(<?php echo (int)$package['id']; ?>, 'package')" style="cursor: pointer;"><?php echo escape($package['description']); ?></p>
+                        <div class="stack-inline package-card-actions">
                             <span class="price-tag">₱<?php echo number_format((float) $package['total_price'], 2); ?></span>
-                            <button type="button" class="button button-small">Select Package</button>
+                            <div class="quick-add-group">
+                                <button type="button" class="btn-quick-add" onclick="event.stopPropagation(); quickAddItem(<?php echo $package['id']; ?>, 'package', '<?php echo addslashes($package['name']); ?>', <?php echo $package['total_price']; ?>)">+</button>
+                                <button type="button" class="button button-small" onclick="openSidebar(<?php echo (int)$package['id']; ?>, 'package')">View Details</button>
+                            </div>
                         </div>
                     </article>
                 <?php endforeach; ?>
@@ -223,9 +229,145 @@ require_once __DIR__ . '/includes/header.php';
     transform: translateY(-4px);
     box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
 }
+
+/* Quick Add Buttons */
+.menu-card-actions, .package-card-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.quick-add-group {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.btn-quick-add {
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: linear-gradient(135deg, #8a2927 0%, #6c1d12 100%);
+    color: white;
+    border-radius: 10px;
+    font-size: 1.4rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.btn-quick-add:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 12px rgba(138, 41, 39, 0.3);
+}
+
+/* Toast notification for quick add */
+.add-toast {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    background: linear-gradient(135deg, #8a2927 0%, #6c1d12 100%);
+    color: white;
+    padding: 1rem 1.5rem;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    z-index: 1000;
+    animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.add-toast.fade-out {
+    animation: fadeOut 0.3s ease forwards;
+}
+
+@keyframes fadeOut {
+    to {
+        transform: translateY(100%);
+        opacity: 0;
+    }
+}
 </style>
 
 <script>
+// Quick Add Item Function
+function quickAddItem(id, type, name, price) {
+    const data = {
+        product_id: id,
+        product_name: name,
+        product_price: price,
+        quantity: 1,
+        type: type,
+        special_instructions: ''
+    };
+    
+    fetch('includes/sidebar.php?action=add_to_cart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    })
+    .then(r => r.json())
+    .then(result => {
+        if (result.success) {
+            showAddToast(name);
+            // Update cart count in sidebar if visible
+            const cartCountBadge = document.querySelector('.cart-badge');
+            if (cartCountBadge) {
+                cartCountBadge.textContent = result.cart_count;
+            }
+        } else {
+            alert('Failed to add item');
+        }
+    })
+    .catch(err => {
+        console.error('Error:', err);
+        alert('Failed to add item');
+    });
+}
+
+// Show toast notification
+function showAddToast(itemName) {
+    // Remove existing toast
+    const existingToast = document.querySelector('.add-toast');
+    if (existingToast) {
+        existingToast.remove();
+    }
+    
+    // Create new toast
+    const toast = document.createElement('div');
+    toast.className = 'add-toast';
+    toast.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <span style="font-size: 1.2rem;">✓</span>
+            <div>
+                <strong style="display: block;">Added to cart!</strong>
+                <small style="opacity: 0.9;">${itemName}</small>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(toast);
+    
+    // Remove after 2 seconds
+    setTimeout(() => {
+        toast.classList.add('fade-out');
+        setTimeout(() => toast.remove(), 300);
+    }, 2000);
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     const tabs = document.querySelectorAll('.category-tab');
     const panels = document.querySelectorAll('.category-panel');
