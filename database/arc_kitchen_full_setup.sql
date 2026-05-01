@@ -132,6 +132,7 @@ CREATE TABLE IF NOT EXISTS packages (
     total_price DECIMAL(10,2) NOT NULL,
     serves VARCHAR(50) DEFAULT '10 pax per tray',
     is_active TINYINT(1) DEFAULT 1,
+    items_json LONGTEXT DEFAULT NULL COMMENT 'JSON array of selected menu item IDs',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_packages_active (is_active),
@@ -288,6 +289,13 @@ SELECT
 WHERE NOT EXISTS (
     SELECT 1 FROM users WHERE username = 'admin'
 );
+
+-- =====================================================
+-- ALTER TABLE FOR EXISTING DATABASES (Run if upgrading)
+-- =====================================================
+-- If you already have the database set up, run these ALTER statements:
+-- ALTER TABLE packages ADD COLUMN IF NOT EXISTS items_json LONGTEXT DEFAULT NULL COMMENT 'JSON array of selected menu item IDs';
+-- =====================================================
 
 -- =====================================================
 -- SETUP COMPLETE

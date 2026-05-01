@@ -182,10 +182,10 @@ $menuItems = getMenuItems();
     </div>
 
     <!-- Edit Modal Overlay -->
-    <div id="edit-modal-overlay" class="modal-overlay" onclick="closeEditModal(event)"></div>
+    <div id="edit-modal-overlay" class="modal-overlay" onclick="closeEditModal(event)" style="display: none;"></div>
     
     <!-- Edit Modal -->
-    <div id="edit-modal" class="edit-modal">
+    <div id="edit-modal" class="edit-modal" style="display: none;">
         <div class="edit-modal-header">
             <h2 id="edit-modal-title">Edit</h2>
             <button class="btn-close-modal" onclick="closeEditModal()">
@@ -197,6 +197,126 @@ $menuItems = getMenuItems();
         </div>
         <div class="edit-modal-content" id="edit-modal-content">
             <!-- Form content will be loaded here -->
+        </div>
+    </div>
+
+    <!-- Add Modal Overlay -->
+    <div id="add-modal-overlay" class="modal-overlay" onclick="closeAddModal(event)" style="display: none;"></div>
+    
+    <!-- Add Menu Item Modal -->
+    <div id="add-menu-modal" class="edit-modal" style="display: none;">
+        <div class="edit-modal-header">
+            <h2>Add New Menu Item</h2>
+            <button class="btn-close-modal" onclick="closeAddModal()">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <div class="edit-modal-content">
+            <form onsubmit="saveNewMenuItem(event)" class="modal-form">
+                <div class="form-group">
+                    <label class="form-label">Item Name</label>
+                    <input type="text" name="name" class="form-input" placeholder="e.g., Beef Broccoli" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Category</label>
+                    <div class="select-wrapper">
+                        <select name="category" class="form-input form-select" required>
+                            <option value="">Select a category...</option>
+                            <option value="Beef">Beef</option>
+                            <option value="Chicken">Chicken</option>
+                            <option value="Pork">Pork</option>
+                            <option value="Seafood">Seafood</option>
+                            <option value="Pasta">Pasta</option>
+                            <option value="Appetizer">Appetizer</option>
+                            <option value="Salad">Salad</option>
+                            <option value="Dessert">Dessert</option>
+                            <option value="Drinks">Drinks</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <textarea name="description" class="form-input form-textarea" rows="3" placeholder="Describe the dish..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Price</label>
+                    <div class="price-input-wrapper">
+                        <span class="currency-symbol">₱</span>
+                        <input type="number" name="price" class="form-input price-input" placeholder="0.00" min="0" step="0.01" required>
+                    </div>
+                </div>
+                <div class="form-group availability-group">
+                    <label class="form-label">Item Status</label>
+                    <label class="toggle-switch">
+                        <input type="checkbox" name="is_active" checked>
+                        <span class="toggle-slider"></span>
+                        <span class="toggle-label">Active</span>
+                    </label>
+                </div>
+                <button type="submit" class="btn-save-changes">Add Menu Item</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Package Modal -->
+    <div id="add-package-modal" class="edit-modal package-builder-modal" style="display: none;">
+        <div class="edit-modal-header">
+            <h2>Add New Package</h2>
+            <button class="btn-close-modal" onclick="closeAddModal()">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <div class="edit-modal-content">
+            <form onsubmit="saveNewPackage(event)" class="modal-form package-builder-form">
+                <div class="form-group">
+                    <label class="form-label">Package Name</label>
+                    <input type="text" name="name" class="form-input" placeholder="e.g., Budget Fiesta" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Serves (Pax)</label>
+                    <input type="text" name="serves" class="form-input" placeholder="e.g., 10 pax per tray" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <textarea name="description" class="form-input form-textarea" rows="2" placeholder="Describe the package..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Total Price</label>
+                    <div class="price-input-wrapper">
+                        <span class="currency-symbol">₱</span>
+                        <input type="number" name="total_price" class="form-input price-input" placeholder="0.00" min="0" step="0.01" required>
+                    </div>
+                </div>
+                
+                <!-- Menu Items Selection -->
+                <div class="form-group menu-selection-group">
+                    <label class="form-label">Select Menu Items <span class="selection-count">(0 selected)</span></label>
+                    <div class="menu-items-search">
+                        <input type="text" class="form-input" id="menu-search" placeholder="Search dishes..." onkeyup="filterMenuItems()">
+                    </div>
+                    <div class="menu-items-gallery" id="menu-items-gallery">
+                        <!-- Menu items will be loaded here -->
+                        <div class="loading-menu">Loading menu items...</div>
+                    </div>
+                    <input type="hidden" name="selected_items" id="selected-items-input" required>
+                </div>
+
+                <div class="form-group availability-group">
+                    <label class="form-label">Package Status</label>
+                    <label class="toggle-switch">
+                        <input type="checkbox" name="is_active" checked>
+                        <span class="toggle-slider"></span>
+                        <span class="toggle-label">Active</span>
+                    </label>
+                </div>
+                <button type="submit" class="btn-save-changes">Create Package</button>
+            </form>
         </div>
     </div>
 
@@ -225,8 +345,13 @@ $menuItems = getMenuItems();
                 console.log('API response:', data);
                 if (data.success) {
                     content.innerHTML = generateEditForm(data.data, type);
-                    modal.classList.add('active');
-                    overlay.classList.add('active');
+                    modal.style.display = 'flex';
+                    overlay.style.display = 'block';
+                    // Small delay to allow display to apply before adding animation class
+                    setTimeout(() => {
+                        modal.classList.add('active');
+                        overlay.classList.add('active');
+                    }, 10);
                     document.body.style.overflow = 'hidden';
                 } else {
                     alert('Failed to load item details');
@@ -239,10 +364,31 @@ $menuItems = getMenuItems();
     }
 
     /**
-     * Open add modal (placeholder for future implementation)
+     * Open add modal
      */
     function openAddModal(type) {
-        alert('Add ' + type + ' functionality coming soon!');
+        const overlay = document.getElementById('add-modal-overlay');
+        
+        if (type === 'menu') {
+            const modal = document.getElementById('add-menu-modal');
+            modal.style.display = 'flex';
+            setTimeout(() => {
+                modal.classList.add('active');
+            }, 10);
+        } else if (type === 'package') {
+            const modal = document.getElementById('add-package-modal');
+            modal.style.display = 'flex';
+            setTimeout(() => {
+                modal.classList.add('active');
+            }, 10);
+            loadMenuItemsForPackage();
+        }
+        
+        overlay.style.display = 'block';
+        setTimeout(() => {
+            overlay.classList.add('active');
+        }, 10);
+        document.body.style.overflow = 'hidden';
     }
 
     /**
@@ -381,8 +527,18 @@ $menuItems = getMenuItems();
     function closeEditModal(event) {
         if (event && event.target !== event.currentTarget) return;
         
-        document.getElementById('edit-modal').classList.remove('active');
-        document.getElementById('edit-modal-overlay').classList.remove('active');
+        const modal = document.getElementById('edit-modal');
+        const overlay = document.getElementById('edit-modal-overlay');
+        
+        modal.classList.remove('active');
+        overlay.classList.remove('active');
+        
+        // Wait for animation to finish before hiding
+        setTimeout(() => {
+            modal.style.display = 'none';
+            overlay.style.display = 'none';
+        }, 300);
+        
         document.body.style.overflow = '';
         currentEditId = null;
         currentEditType = null;
@@ -418,8 +574,388 @@ $menuItems = getMenuItems();
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
             closeEditModal();
+            closeAddModal();
         }
     });
+
+    // ============================================
+    // ADD MODAL FUNCTIONS
+    // ============================================
+    
+    let selectedMenuItems = new Set();
+    let allMenuItems = [];
+
+    /**
+     * Close add modal
+     */
+    function closeAddModal(event) {
+        if (event && event.target !== event.currentTarget) return;
+        
+        const menuModal = document.getElementById('add-menu-modal');
+        const packageModal = document.getElementById('add-package-modal');
+        const overlay = document.getElementById('add-modal-overlay');
+        
+        menuModal.classList.remove('active');
+        packageModal.classList.remove('active');
+        overlay.classList.remove('active');
+        
+        // Wait for animation to finish before hiding
+        setTimeout(() => {
+            menuModal.style.display = 'none';
+            packageModal.style.display = 'none';
+            overlay.style.display = 'none';
+        }, 300);
+        
+        document.body.style.overflow = '';
+        
+        // Reset forms
+        document.querySelector('#add-menu-modal form')?.reset();
+        document.querySelector('#add-package-modal form')?.reset();
+        
+        // Reset package builder
+        selectedMenuItems.clear();
+        updateSelectionCount();
+        document.getElementById('menu-search').value = '';
+    }
+
+    /**
+     * Save new menu item
+     */
+    function saveNewMenuItem(event) {
+        event.preventDefault();
+        
+        const form = event.target;
+        const formData = new FormData(form);
+        const data = Object.fromEntries(formData.entries());
+        data.is_active = form.querySelector('[name="is_active"]')?.checked ? 1 : 0;
+        data.price = parseFloat(data.price);
+        
+        fetch('../api/add-menu.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                alert('✅ Menu item added successfully!');
+                closeAddModal();
+                
+                // Add new row to table
+                addMenuItemToTable(result.item);
+                
+                // Update counter
+                updateMenuCounter(result.active_count);
+            } else {
+                alert('❌ Error: ' + (result.message || 'Failed to add menu item'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('❌ Failed to add menu item');
+        });
+    }
+
+    /**
+     * Load menu items for package builder
+     */
+    function loadMenuItemsForPackage() {
+        const gallery = document.getElementById('menu-items-gallery');
+        gallery.innerHTML = '<div class="loading-menu">Loading menu items...</div>';
+        
+        fetch('../api/get-all-menu.php')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    allMenuItems = data.items;
+                    renderMenuItemsGallery(data.grouped);
+                } else {
+                    gallery.innerHTML = '<div class="loading-menu">Failed to load menu items</div>';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading menu items:', error);
+                gallery.innerHTML = '<div class="loading-menu">Failed to load menu items</div>';
+            });
+    }
+
+    /**
+     * Render menu items gallery
+     */
+    function renderMenuItemsGallery(grouped) {
+        const gallery = document.getElementById('menu-items-gallery');
+        
+        if (allMenuItems.length === 0) {
+            gallery.innerHTML = '<div class="loading-menu">No menu items available. Please add dishes first.</div>';
+            return;
+        }
+        
+        let html = '';
+        for (const [category, items] of Object.entries(grouped)) {
+            html += `
+                <div class="menu-category-group" data-category="${category.toLowerCase()}">
+                    <div class="menu-category-header">${category}</div>
+                    <div class="menu-items-grid">
+                        ${items.map(item => `
+                            <div class="menu-item-card ${selectedMenuItems.has(item.id) ? 'selected' : ''}" 
+                                 data-id="${item.id}"
+                                 data-name="${escapeHtml(item.name).toLowerCase()}"
+                                 data-category="${item.category.toLowerCase()}"
+                                 onclick="toggleMenuItem(${item.id})">
+                                <div class="menu-item-select-indicator">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                        <polyline points="20 6 9 17 4 12"></polyline>
+                                    </svg>
+                                </div>
+                                <div class="menu-item-name">${escapeHtml(item.name)}</div>
+                                <div class="menu-item-price">₱${parseFloat(item.price).toFixed(2)}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+        
+        gallery.innerHTML = html;
+    }
+
+    /**
+     * Toggle menu item selection
+     */
+    function toggleMenuItem(id) {
+        const card = document.querySelector(`.menu-item-card[data-id="${id}"]`);
+        
+        if (selectedMenuItems.has(id)) {
+            selectedMenuItems.delete(id);
+            card.classList.remove('selected');
+        } else {
+            selectedMenuItems.add(id);
+            card.classList.add('selected');
+        }
+        
+        updateSelectionCount();
+    }
+
+    /**
+     * Update selection count display
+     */
+    function updateSelectionCount() {
+        const count = selectedMenuItems.size;
+        const label = document.querySelector('.selection-count');
+        const input = document.getElementById('selected-items-input');
+        
+        label.textContent = `(${count} selected)`;
+        input.value = Array.from(selectedMenuItems).join(',');
+        
+        // Update visual state
+        document.querySelectorAll('.menu-item-card').forEach(card => {
+            const id = parseInt(card.dataset.id);
+            if (selectedMenuItems.has(id)) {
+                card.classList.add('selected');
+            } else {
+                card.classList.remove('selected');
+            }
+        });
+    }
+
+    /**
+     * Filter menu items by search
+     */
+    function filterMenuItems() {
+        const search = document.getElementById('menu-search').value.toLowerCase();
+        const cards = document.querySelectorAll('.menu-item-card');
+        const groups = document.querySelectorAll('.menu-category-group');
+        
+        cards.forEach(card => {
+            const name = card.dataset.name;
+            const category = card.dataset.category;
+            
+            if (name.includes(search) || category.includes(search)) {
+                card.style.display = 'flex';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+        
+        // Hide empty category groups
+        groups.forEach(group => {
+            const visibleCards = group.querySelectorAll('.menu-item-card:not([style*="display: none"])');
+            group.style.display = visibleCards.length > 0 ? 'block' : 'none';
+        });
+    }
+
+    /**
+     * Save new package
+     */
+    function saveNewPackage(event) {
+        event.preventDefault();
+        
+        if (selectedMenuItems.size === 0) {
+            alert('❌ Please select at least one menu item for the package');
+            return;
+        }
+        
+        const form = event.target;
+        const formData = new FormData(form);
+        const data = Object.fromEntries(formData.entries());
+        data.is_active = form.querySelector('[name="is_active"]')?.checked ? 1 : 0;
+        data.total_price = parseFloat(data.total_price);
+        data.items = Array.from(selectedMenuItems);
+        
+        fetch('../api/add-package.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                alert('✅ Package created successfully!');
+                closeAddModal();
+                
+                // Add new row to table
+                addPackageToTable(result.package);
+                
+                // Update counter
+                updatePackageCounter(result.active_count);
+            } else {
+                alert('❌ Error: ' + (result.message || 'Failed to create package'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('❌ Failed to create package');
+        });
+    }
+
+    /**
+     * Add new menu item row to table
+     */
+    function addMenuItemToTable(item) {
+        const tbody = document.querySelector('.menu-section tbody');
+        const emptyState = document.querySelector('.menu-section .empty-state');
+        
+        // Remove empty state if exists
+        if (emptyState) {
+            emptyState.closest('.admin-card').querySelector('.table-responsive').style.display = 'block';
+            emptyState.remove();
+        }
+        
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td><strong class="item-name">${escapeHtml(item.name)}</strong></td>
+            <td><span class="category-tag">${escapeHtml(item.category)}</span></td>
+            <td class="description-cell">${escapeHtml(item.description || '').substring(0, 50)}${(item.description || '').length > 50 ? '...' : ''}</td>
+            <td><strong class="price">₱${parseFloat(item.price).toFixed(2)}</strong></td>
+            <td>
+                <div class="action-buttons">
+                    <button class="btn-icon btn-icon-edit" onclick="openEditModal(${item.id}, 'menu')" title="Edit">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                    </button>
+                    <button class="btn-icon btn-icon-delete" onclick="deleteItem(${item.id}, 'menu')" title="Delete">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            <line x1="10" y1="11" x2="10" y2="17"></line>
+                            <line x1="14" y1="11" x2="14" y2="17"></line>
+                        </svg>
+                    </button>
+                </div>
+            </td>
+        `;
+        
+        // Add animation
+        row.style.animation = 'slideIn 0.3s ease';
+        tbody.insertBefore(row, tbody.firstChild);
+        
+        // Update item count
+        const countEl = document.querySelector('.menu-section .item-count');
+        if (countEl) {
+            const currentCount = parseInt(countEl.textContent.replace(/\D/g, '')) || 0;
+            countEl.textContent = `(${currentCount + 1})`;
+        }
+    }
+
+    /**
+     * Add new package row to table
+     */
+    function addPackageToTable(pkg) {
+        const tbody = document.querySelector('.packages-section tbody');
+        const emptyState = document.querySelector('.packages-section .empty-state');
+        
+        // Remove empty state if exists
+        if (emptyState) {
+            emptyState.closest('.admin-card').querySelector('.table-responsive').style.display = 'block';
+            emptyState.remove();
+        }
+        
+        const isActive = pkg.is_active;
+        const statusClass = isActive ? 'active' : 'inactive';
+        const statusText = isActive ? 'Active' : 'Inactive';
+        
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td><strong class="item-name">${escapeHtml(pkg.name)}</strong></td>
+            <td>${escapeHtml(pkg.serves || 'N/A')}</td>
+            <td><strong class="price">₱${parseFloat(pkg.total_price || 0).toFixed(2)}</strong></td>
+            <td>
+                <span class="status-badge ${statusClass}">${statusText}</span>
+            </td>
+            <td>
+                <div class="action-buttons">
+                    <button class="btn-icon btn-icon-edit" onclick="openEditModal(${pkg.id}, 'package')" title="Edit">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                    </button>
+                    <button class="btn-icon btn-icon-delete" onclick="deleteItem(${pkg.id}, 'package')" title="Delete">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            <line x1="10" y1="11" x2="10" y2="17"></line>
+                            <line x1="14" y1="11" x2="14" y2="17"></line>
+                        </svg>
+                    </button>
+                </div>
+            </td>
+        `;
+        
+        // Add animation
+        row.style.animation = 'slideIn 0.3s ease';
+        tbody.insertBefore(row, tbody.firstChild);
+    }
+
+    /**
+     * Update menu counter
+     */
+    function updateMenuCounter(count) {
+        // Update dashboard counter if on dashboard
+        const menuCounter = document.querySelector('.stat-card-menu .stat-value');
+        if (menuCounter) {
+            menuCounter.textContent = count;
+        }
+        
+        // Update count in header
+        const countEl = document.querySelector('.menu-section .item-count');
+        if (countEl) {
+            countEl.textContent = `(${count})`;
+        }
+    }
+
+    /**
+     * Update package counter
+     */
+    function updatePackageCounter(count) {
+        // Update dashboard counter if on dashboard
+        const pkgCounter = document.querySelector('.stat-card-packages .stat-value');
+        if (pkgCounter) {
+            pkgCounter.textContent = count;
+        }
+    }
     </script>
 
     <style>
@@ -904,6 +1440,185 @@ $menuItems = getMenuItems();
         transform: translateY(0);
     }
     
+    /* ============================================
+       PACKAGE BUILDER - MENU SELECTION UI
+       ============================================ */
+    
+    .package-builder-modal {
+        width: 560px;
+    }
+    
+    .menu-selection-group {
+        margin-top: 0.5rem;
+    }
+    
+    .selection-count {
+        font-weight: 500;
+        color: #8a2927;
+        font-size: 0.9rem;
+    }
+    
+    .menu-items-search {
+        margin-bottom: 0.75rem;
+    }
+    
+    .menu-items-search input {
+        background: #fffaf2;
+        border-color: #e8dfd5;
+    }
+    
+    .menu-items-search input:focus {
+        background: #fff;
+        border-color: #d5a437;
+    }
+    
+    .menu-items-gallery {
+        max-height: 280px;
+        overflow-y: auto;
+        padding: 0.5rem;
+        background: linear-gradient(180deg, #fffaf2 0%, #f8f4f0 100%);
+        border-radius: 12px;
+        border: 1px solid #e8dfd5;
+    }
+    
+    .menu-items-gallery::-webkit-scrollbar {
+        width: 6px;
+    }
+    
+    .menu-items-gallery::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    
+    .menu-items-gallery::-webkit-scrollbar-thumb {
+        background: #d5a437;
+        border-radius: 3px;
+    }
+    
+    .menu-category-group {
+        margin-bottom: 1rem;
+    }
+    
+    .menu-category-group:last-child {
+        margin-bottom: 0;
+    }
+    
+    .menu-category-header {
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #8a2927;
+        padding: 0.5rem 0.75rem;
+        background: rgba(213, 164, 55, 0.12);
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+    }
+    
+    .menu-items-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.5rem;
+    }
+    
+    .menu-item-card {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        padding: 0.75rem;
+        background: #fff;
+        border: 2px solid transparent;
+        border-radius: 14px;
+        cursor: pointer;
+        transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+    }
+    
+    .menu-item-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        border-color: #d5a437;
+    }
+    
+    .menu-item-card.selected {
+        background: linear-gradient(135deg, #e8f5e9 0%, #d4edda 100%);
+        border-color: #28a745;
+        box-shadow: 0 4px 12px rgba(40, 167, 69, 0.15);
+    }
+    
+    .menu-item-select-indicator {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background: #e0e0e0;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+        opacity: 0.5;
+    }
+    
+    .menu-item-card.selected .menu-item-select-indicator {
+        background: #28a745;
+        opacity: 1;
+    }
+    
+    .menu-item-card.selected .menu-item-select-indicator svg {
+        stroke-dasharray: 20;
+        stroke-dashoffset: 0;
+        animation: checkmark 0.3s ease;
+    }
+    
+    @keyframes checkmark {
+        from { stroke-dashoffset: 20; }
+        to { stroke-dashoffset: 0; }
+    }
+    
+    .menu-item-name {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: #2d1b1b;
+        line-height: 1.3;
+        padding-right: 1.5rem;
+    }
+    
+    .menu-item-card.selected .menu-item-name {
+        color: #155724;
+    }
+    
+    .menu-item-price {
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: #8a2927;
+    }
+    
+    .menu-item-card.selected .menu-item-price {
+        color: #28a745;
+    }
+    
+    .loading-menu {
+        text-align: center;
+        padding: 2rem;
+        color: #999;
+        font-size: 0.9rem;
+    }
+    
+    /* Slide-in animation for new rows */
+    @keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateX(-20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+    
     /* Responsive */
     @media (max-width: 640px) {
         .edit-modal {
@@ -928,6 +1643,14 @@ $menuItems = getMenuItems();
         
         .edit-modal-content {
             padding: 1.5rem;
+        }
+        
+        .menu-items-grid {
+            grid-template-columns: 1fr;
+        }
+        
+        .menu-items-gallery {
+            max-height: 220px;
         }
     }
     </style>
