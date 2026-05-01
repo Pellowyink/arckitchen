@@ -27,8 +27,7 @@ $admin_nav = [
         ['page' => 'sales.php', 'label' => 'Sales', 'icon' => '💰'],
         ['page' => 'archives.php', 'label' => 'Archives', 'icon' => '📁'],
     ],
-    'SETTINGS' => [
-        ['page' => 'menu-manager.php', 'label' => 'Menu Manager', 'icon' => '🍽️'],
+    'SYSTEM' => [
         ['page' => 'setup_admin.php', 'label' => 'Admin Setup', 'icon' => '⚙️'],
         ['page' => 'logout.php', 'label' => 'Logout', 'icon' => '🚪'],
     ],
