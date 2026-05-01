@@ -204,6 +204,7 @@ $packages = getPackages();?><!DOCTYPE html>
      * Open edit sidebar for menu item or package
      */
     function openEditSidebar(id, type) {
+        console.log('openEditSidebar called:', { id, type });
         currentEditId = id;
         currentEditType = type;
         
@@ -213,10 +214,11 @@ $packages = getPackages();?><!DOCTYPE html>
         
         title.textContent = type === 'menu' ? 'Edit Menu Item' : 'Edit Package';
         
-        // Fetch item data
-        fetch(`../api/get-${type}.php?id=${id}`)
+        // Fetch item data (include inactive for editing)
+        fetch(`../api/get-${type}.php?id=${id}&include_inactive=1`)
             .then(response => response.json())
             .then(data => {
+                console.log('API response:', data);
                 if (data.success) {
                     content.innerHTML = generateEditForm(data.data, type);
                     sidebar.classList.add('active');
@@ -225,8 +227,8 @@ $packages = getPackages();?><!DOCTYPE html>
                 }
             })
             .catch(error => {
-                console.error('Error:', error);
-                alert('Failed to load item details');
+                console.error('Error loading item:', error);
+                alert('Failed to load item details. Check console (F12) for details.');
             });
     }
 

@@ -7,6 +7,9 @@
 require_once __DIR__ . '/../includes/functions.php';
 requireAdminCheck();
 
+// Set timezone to Philippines
+date_default_timezone_set('Asia/Manila');
+
 $errors = [];
 $success = '';
 

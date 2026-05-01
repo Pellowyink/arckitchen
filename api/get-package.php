@@ -8,14 +8,16 @@ require_once __DIR__ . '/../includes/functions.php';
 
 header('Content-Type: application/json');
 
-$id = $_GET['id'] ?? null;
+$id = (int)($_GET['id'] ?? 0);
+$includeInactive = isset($_GET['include_inactive']) && $_GET['include_inactive'] === '1';
 
-if (!$id) {
+if ($id <= 0) {
+    http_response_code(400);
     echo json_encode(['success' => false, 'message' => 'Package ID required']);
     exit;
 }
 
-$package = getPackage((int)$id);
+$package = getPackage($id, $includeInactive);
 
 if (!$package) {
     echo json_encode(['success' => false, 'message' => 'Package not found']);

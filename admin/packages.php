@@ -97,8 +97,8 @@ $packages = getPackages();?><!DOCTYPE html>
         
         title.textContent = 'Edit Package';
         
-        // Fetch package data
-        fetch(`../api/get-package.php?id=${id}`)
+        // Fetch package data (include inactive for editing)
+        fetch(`../api/get-package.php?id=${id}&include_inactive=1`)
             .then(response => response.json())
             .then(data => {
                 if (data.success) {

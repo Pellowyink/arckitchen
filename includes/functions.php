@@ -815,12 +815,13 @@ function getMenuCategories(): array
 /**
  * Get single menu item by ID
  */
-function getMenuItem(int $id): ?array
+function getMenuItem(int $id, bool $includeInactive = false): ?array
 {
     $connection = getDbConnection();
     if (!$connection) return null;
     
-    $statement = $connection->prepare("SELECT * FROM menu_items WHERE id = ? AND is_active = 1");
+    $sql = $includeInactive ? "SELECT * FROM menu_items WHERE id = ?" : "SELECT * FROM menu_items WHERE id = ? AND is_active = 1";
+    $statement = $connection->prepare($sql);
     if (!$statement) return null;
     
     $statement->bind_param('i', $id);
@@ -856,13 +857,14 @@ function getPackages(): array
 /**
  * Get single package with items
  */
-function getPackage(int $id): ?array
+function getPackage(int $id, bool $includeInactive = false): ?array
 {
     $connection = getDbConnection();
     if (!$connection) return null;
     
     // Get package details
-    $statement = $connection->prepare("SELECT * FROM packages WHERE id = ? AND is_active = 1");
+    $sql = $includeInactive ? "SELECT * FROM packages WHERE id = ?" : "SELECT * FROM packages WHERE id = ? AND is_active = 1";
+    $statement = $connection->prepare($sql);
     if (!$statement) return null;
     
     $statement->bind_param('i', $id);
@@ -982,7 +984,7 @@ function getBookedDates(string $month, string $year): array
     
     $sql = "SELECT event_date as date, COUNT(*) as booking_count 
             FROM bookings 
-            WHERE status IN ('confirmed', 'pending') 
+            WHERE status IN ('confirmed', 'pending', 'completed') 
             AND event_date BETWEEN ? AND ? 
             GROUP BY event_date";
     $statement = $connection->prepare($sql);
