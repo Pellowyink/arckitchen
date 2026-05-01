@@ -298,25 +298,13 @@ require_once __DIR__ . '/includes/sidebar.php';
                         <input id="guest_count" name="guest_count" type="number" min="1" value="<?php echo escape($_POST['guest_count'] ?? '50'); ?>">
                     </div>
                     <div class="field">
-                        <label for="package_interest">Preferred Package <?php if ($cartPackage): ?><span style="color: #4CAF50;">(✓ In your cart)</span><?php endif; ?></label>
-                        <select id="package_interest" name="package_interest" <?php if ($cartPackage): ?>style="border-color: #4CAF50; background: #f8fff8;"<?php endif; ?>>
-                            <option value="">No preference yet</option>
-                            <?php foreach ($packages as $package): ?>
-                                <?php 
-                                // Auto-select if package is in cart and matches this option
-                                $isCartPackage = $cartPackage && ($cartPackage['product_name'] === $package['name'] || $cartPackage['product_id'] == $package['id']);
-                                $selected = ($_POST['package_interest'] ?? '') === $package['name'] || $isCartPackage ? 'selected' : ''; 
-                                ?>
-                                <option value="<?php echo escape($package['name']); ?>" <?php echo $selected; ?><?php if ($isCartPackage): ?> style="font-weight: 600; color: #4CAF50;"<?php endif; ?>>
-                                    <?php echo escape($package['name']); ?> (₱<?php echo number_format((float)$package['total_price'], 2); ?>)<?php if ($isCartPackage): ?> ✓<?php endif; ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                        <?php if ($cartPackage): ?>
-                        <small style="color: #4CAF50; display: block; margin-top: 0.25rem;">
-                            Package "<?php echo escape($cartPackage['product_name']); ?>" is already in your cart (Qty: <?php echo $cartPackage['quantity']; ?>)
+                        <label>Packages</label>
+                        <button type="button" class="button" onclick="openPackagePicker()" style="width: 100%; background: linear-gradient(135deg, #8a2927 0%, #6c1d12 100%);">
+                            📦 Browse & Add Packages
+                        </button>
+                        <small style="color: #666; display: block; margin-top: 0.25rem;">
+                            Click to view available packages and add to your order
                         </small>
-                        <?php endif; ?>
                     </div>
                 </div>
                 
@@ -381,6 +369,165 @@ require_once __DIR__ . '/includes/sidebar.php';
         <button type="button" class="btn-done" onclick="closeAddItemsSidebar()">Done Adding Items</button>
     </div>
 </aside>
+
+<!-- Package Picker Modal -->
+<div class="package-picker-modal" id="packagePickerModal">
+    <div class="package-picker-overlay" onclick="closePackagePicker()"></div>
+    <div class="package-picker-content">
+        <div class="package-picker-header">
+            <h3>📦 Select a Package</h3>
+            <button class="btn-close" onclick="closePackagePicker()">✕</button>
+        </div>
+        <div class="package-picker-body">
+            <div class="packages-grid" id="packagesGrid">
+                <div class="loading-text">Loading packages...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Package Picker Modal Styles */
+.package-picker-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2000;
+    justify-content: center;
+    align-items: center;
+}
+.package-picker-modal.active {
+    display: flex;
+}
+.package-picker-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+}
+.package-picker-content {
+    position: relative;
+    background: white;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 800px;
+    max-height: 80vh;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    animation: modalSlideIn 0.3s ease;
+}
+@keyframes modalSlideIn {
+    from { transform: translateY(30px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+.package-picker-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid #eee;
+    background: #8a2927;
+    color: white;
+}
+.package-picker-header h3 {
+    margin: 0;
+    font-size: 1.25rem;
+}
+.package-picker-header .btn-close {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+.package-picker-header .btn-close:hover {
+    background: rgba(255,255,255,0.2);
+}
+.package-picker-body {
+    padding: 1.5rem;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+.packages-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
+}
+.package-card {
+    background: white;
+    border: 2px solid #e5d5c5;
+    border-radius: 10px;
+    padding: 1.25rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+}
+.package-card:hover {
+    border-color: #8a2927;
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(138,41,39,0.15);
+}
+.package-card.selected {
+    border-color: #4CAF50;
+    background: #f8fff8;
+}
+.package-card h4 {
+    margin: 0 0 0.5rem 0;
+    color: #8a2927;
+    font-size: 1.1rem;
+}
+.package-card .serves {
+    color: #666;
+    font-size: 0.85rem;
+    margin-bottom: 0.75rem;
+}
+.package-card .description {
+    color: #555;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    margin-bottom: 1rem;
+    min-height: 2.5rem;
+}
+.package-card .price {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #8a2927;
+}
+.package-card .add-btn {
+    position: absolute;
+    bottom: 1.25rem;
+    right: 1.25rem;
+    background: #d5a437;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 0.5rem 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.package-card .add-btn:hover {
+    background: #c49430;
+}
+.loading-text {
+    text-align: center;
+    color: #666;
+    padding: 2rem;
+}
+.empty-state {
+    text-align: center;
+    padding: 3rem;
+    color: #666;
+}
+</style>
 
 <script>
 // Override calendar component's selectDate
@@ -489,6 +636,109 @@ function quickAddToCart(id, type, name, price) {
     });
 }
 
+// Package Picker Functions
+let allPackages = [];
+
+function openPackagePicker() {
+    const modal = document.getElementById('packagePickerModal');
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+    loadPackages();
+}
+
+function closePackagePicker() {
+    const modal = document.getElementById('packagePickerModal');
+    modal.classList.remove('active');
+    document.body.style.overflow = '';
+}
+
+function loadPackages() {
+    const grid = document.getElementById('packagesGrid');
+    grid.innerHTML = '<div class="loading-text">Loading packages...</div>';
+    
+    fetch('api/get-all-packages.php')
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                allPackages = data.items || [];
+                renderPackages(allPackages);
+            } else {
+                grid.innerHTML = '<div class="empty-state">Failed to load packages</div>';
+            }
+        })
+        .catch(err => {
+            console.error('Error loading packages:', err);
+            grid.innerHTML = '<div class="empty-state">Error loading packages</div>';
+        });
+}
+
+function renderPackages(packages) {
+    const grid = document.getElementById('packagesGrid');
+    
+    if (packages.length === 0) {
+        grid.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-icon">📦</div>
+                <p>No packages available</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '';
+    packages.forEach(pkg => {
+        html += `
+            <div class="package-card" onclick="addPackageToCart(${pkg.id}, '${escapeHtml(pkg.name)}', ${pkg.price})">
+                <h4>${escapeHtml(pkg.name)}</h4>
+                <div class="serves">${pkg.description ? escapeHtml(pkg.description.substring(0, 60)) + '...' : 'Package'}</div>
+                <div class="price">₱${parseFloat(pkg.price).toFixed(2)}</div>
+                <button class="add-btn">+ Add</button>
+            </div>
+        `;
+    });
+    
+    grid.innerHTML = html;
+}
+
+function addPackageToCart(pkgId, pkgName, pkgPrice) {
+    const data = {
+        product_id: pkgId,
+        product_name: pkgName,
+        product_price: pkgPrice,
+        quantity: 1,
+        type: 'package',
+        special_instructions: ''
+    };
+    
+    fetch('includes/sidebar.php?action=add_to_cart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    })
+    .then(r => r.json())
+    .then(result => {
+        if (result.success) {
+            // Update UI without reload
+            updateCartUI(result.cart_items || [], result.cart_total || 0);
+            
+            showToast(`Added ${pkgName}`);
+            closePackagePicker();
+        } else {
+            alert('Failed to add package');
+        }
+    })
+    .catch(err => {
+        console.error('Error:', err);
+        alert('Failed to add package');
+    });
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 // Update cart UI dynamically without page reload
 function updateCartUI(cartItems, cartTotal) {
     const container = document.getElementById('orderSummaryList');
@@ -504,10 +754,18 @@ function updateCartUI(cartItems, cartTotal) {
     } else {
         let html = '';
         cartItems.forEach(item => {
+            const isPackage = item.type === 'package';
+            const icon = isPackage ? '📦' : '🍽️';
+            const badge = isPackage ? '<span style="background: #8a2927; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.65rem; margin-left: 0.5rem;">PACKAGE</span>' : '';
+            
             html += `
-                <div class="order-item editable" data-item-id="${item.id}">
+                <div class="order-item editable ${isPackage ? 'package-item' : ''}" data-item-id="${item.id}">
                     <div class="order-item-info">
-                        <strong>${escapeHtml(item.product_name)}</strong>
+                        <div style="display: flex; align-items: center;">
+                            <span style="margin-right: 0.5rem;">${icon}</span>
+                            <strong>${escapeHtml(item.product_name)}</strong>
+                            ${badge}
+                        </div>
                         ${item.notes ? `<small>${escapeHtml(item.notes)}</small>` : ''}
                     </div>
                     <div class="order-item-controls">
