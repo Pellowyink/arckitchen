@@ -43,7 +43,9 @@ CREATE TABLE IF NOT EXISTS inquiries (
     full_payment DECIMAL(12,2) DEFAULT 0.00 COMMENT 'Final payment after booking confirmation',
     payment_status ENUM('pending', 'partial', 'fully_paid') DEFAULT 'pending',
     total_amount DECIMAL(12,2) DEFAULT 0.00 COMMENT 'Calculated total from inquiry items',
+    items_json LONGTEXT DEFAULT NULL COMMENT 'JSON array of order items',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_status (status),
     INDEX idx_event_date (event_date),
     INDEX idx_created_at (created_at),
@@ -294,7 +296,14 @@ WHERE NOT EXISTS (
 -- ALTER TABLE FOR EXISTING DATABASES (Run if upgrading)
 -- =====================================================
 -- If you already have the database set up, run these ALTER statements:
--- ALTER TABLE packages ADD COLUMN IF NOT EXISTS items_json LONGTEXT DEFAULT NULL COMMENT 'JSON array of selected menu item IDs';
+
+-- Add items_json to packages table
+ALTER TABLE packages ADD COLUMN IF NOT EXISTS items_json LONGTEXT DEFAULT NULL COMMENT 'JSON array of selected menu item IDs';
+
+-- Add items_json and updated_at to inquiries table
+ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS items_json LONGTEXT DEFAULT NULL COMMENT 'JSON array of order items';
+ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+
 -- =====================================================
 
 -- =====================================================

@@ -37,7 +37,7 @@ require_once __DIR__ . '/includes/header.php';
                     <span class="eyebrow">Menu Items</span>
                     <h2>Generous portions made for sharing… or not, we won't judge.</h2>
                 </div>
-                <a href="inquiry.php" class="button button-small">Book a Tray</a>
+                <a href="inquiry.php" class="button button-small">View Cart</a>
             </div>
             
             <!-- Category Tabs -->
@@ -65,14 +65,13 @@ require_once __DIR__ . '/includes/header.php';
                     <div class="menu-items-row">
                         <?php foreach ($items as $item): ?>
                             <article class="menu-card" data-item-id="<?php echo (int)$item['id']; ?>" data-item-type="item" data-item-name="<?php echo addslashes($item['name']); ?>" data-item-price="<?php echo $item['price']; ?>">
-                                <img src="<?php echo escape($item['image']); ?>" alt="<?php echo escape($item['name']); ?>" onclick="openSidebar(<?php echo (int)$item['id']; ?>, 'item')" style="cursor: pointer;">
                                 <p class="pill"><?php echo escape($item['category']); ?></p>
                                 <h3 onclick="openSidebar(<?php echo (int)$item['id']; ?>, 'item')" style="cursor: pointer;"><?php echo escape($item['name']); ?></h3>
                                 <p onclick="openSidebar(<?php echo (int)$item['id']; ?>, 'item')" style="cursor: pointer;"><?php echo escape($item['description']); ?></p>
                                 <div class="stack-inline menu-card-actions">
                                     <span class="price-tag">₱<?php echo number_format((float) $item['price'], 2); ?></span>
                                     <div class="quick-add-group">
-                                        <button type="button" class="btn-quick-add" onclick="event.stopPropagation(); quickAddItem(<?php echo $item['id']; ?>, 'item', '<?php echo addslashes($item['name']); ?>', <?php echo $item['price']; ?>)">+</button>
+                                        <button type="button" class="btn-quick-add" onclick="event.stopPropagation(); quickAddItem(<?php echo $item['id']; ?>, 'item', '<?php echo addslashes($item['name']); ?>', <?php echo $item['price']; ?>)"}>+</button>
                                         <button type="button" class="button button-small" onclick="openSidebar(<?php echo (int)$item['id']; ?>, 'item')">Customize</button>
                                     </div>
                                 </div>
@@ -220,9 +219,35 @@ require_once __DIR__ . '/includes/header.php';
 }
 
 .menu-items-row .menu-card {
-    flex: 0 0 280px;
-    min-width: 280px;
-    max-width: 280px;
+    flex: 0 0 260px;
+    min-width: 260px;
+    max-width: 260px;
+    padding: 1.25rem;
+}
+
+.menu-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.menu-card .pill {
+    align-self: flex-start;
+    margin-bottom: 0.25rem;
+}
+
+.menu-card h3 {
+    font-size: 1.1rem;
+    line-height: 1.3;
+    margin: 0;
+}
+
+.menu-card p {
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: #666;
+    margin: 0;
+    flex: 1;
 }
 
 .menu-card:hover, .package-card:hover {

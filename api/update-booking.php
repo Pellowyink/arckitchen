@@ -51,7 +51,17 @@ $guest_count = (int)($data['guest_count'] ?? 0);
 $items_json = $data['items_json'] ?? '[]';
 $total_amount = (float)($data['total_amount'] ?? 0);
 $special_requests = $data['special_requests'] ?? '';
-$status = $data['status'] ?? 'pending';
+
+// Get current status from database if not provided
+$status = $data['status'] ?? null;
+if (!$status) {
+    $statusResult = $connection->query("SELECT status FROM bookings WHERE id = $booking_id");
+    if ($statusResult && $row = $statusResult->fetch_assoc()) {
+        $status = $row['status'];
+    } else {
+        $status = 'pending';
+    }
+}
 
 $stmt->bind_param(
     'ssiisssi',

@@ -420,7 +420,9 @@ function updateCartItemQty(itemId, newQty) {
     .then(r => r.json())
     .then(result => {
         if (result.success) {
-            location.reload();
+            // Update UI without reload
+            updateCartUI(result.cart_items || [], result.cart_total || 0);
+            showToast('Quantity updated');
         }
     });
 }
@@ -436,7 +438,9 @@ function removeCartItem(itemId) {
     .then(r => r.json())
     .then(result => {
         if (result.success) {
-            location.reload();
+            // Update UI without reload
+            updateCartUI(result.cart_items || [], result.cart_total || 0);
+            showToast('Item removed');
         }
     });
 }
@@ -472,7 +476,9 @@ function quickAddToCart(id, type, name, price) {
     .then(r => r.json())
     .then(result => {
         if (result.success) {
-            location.reload();
+            // Update UI without reload
+            updateCartUI(result.cart_items || [], result.cart_total || 0);
+            showToast(`Added ${name}`);
         } else {
             alert('Failed to add item');
         }
@@ -481,6 +487,67 @@ function quickAddToCart(id, type, name, price) {
         console.error('Error:', err);
         alert('Failed to add item');
     });
+}
+
+// Update cart UI dynamically without page reload
+function updateCartUI(cartItems, cartTotal) {
+    const container = document.getElementById('orderSummaryList');
+    const totalDisplay = document.getElementById('cartTotalDisplay');
+    
+    if (cartItems.length === 0) {
+        container.innerHTML = `
+            <div class="empty-cart-message" style="text-align: center; padding: 2rem; color: #666;">
+                <p>Your cart is empty. Add items from the menu to get started.</p>
+                <a href="menu.php" class="button" style="margin-top: 1rem;">Browse Menu</a>
+            </div>
+        `;
+    } else {
+        let html = '';
+        cartItems.forEach(item => {
+            html += `
+                <div class="order-item editable" data-item-id="${item.id}">
+                    <div class="order-item-info">
+                        <strong>${escapeHtml(item.product_name)}</strong>
+                        ${item.notes ? `<small>${escapeHtml(item.notes)}</small>` : ''}
+                    </div>
+                    <div class="order-item-controls">
+                        <button type="button" class="qty-btn" onclick="updateCartItemQty(${item.id}, ${item.quantity - 1})" ${item.quantity <= 1 ? 'disabled' : ''}>−</button>
+                        <span class="qty-display">${item.quantity}</span>
+                        <button type="button" class="qty-btn" onclick="updateCartItemQty(${item.id}, ${item.quantity + 1})" ${item.quantity >= 99 ? 'disabled' : ''}>+</button>
+                    </div>
+                    <div class="order-item-price">₱${parseFloat(item.product_price * item.quantity).toFixed(2)}</div>
+                    <button type="button" class="remove-btn-sm" onclick="removeCartItem(${item.id})" title="Remove">×</button>
+                </div>
+            `;
+        });
+        container.innerHTML = html;
+    }
+    
+    // Update total
+    if (totalDisplay) {
+        totalDisplay.textContent = '₱' + parseFloat(cartTotal).toFixed(2);
+    }
+}
+
+// Escape HTML helper
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Toast notification
+function showToast(message) {
+    const existing = document.querySelector('.toast-notification');
+    if (existing) existing.remove();
+    
+    const toast = document.createElement('div');
+    toast.className = 'toast-notification';
+    toast.innerHTML = `<span style="font-size: 1.1rem;">✓</span> ${escapeHtml(message)}`;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => toast.classList.add('fade-out'), 2000);
+    setTimeout(() => toast.remove(), 2300);
 }
 </script>
 
@@ -808,6 +875,37 @@ function quickAddToCart(id, type, name, price) {
 
 .order-total-bar strong {
     font-size: 1.3rem;
+}
+
+/* Toast Notification */
+.toast-notification {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    background: linear-gradient(135deg, #8a2927 0%, #6c1d12 100%);
+    color: white;
+    padding: 1rem 1.5rem;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-weight: 500;
+    animation: slideUp 0.3s ease;
+}
+
+.toast-notification.fade-out {
+    animation: fadeOut 0.3s ease forwards;
+}
+
+@keyframes slideUp {
+    from { transform: translateY(100%); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes fadeOut {
+    to { transform: translateY(100%); opacity: 0; }
 }
 </style>
 

@@ -48,6 +48,54 @@ if (!$inquiry) {
 // Get inquiry items
 $items = getInquiryItems($inquiry_id);
 
+// Add preferred package as an item if exists and not already in items
+$preferredPackage = $inquiry['package_interest'] ?? '';
+if ($preferredPackage && !empty($preferredPackage)) {
+    // Check if package is already in items
+    $packageExists = false;
+    foreach ($items as $item) {
+        if ($item['is_package'] == 1 && stripos($item['name'], $preferredPackage) !== false) {
+            $packageExists = true;
+            break;
+        }
+    }
+    
+    // If not exists, fetch package details and add as item
+    if (!$packageExists) {
+        $pkgResult = $connection->query("SELECT id, name, total_price, serves FROM packages WHERE name = '" . $connection->real_escape_string($preferredPackage) . "' LIMIT 1");
+        if ($pkgResult && $pkgRow = $pkgResult->fetch_assoc()) {
+            $items[] = [
+                'id' => 'pkg_' . $pkgRow['id'],
+                'menu_item_id' => null,
+                'package_id' => $pkgRow['id'],
+                'inquiry_id' => $inquiry_id,
+                'quantity' => 1,
+                'unit_price' => $pkgRow['total_price'],
+                'name' => $pkgRow['name'],
+                'category' => 'Package',
+                'type' => 'package',
+                'is_package' => 1,
+                'package_serves' => $pkgRow['serves']
+            ];
+        } else {
+            // Package not found in DB, add as custom item
+            $items[] = [
+                'id' => 'preferred_pkg',
+                'menu_item_id' => null,
+                'package_id' => null,
+                'inquiry_id' => $inquiry_id,
+                'quantity' => 1,
+                'unit_price' => 0,
+                'name' => $preferredPackage,
+                'category' => 'Preferred Package',
+                'type' => 'package',
+                'is_package' => 1,
+                'package_serves' => ''
+            ];
+        }
+    }
+}
+
 // Calculate total
 $total = calculateOrderTotal($items);
 

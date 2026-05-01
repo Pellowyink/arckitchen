@@ -220,8 +220,14 @@ $bookings = getInquiries();
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
                         <h2 style="margin: 0;"><?php echo date('F Y', strtotime("$currentYear-$currentMonth-01")); ?></h2>
                         <div>
-                            <a href="?month=<?php echo date('m', strtotime('-1 month')); ?>&year=<?php echo date('Y', strtotime('-1 month')); ?>" class="btn-admin btn-secondary-admin btn-small">←</a>
-                            <a href="?month=<?php echo date('m', strtotime('+1 month')); ?>&year=<?php echo date('Y', strtotime('+1 month')); ?>" class="btn-admin btn-secondary-admin btn-small">→</a>
+                            <?php
+                            // Calculate prev/next from current displayed month
+                            $currentMonthTime = strtotime("$currentYear-$currentMonth-01");
+                            $prevMonthTime = strtotime('-1 month', $currentMonthTime);
+                            $nextMonthTime = strtotime('+1 month', $currentMonthTime);
+                            ?>
+                            <a href="?month=<?php echo date('n', $prevMonthTime); ?>&year=<?php echo date('Y', $prevMonthTime); ?>" class="btn-admin btn-secondary-admin btn-small">← Prev</a>
+                            <a href="?month=<?php echo date('n', $nextMonthTime); ?>&year=<?php echo date('Y', $nextMonthTime); ?>" class="btn-admin btn-secondary-admin btn-small">Next →</a>
                         </div>
                     </div>
                     

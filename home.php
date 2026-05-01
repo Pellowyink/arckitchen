@@ -89,7 +89,7 @@ require_once __DIR__ . '/includes/header.php';
                         <h3><?php echo escape($package['name']); ?></h3>
                         <p><?php echo escape($package['description']); ?></p>
                         <div class="stack-inline">
-                            <span class="price-tag">PHP <?php echo number_format((float) $package['price'], 2); ?></span>
+                            <span class="price-tag">PHP <?php echo number_format((float) ($package['total_price'] ?? $package['price'] ?? 0), 2); ?></span>
                             <a href="booking.php" class="button button-small">Inquire</a>
                         </div>
                     </article>

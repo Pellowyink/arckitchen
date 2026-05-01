@@ -123,7 +123,31 @@ $menuItems = getMenuItems();
                     </button>
                 </div>
                 
-                <div class="admin-card">
+                <!-- Category Filter Tabs -->
+                <div class="category-filter-bar" id="category-tabs">
+                    <button class="category-tab active" data-category="ALL" onclick="filterByCategory('ALL')">
+                        All <span class="tab-count" id="count-ALL"><?php echo count($menuItems); ?></span>
+                    </button>
+                    <?php 
+                    // Get unique categories with counts
+                    $catCounts = [];
+                    foreach ($menuItems as $item) {
+                        $cat = $item['category'];
+                        if (!isset($catCounts[$cat])) {
+                            $catCounts[$cat] = 0;
+                        }
+                        $catCounts[$cat]++;
+                    }
+                    ksort($catCounts);
+                    foreach ($catCounts as $cat => $count): 
+                    ?>
+                    <button class="category-tab" data-category="<?php echo escape($cat); ?>" onclick="filterByCategory('<?php echo escape($cat); ?>')">
+                        <?php echo escape($cat); ?> <span class="tab-count" id="count-<?php echo escape($cat); ?>"><?php echo $count; ?></span>
+                    </button>
+                    <?php endforeach; ?>
+                </div>
+                
+                <div class="admin-card menu-table-container" id="menu-table-container">
                     <?php if (!empty($menuItems)): ?>
                         <div class="table-responsive">
                             <table class="admin-table unified-table">
@@ -225,15 +249,15 @@ $menuItems = getMenuItems();
                     <div class="select-wrapper">
                         <select name="category" class="form-input form-select" required>
                             <option value="">Select a category...</option>
-                            <option value="Beef">Beef</option>
-                            <option value="Chicken">Chicken</option>
-                            <option value="Pork">Pork</option>
-                            <option value="Seafood">Seafood</option>
-                            <option value="Pasta">Pasta</option>
-                            <option value="Appetizer">Appetizer</option>
-                            <option value="Salad">Salad</option>
-                            <option value="Dessert">Dessert</option>
-                            <option value="Drinks">Drinks</option>
+                            <option value="BEEF">Beef</option>
+                            <option value="CHICKEN">Chicken</option>
+                            <option value="PORK">Pork</option>
+                            <option value="SEAFOOD">Seafood</option>
+                            <option value="PASTA">Pasta</option>
+                            <option value="APPETIZER">Appetizer</option>
+                            <option value="SALAD">Salad</option>
+                            <option value="DESSERT">Dessert</option>
+                            <option value="DRINKS">Drinks</option>
                         </select>
                     </div>
                 </div>
@@ -616,6 +640,113 @@ $menuItems = getMenuItems();
         selectedMenuItems.clear();
         updateSelectionCount();
         document.getElementById('menu-search').value = '';
+    }
+
+    // ============================================
+    // CATEGORY FILTER FUNCTIONS
+    // ============================================
+    
+    /**
+     * Filter menu items by category via AJAX
+     */
+    function filterByCategory(category) {
+        // Update active tab
+        document.querySelectorAll('.category-tab').forEach(tab => {
+            tab.classList.remove('active');
+            if (tab.dataset.category === category) {
+                tab.classList.add('active');
+            }
+        });
+        
+        // Show loading state
+        const tbody = document.querySelector('#menu-table-container tbody');
+        const originalContent = tbody.innerHTML;
+        tbody.innerHTML = '<tr><td colspan="5" class="loading-cell"><div class="table-loading">Loading...</div></td></tr>';
+        
+        // Fetch filtered items
+        fetch(`../api/get-menu-by-category.php?category=${encodeURIComponent(category)}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    renderMenuItems(data.items, category);
+                    
+                    // Update counters
+                    data.categories.forEach(cat => {
+                        const countEl = document.getElementById(`count-${cat.name}`);
+                        if (countEl) {
+                            countEl.textContent = cat.count;
+                        }
+                    });
+                    document.getElementById('count-ALL').textContent = data.total_count;
+                } else {
+                    tbody.innerHTML = originalContent;
+                    alert('Failed to filter items');
+                }
+            })
+            .catch(error => {
+                console.error('Error filtering:', error);
+                tbody.innerHTML = originalContent;
+                alert('Failed to filter items');
+            });
+    }
+    
+    /**
+     * Render menu items in table with fade animation
+     */
+    function renderMenuItems(items, category) {
+        const tbody = document.querySelector('#menu-table-container tbody');
+        const container = document.getElementById('menu-table-container');
+        
+        if (items.length === 0) {
+            // Show empty state
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-icon">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d5a437" stroke-width="1.5">
+                            <path d="M3 3h18v18H3zM9 3v18M15 3v18M3 9h18M3 15h18"></path>
+                        </svg>
+                    </div>
+                    <p>No dishes found in ${escapeHtml(category)} category.</p>
+                    <button class="btn-admin btn-primary-admin btn-small" onclick="openAddModal('menu')">
+                        Add New Item
+                    </button>
+                </div>
+            `;
+            return;
+        }
+        
+        // Build table rows
+        let html = '';
+        items.forEach(item => {
+            html += `
+                <tr class="fade-in-row">
+                    <td><strong class="item-name">${escapeHtml(item.name)}</strong></td>
+                    <td><span class="category-tag">${escapeHtml(item.category)}</span></td>
+                    <td class="description-cell">${escapeHtml(item.description ? item.description.substring(0, 50) : '')}${item.description && item.description.length > 50 ? '...' : ''}</td>
+                    <td><strong class="price">₱${parseFloat(item.price).toFixed(2)}</strong></td>
+                    <td>
+                        <div class="action-buttons">
+                            <button class="btn-icon btn-icon-edit" onclick="openEditModal(${item.id}, 'menu')" title="Edit">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                                </svg>
+                            </button>
+                            <button class="btn-icon btn-icon-delete" onclick="deleteItem(${item.id}, 'menu')" title="Delete">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="3 6 5 6 21 6"></polyline>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                    <line x1="10" y1="11" x2="10" y2="17"></line>
+                                    <line x1="14" y1="11" x2="14" y2="17"></line>
+                                </svg>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        });
+        
+        tbody.innerHTML = html;
     }
 
     /**
@@ -1652,6 +1783,107 @@ $menuItems = getMenuItems();
         .menu-items-gallery {
             max-height: 220px;
         }
+    }
+    
+    /* ============================================
+       CATEGORY FILTER TABS
+       ============================================ */
+    
+    .category-filter-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        margin-bottom: 1.5rem;
+        padding: 0.5rem;
+        background: #fffaf2;
+        border-radius: 16px;
+        border: 1px solid #f0e6dc;
+    }
+    
+    .category-tab {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.6rem 1.25rem;
+        background: transparent;
+        border: 1.5px solid #e0d5c8;
+        border-radius: 25px;
+        color: #4a1414;
+        font-size: 0.85rem;
+        font-weight: 600;
+        font-family: 'Inter', sans-serif;
+        cursor: pointer;
+        transition: all 0.25s ease;
+        text-transform: capitalize;
+    }
+    
+    .category-tab:hover {
+        border-color: #8a2927;
+        background: rgba(138, 41, 39, 0.05);
+    }
+    
+    .category-tab.active {
+        background: #4a1414;
+        border-color: #4a1414;
+        color: #fff;
+        box-shadow: 0 4px 12px rgba(74, 20, 20, 0.25);
+    }
+    
+    .tab-count {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 20px;
+        height: 20px;
+        padding: 0 0.4rem;
+        background: rgba(213, 164, 55, 0.2);
+        border-radius: 10px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: #8a2927;
+    }
+    
+    .category-tab.active .tab-count {
+        background: rgba(255, 255, 255, 0.2);
+        color: #fff;
+    }
+    
+    /* Table loading state */
+    .loading-cell {
+        text-align: center;
+        padding: 3rem !important;
+    }
+    
+    .table-loading {
+        color: #8a2927;
+        font-size: 0.9rem;
+    }
+    
+    /* Fade animation for table rows */
+    .fade-in-row {
+        animation: fadeInRow 0.3s ease forwards;
+    }
+    
+    @keyframes fadeInRow {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    /* Empty state with add button */
+    #menu-table-container .empty-state {
+        padding: 3rem 2rem;
+        text-align: center;
+    }
+    
+    #menu-table-container .empty-state p {
+        margin-bottom: 1.5rem;
+        color: #666;
     }
     </style>
 

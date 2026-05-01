@@ -94,7 +94,7 @@ $recent_messages = getContactMessages();
                         <div class="stat-value"><?php echo $active_menu_items; ?></div>
                         <div class="stat-subtitle">In service catalog</div>
                     </div>
-                    <a href="menu-manager.php" class="stat-link">Manage →</a>
+                    <a href="packages.php" class="stat-link">Manage →</a>
                 </div>
             </div>
 

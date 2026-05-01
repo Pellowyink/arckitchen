@@ -31,7 +31,18 @@ if ($action === 'add_to_cart' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         
         $_SESSION['cart'][] = $item;
         
-        echo json_encode(['success' => true, 'cart_count' => count($_SESSION['cart'])]);
+        // Calculate total
+        $cartTotal = 0;
+        foreach ($_SESSION['cart'] as $cartItem) {
+            $cartTotal += $cartItem['product_price'] * $cartItem['quantity'];
+        }
+        
+        echo json_encode([
+            'success' => true, 
+            'cart_count' => count($_SESSION['cart']),
+            'cart_items' => array_values($_SESSION['cart']),
+            'cart_total' => $cartTotal
+        ]);
     } else {
         echo json_encode(['success' => false, 'message' => 'Invalid data']);
     }
@@ -53,7 +64,19 @@ if ($action === 'update_cart_item' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         $_SESSION['cart'] = array_values($_SESSION['cart']); // reindex
-        echo json_encode(['success' => true, 'cart_count' => count($_SESSION['cart'])]);
+        
+        // Calculate total
+        $cartTotal = 0;
+        foreach ($_SESSION['cart'] as $cartItem) {
+            $cartTotal += $cartItem['product_price'] * $cartItem['quantity'];
+        }
+        
+        echo json_encode([
+            'success' => true, 
+            'cart_count' => count($_SESSION['cart']),
+            'cart_items' => $_SESSION['cart'],
+            'cart_total' => $cartTotal
+        ]);
     } else {
         echo json_encode(['success' => false]);
     }
@@ -71,7 +94,19 @@ if ($action === 'remove_cart_item' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         $_SESSION['cart'] = array_values($_SESSION['cart']);
-        echo json_encode(['success' => true, 'cart_count' => count($_SESSION['cart'])]);
+        
+        // Calculate total
+        $cartTotal = 0;
+        foreach ($_SESSION['cart'] as $cartItem) {
+            $cartTotal += $cartItem['product_price'] * $cartItem['quantity'];
+        }
+        
+        echo json_encode([
+            'success' => true, 
+            'cart_count' => count($_SESSION['cart']),
+            'cart_items' => $_SESSION['cart'],
+            'cart_total' => $cartTotal
+        ]);
     } else {
         echo json_encode(['success' => false]);
     }

@@ -3,6 +3,32 @@
      It allows inline editing of quantities, items, and dates
 -->
 
+<!-- Menu Item Picker Modal -->
+<div class="menu-picker-modal" id="menuPickerModal">
+    <div class="menu-picker-overlay" onclick="closeMenuPicker()"></div>
+    <div class="menu-picker-content">
+        <div class="menu-picker-header">
+            <h3>Select Menu Item</h3>
+            <button class="btn-close" onclick="closeMenuPicker()">✕</button>
+        </div>
+        <div class="menu-picker-body">
+            <!-- Category Tabs -->
+            <div class="category-tabs" id="menuCategoryTabs">
+                <button class="category-tab active" data-category="MENU" onclick="filterMenuBySource('MENU')">
+                    Menu Items
+                </button>
+                <button class="category-tab" data-category="PACKAGES" onclick="filterMenuBySource('PACKAGES')">
+                    Packages
+                </button>
+            </div>
+            <!-- Menu Items Grid -->
+            <div class="menu-items-grid" id="menuItemsGrid">
+                <div class="loading-text">Loading items...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="edit-sidebar" id="edit-sidebar">
     <div class="sidebar-overlay" id="sidebar-overlay"></div>
     
@@ -62,7 +88,7 @@
                 <div class="items-list" id="items-list">
                     <!-- Items will be populated here -->
                 </div>
-                <button class="btn-admin btn-secondary-admin" id="btn-add-item" style="width: 100%; margin-top: 0.5rem;">+ Add Item</button>
+                <button class="btn-admin btn-secondary-admin" id="btn-add-item" style="width: 100%; margin-top: 0.5rem;" onclick="openMenuPicker()">+ Add Menu Item</button>
             </section>
 
             <!-- Special Requests Section -->
@@ -74,18 +100,6 @@
                     placeholder="Any special instructions or dietary requirements..."
                     rows="3"
                 ></textarea>
-            </section>
-
-            <!-- Status Section (for bookings) -->
-            <section class="sidebar-section" id="status-section" style="display: none;">
-                <h3>📊 Status</h3>
-                <select id="edit-status" class="form-input">
-                    <option value="pending">Pending</option>
-                    <option value="confirmed">Confirmed</option>
-                    <option value="completed">Completed</option>
-                    <option value="cancelled">Cancelled</option>
-                    <option value="blocked">Blocked</option>
-                </select>
             </section>
 
             <!-- Total Amount Section -->
@@ -355,6 +369,165 @@
     margin-bottom: 1rem;
 }
 
+/* Menu Picker Modal Styles */
+.menu-picker-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2000;
+    justify-content: center;
+    align-items: center;
+}
+
+.menu-picker-modal.active {
+    display: flex;
+}
+
+.menu-picker-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(3px);
+}
+
+.menu-picker-content {
+    position: relative;
+    background: #fffdf8;
+    border-radius: 16px;
+    width: 90%;
+    max-width: 700px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: slideUp 0.3s ease-out;
+    z-index: 2001;
+}
+
+@keyframes slideUp {
+    from { transform: translateY(50px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.menu-picker-header {
+    padding: 1.25rem 1.5rem;
+    border-bottom: 2px solid #4a1414;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.menu-picker-header h3 {
+    margin: 0;
+    color: #4a1414;
+    font-size: 1.2rem;
+}
+
+.menu-picker-body {
+    padding: 1.5rem;
+    overflow-y: auto;
+    flex: 1;
+}
+
+/* Category Tabs */
+.category-tabs {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #e0d5c7;
+}
+
+.category-tab {
+    padding: 0.5rem 1rem;
+    border: 1px solid #d5a437;
+    background: transparent;
+    border-radius: 20px;
+    cursor: pointer;
+    color: #4a1414;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.category-tab:hover {
+    background: rgba(213, 164, 55, 0.1);
+}
+
+.category-tab.active {
+    background: #8a2927;
+    color: white;
+    border-color: #8a2927;
+}
+
+/* Menu Items Grid */
+.menu-items-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.menu-item-card {
+    background: white;
+    border: 2px solid #e0d5c7;
+    border-radius: 12px;
+    padding: 1rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.menu-item-card:hover {
+    border-color: #8a2927;
+    box-shadow: 0 4px 12px rgba(138, 41, 39, 0.15);
+    transform: translateY(-2px);
+}
+
+.menu-item-card .item-category {
+    font-size: 0.7rem;
+    color: #8a2927;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+}
+
+.menu-item-card .item-name {
+    font-weight: 600;
+    color: #4a1414;
+    font-size: 0.95rem;
+    line-height: 1.3;
+}
+
+.menu-item-card .item-price {
+    color: #8a2927;
+    font-weight: 700;
+    font-size: 1.1rem;
+    margin-top: auto;
+}
+
+.loading-text {
+    text-align: center;
+    color: #888;
+    padding: 2rem;
+    grid-column: 1 / -1;
+}
+
+.empty-state {
+    text-align: center;
+    color: #888;
+    padding: 2rem;
+    grid-column: 1 / -1;
+}
+
 @keyframes spin {
     to { transform: rotate(360deg); }
 }
@@ -417,15 +590,6 @@ function populateSidebarForm(record, type, data) {
     document.getElementById('edit-guest-count').value = record.guest_count || '';
     document.getElementById('edit-special-requests').value = record.special_requests || record.message || '';
     
-    // Show status section only for bookings
-    const statusSection = document.getElementById('status-section');
-    if (type === 'booking') {
-        statusSection.style.display = 'block';
-        document.getElementById('edit-status').value = record.status || 'pending';
-    } else {
-        statusSection.style.display = 'none';
-    }
-    
     // Populate items if available from data.items
     populateItemsList(data.items || [], data.total || 0);
 }
@@ -455,6 +619,13 @@ function populateItemsList(items, total) {
  */
 function addItemRow(item = {}, index = null) {
     const itemsList = document.getElementById('items-list');
+    
+    // Remove empty state if present
+    const emptyState = itemsList.querySelector('p');
+    if (emptyState && emptyState.textContent.includes('No items')) {
+        emptyState.remove();
+    }
+    
     const isPackage = item.is_package == 1 || item.type === 'package';
     const icon = isPackage ? '📦' : '🍽️';
     const name = item.name || 'Unknown Item';
@@ -462,19 +633,26 @@ function addItemRow(item = {}, index = null) {
     const price = item.unit_price || item.price || 0;
     const subtotal = item.subtotal || (qty * price) || 0;
     const category = item.category || (isPackage ? 'Package' : 'Item');
+    const itemId = item.id || 'new-' + Date.now();
     
     const html = `
-        <div class="item-row ${isPackage ? 'package-row' : ''}" data-item-index="${index || 'new'}">
+        <div class="item-row ${isPackage ? 'package-row' : ''}" data-item-id="${itemId}">
             <div class="item-info" style="flex: 1;">
                 <div style="display: flex; align-items: center; gap: 0.5rem;">
                     <span style="font-size: 1.2rem;">${icon}</span>
                     <strong>${name}</strong>
                     ${isPackage ? '<span class="package-badge">PACKAGE</span>' : ''}
                 </div>
-                <small style="color: #888;">${category} • Qty: ${qty} • ₱${parseFloat(price).toFixed(2)} each</small>
+                <small style="color: #888;">${category} • ₱${parseFloat(price).toFixed(2)} each</small>
+                <input type="hidden" class="item-name" value="${name}">
+                <input type="hidden" class="item-price" value="${price}">
             </div>
-            <div class="item-subtotal" style="font-weight: 600; color: #8a2927;">
-                ₱${parseFloat(subtotal).toFixed(2)}
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <input type="number" class="item-qty" value="${qty}" min="1" max="99" style="width: 50px; padding: 0.4rem; border: 1px solid #ddd; border-radius: 4px; text-align: center;" onchange="updateTotals()">
+                <div class="item-subtotal" style="font-weight: 600; color: #8a2927; min-width: 80px; text-align: right;">
+                    ₱${parseFloat(subtotal).toFixed(2)}
+                </div>
+                <button type="button" class="btn-remove" onclick="removeItemRow(this)" style="background: #dc3545; color: white; border: none; border-radius: 4px; padding: 0.4rem 0.6rem; cursor: pointer; font-size: 0.8rem;">×</button>
             </div>
         </div>
     `;
@@ -497,7 +675,14 @@ function updateTotals() {
     document.querySelectorAll('.item-row').forEach(row => {
         const qty = parseFloat(row.querySelector('.item-qty')?.value) || 0;
         const price = parseFloat(row.querySelector('.item-price')?.value) || 0;
-        subtotal += qty * price;
+        const rowSubtotal = qty * price;
+        subtotal += rowSubtotal;
+        
+        // Update the subtotal display for this row
+        const subtotalEl = row.querySelector('.item-subtotal');
+        if (subtotalEl) {
+            subtotalEl.textContent = '₱' + rowSubtotal.toFixed(2);
+        }
     });
     
     const tax = subtotal * 0.12; // 12% tax
@@ -542,14 +727,27 @@ function closeSidebar() {
 function saveSidebarChanges() {
     if (!currentEditId || !currentEditType) return;
     
-    // Collect items data
+    // Collect items data with all necessary fields
     const items = [];
     document.querySelectorAll('.item-row').forEach(row => {
-        items.push({
-            name: row.querySelector('.item-name').value,
-            quantity: parseInt(row.querySelector('.item-qty').value) || 0,
-            price: parseFloat(row.querySelector('.item-price').value) || 0,
-        });
+        const name = row.querySelector('.item-name')?.value || '';
+        const qty = parseInt(row.querySelector('.item-qty')?.value) || 0;
+        const price = parseFloat(row.querySelector('.item-price')?.value) || 0;
+        const isPackage = row.classList.contains('package-row') ? 1 : 0;
+        const itemId = row.dataset.itemId || null;
+        
+        if (name && qty > 0) {
+            items.push({
+                id: itemId,
+                name: name,
+                quantity: qty,
+                unit_price: price,
+                price: price,
+                subtotal: qty * price,
+                is_package: isPackage,
+                type: isPackage ? 'package' : 'item'
+            });
+        }
     });
     
     // Get total amount
@@ -568,11 +766,6 @@ function saveSidebarChanges() {
         special_requests: document.getElementById('edit-special-requests').value,
     };
     
-    // Add status for bookings
-    if (currentEditType === 'booking') {
-        updateData.status = document.getElementById('edit-status').value;
-    }
-    
     // Send update request
     fetch(`../api/update-${currentEditType}.php`, {
         method: 'POST',
@@ -581,21 +774,166 @@ function saveSidebarChanges() {
         },
         body: JSON.stringify(updateData),
     })
-    .then(response => response.json())
-    .then(data => {
+    .then(async response => {
+        const data = await response.json();
         if (data.success) {
             alert('Changes saved successfully!');
             closeSidebar();
             // Reload the table
-            applyFilters();
+            if (typeof applyFilters === 'function') {
+                applyFilters();
+            } else {
+                window.location.reload();
+            }
         } else {
             alert('Error: ' + (data.message || 'Failed to save'));
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        alert('Failed to save changes');
+        alert('Failed to save changes. Check console for details.');
     });
+}
+
+// Menu Item Picker Functions
+let allMenuItems = [];
+let allPackages = [];
+let menuCategories = [];
+let currentMenuSource = 'MENU';
+
+function openMenuPicker() {
+    const modal = document.getElementById('menuPickerModal');
+    modal.classList.add('active');
+    loadPickerItems();
+}
+
+function closeMenuPicker() {
+    document.getElementById('menuPickerModal').classList.remove('active');
+}
+
+function loadPickerItems() {
+    const grid = document.getElementById('menuItemsGrid');
+    grid.innerHTML = '<div class="loading-text">Loading items...</div>';
+    
+    // Load both menu items and packages
+    Promise.all([
+        fetch('../api/get-all-menu.php').then(r => r.json()),
+        fetch('../api/get-all-packages.php').then(r => r.json())
+    ])
+    .then(([menuData, pkgData]) => {
+        if (menuData.success) {
+            allMenuItems = menuData.items || [];
+            menuCategories = Object.keys(menuData.grouped || {});
+        }
+        if (pkgData.success) {
+            allPackages = pkgData.items || [];
+        }
+        renderPickerItems();
+    })
+    .catch(err => {
+        console.error('Error loading items:', err);
+        grid.innerHTML = '<div class="empty-state">Failed to load items</div>';
+    });
+}
+
+function filterMenuBySource(source) {
+    currentMenuSource = source;
+    
+    // Update active tab
+    document.querySelectorAll('#menuCategoryTabs .category-tab').forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.category === source);
+    });
+    
+    renderPickerItems();
+}
+
+function renderPickerItems() {
+    const grid = document.getElementById('menuItemsGrid');
+    
+    if (currentMenuSource === 'PACKAGES') {
+        // Show packages
+        if (allPackages.length === 0) {
+            grid.innerHTML = '<div class="empty-state">No packages available</div>';
+            return;
+        }
+        
+        let html = '';
+        allPackages.forEach(pkg => {
+            html += `
+                <div class="menu-item-card package-card" onclick="selectPackageItem(${pkg.id}, '${escapeHtml(pkg.name)}', ${pkg.price})">
+                    <span class="item-category" style="background: #8a2927; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.65rem;">PACKAGE</span>
+                    <span class="item-name">${escapeHtml(pkg.name)}</span>
+                    <span class="item-price">₱${parseFloat(pkg.price).toFixed(2)}</span>
+                </div>
+            `;
+        });
+        grid.innerHTML = html;
+    } else {
+        // Show menu items with category filter
+        const items = allMenuItems.filter(item => item.is_active == 1);
+        
+        if (items.length === 0) {
+            grid.innerHTML = '<div class="empty-state">No menu items available</div>';
+            return;
+        }
+        
+        let html = '';
+        items.forEach(item => {
+            html += `
+                <div class="menu-item-card" onclick="selectMenuItem(${item.id}, '${escapeHtml(item.name)}', ${item.price}, '${escapeHtml(item.category)}')">
+                    <span class="item-category">${escapeHtml(item.category)}</span>
+                    <span class="item-name">${escapeHtml(item.name)}</span>
+                    <span class="item-price">₱${parseFloat(item.price).toFixed(2)}</span>
+                </div>
+            `;
+        });
+        grid.innerHTML = html;
+    }
+}
+
+function selectMenuItem(id, name, price, category) {
+    // Add item to the order
+    const newItem = {
+        product_id: id,
+        name: name,
+        unit_price: price,
+        price: price,
+        quantity: 1,
+        category: category,
+        type: 'item',
+        is_package: 0,
+        subtotal: price
+    };
+    
+    addItemRow(newItem);
+    closeMenuPicker();
+    updateTotals();
+}
+
+function selectPackageItem(id, name, price) {
+    // Add package to the order
+    const newItem = {
+        product_id: id,
+        name: name,
+        unit_price: price,
+        price: price,
+        quantity: 1,
+        category: 'Package',
+        type: 'package',
+        is_package: 1,
+        subtotal: price
+    };
+    
+    addItemRow(newItem);
+    closeMenuPicker();
+    updateTotals();
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 // Event listeners
@@ -604,12 +942,18 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('sidebar-overlay').addEventListener('click', closeSidebar);
     document.getElementById('btn-cancel-edit').addEventListener('click', closeSidebar);
     document.getElementById('btn-save-changes').addEventListener('click', saveSidebarChanges);
-    document.getElementById('btn-add-item').addEventListener('click', () => addItemRow());
     
     // Update totals when item values change
     document.addEventListener('input', (e) => {
         if (e.target.classList.contains('item-qty') || e.target.classList.contains('item-price')) {
             updateTotals();
+        }
+    });
+    
+    // Close menu picker on escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeMenuPicker();
         }
     });
 });

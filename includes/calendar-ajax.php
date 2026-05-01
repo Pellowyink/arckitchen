@@ -47,11 +47,11 @@ $monthName = date('F Y', $firstDay);
 <!-- Calendar Component -->
 <div class="calendar-component" id="calendarComponent">
     <div class="calendar-header">
-        <button type="button" class="calendar-nav" onclick="changeMonth(<?php echo (int)$prevMonth; ?>, <?php echo (int)$prevYear; ?>")">
+        <button type="button" class="calendar-nav" onclick="changeMonth(<?php echo (int)$prevMonth; ?>, <?php echo (int)$prevYear; ?>)">
             ← Prev
         </button>
         <h3 class="calendar-title"><?php echo $monthName; ?></h3>
-        <button type="button" class="calendar-nav" onclick="changeMonth(<?php echo (int)$nextMonth; ?>, <?php echo (int)$nextYear; ?>")">
+        <button type="button" class="calendar-nav" onclick="changeMonth(<?php echo (int)$nextMonth; ?>, <?php echo (int)$nextYear; ?>)">
             Next →
         </button>
     </div>

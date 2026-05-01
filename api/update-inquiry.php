@@ -32,22 +32,25 @@ if (!$connection) {
     exit;
 }
 
-// Update inquiry
+// Update inquiry with all fields
 $stmt = $connection->prepare(
-    "UPDATE inquiries SET event_date = ?, event_type = ?, guest_count = ? WHERE id = ?"
+    "UPDATE inquiries SET event_date = ?, event_type = ?, guest_count = ?, items_json = ?, total_amount = ?, message = ?, updated_at = NOW() WHERE id = ?"
 );
 
 if (!$stmt) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Database error']);
+    echo json_encode(['success' => false, 'message' => 'Database error: ' . $connection->error]);
     exit;
 }
 
 $event_date = $data['event_date'] ?? '';
 $event_type = $data['event_type'] ?? '';
 $guest_count = (int)($data['guest_count'] ?? 0);
+$items_json = $data['items_json'] ?? '[]';
+$total_amount = (float)($data['total_amount'] ?? 0);
+$special_requests = $data['special_requests'] ?? '';
 
-$stmt->bind_param('ssii', $event_date, $event_type, $guest_count, $inquiry_id);
+$stmt->bind_param('ssisdsi', $event_date, $event_type, $guest_count, $items_json, $total_amount, $special_requests, $inquiry_id);
 
 if ($stmt->execute()) {
     $stmt->close();
