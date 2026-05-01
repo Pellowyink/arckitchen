@@ -1167,4 +1167,134 @@ function showToast(message) {
 }
 </style>
 
+<script src="assets/js/notifications.js"></script>
+<script>
+// ARC Booking Form Protection System
+(function() {
+    'use strict';
+    
+    // System initialization state
+    let systemReady = false;
+    let formSubmitting = false;
+    
+    // Wait for DOM and verify session is ready
+    document.addEventListener('DOMContentLoaded', function() {
+        // Check if cart/session is initialized
+        checkSystemReady();
+    });
+    
+    // Verify system state before allowing actions
+    function checkSystemReady() {
+        // Test API connection
+        fetch('api/get-all-menu.php', { method: 'HEAD' })
+            .then(() => {
+                systemReady = true;
+                console.log('ARC Kitchen: System ready');
+            })
+            .catch(() => {
+                systemReady = false;
+                console.warn('ARC Kitchen: System initializing...');
+            });
+    }
+    
+    // Protect all add-to-cart actions
+    const originalQuickAdd = window.quickAddToCart;
+    window.quickAddToCart = function(id, type, name, price) {
+        if (!systemReady) {
+            showArcWait('Menu data still loading, please wait a second...');
+            setTimeout(() => hideArcModal(), 1500);
+            return;
+        }
+        if (!id || !price) {
+            showArcError('Invalid item data. Please refresh the page.');
+            return;
+        }
+        return originalQuickAdd(id, type, name, price);
+    };
+    
+    // Protect form submission
+    const bookingForm = document.querySelector('form[action="inquiry.php"]');
+    if (bookingForm) {
+        bookingForm.addEventListener('submit', function(e) {
+            // Check system ready
+            if (!systemReady) {
+                e.preventDefault();
+                showArcWait('System initializing, please wait...');
+                return false;
+            }
+            
+            // Check if already submitting (double-click protection)
+            if (formSubmitting) {
+                e.preventDefault();
+                return false;
+            }
+            
+            // Validate cart has items
+            const cartItems = document.querySelectorAll('.order-item');
+            if (cartItems.length === 0) {
+                e.preventDefault();
+                showArcError('Please add at least one item to your order before submitting.');
+                return false;
+            }
+            
+            // Set submitting state
+            formSubmitting = true;
+            const submitBtn = bookingForm.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<span class="arc-spinner-inline"></span> Processing...';
+                submitBtn.style.opacity = '0.7';
+            }
+            
+            // Show loading modal
+            showArcLoading('Processing your order...');
+            
+            // Allow form to submit
+            return true;
+        });
+    }
+    
+    // Replace removeCartItem confirm with modal
+    const originalRemoveCartItem = window.removeCartItem;
+    window.removeCartItem = function(itemId) {
+        showArcConfirm('Remove this item from your order?', function(confirmed) {
+            if (confirmed) {
+                fetch('includes/sidebar.php?action=remove_cart_item', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ item_id: itemId })
+                })
+                .then(r => r.json())
+                .then(result => {
+                    if (result.success) {
+                        updateCartUI(result.cart_items || [], result.cart_total || 0);
+                        showArcSuccess('Item removed');
+                    } else {
+                        showArcError('Failed to remove item');
+                    }
+                });
+            }
+        });
+    };
+    
+    // Add spinner style
+    const spinnerStyle = document.createElement('style');
+    spinnerStyle.textContent = `
+        .arc-spinner-inline {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: arc-spin 0.8s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+    `;
+    document.head.appendChild(spinnerStyle);
+    
+})();
+</script>
+
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

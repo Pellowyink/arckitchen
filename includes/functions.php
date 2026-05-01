@@ -144,12 +144,43 @@ function validateRequiredFields(array $fields): array
     return $errors;
 }
 
-function saveInquiry(array $data): bool
+/**
+ * Save a new inquiry with duplicate prevention
+ * Prevents double-submit within 5 seconds
+ */
+function saveInquiry(array $data): array
 {
     $connection = getDbConnection();
-
     if (!$connection) {
-        return false;
+        return ['success' => false, 'error' => 'Database connection failed'];
+    }
+
+    // DUPLICATE PREVENTION: Check for recent inquiry with same email/event_date
+    $checkStmt = $connection->prepare(
+        "SELECT id, created_at FROM inquiries 
+         WHERE email = ? 
+         AND event_date = ? 
+         AND created_at > DATE_SUB(NOW(), INTERVAL 5 SECOND)
+         LIMIT 1"
+    );
+    
+    if ($checkStmt) {
+        $checkStmt->bind_param('ss', $data['email'], $data['event_date']);
+        $checkStmt->execute();
+        $result = $checkStmt->get_result();
+        
+        if ($result && $result->num_rows > 0) {
+            $existing = $result->fetch_assoc();
+            $checkStmt->close();
+            return [
+                'success' => false, 
+                'error' => 'Duplicate inquiry detected',
+                'duplicate' => true,
+                'inquiry_id' => $existing['id'],
+                'message' => 'An inquiry was just submitted for this event. Please wait a moment.'
+            ];
+        }
+        $checkStmt->close();
     }
 
     $statement = $connection->prepare(
@@ -158,7 +189,7 @@ function saveInquiry(array $data): bool
     );
 
     if (!$statement) {
-        return false;
+        return ['success' => false, 'error' => 'Database prepare failed'];
     }
 
     $statement->bind_param(
@@ -174,9 +205,18 @@ function saveInquiry(array $data): bool
     );
 
     $saved = $statement->execute();
+    $insertId = $statement->insert_id;
     $statement->close();
 
-    return $saved;
+    if ($saved) {
+        return [
+            'success' => true,
+            'inquiry_id' => $insertId,
+            'message' => 'Inquiry submitted successfully'
+        ];
+    }
+    
+    return ['success' => false, 'error' => 'Failed to save inquiry'];
 }
 
 function saveContactMessage(array $data): bool
@@ -540,20 +580,50 @@ function getBookingById(int $id): ?array
 }
 
 /**
- * Save a new booking
+ * Save a new booking with duplicate prevention
+ * Prevents double-submit within 5 seconds
  */
-function saveBooking(array $data): bool
+function saveBooking(array $data): array
 {
     $connection = getDbConnection();
-    if (!$connection) return false;
+    if (!$connection) return ['success' => false, 'error' => 'Database connection failed'];
     
+    // DUPLICATE PREVENTION: Check for recent booking with same customer/email/event_date
+    $checkStmt = $connection->prepare(
+        "SELECT id, created_at FROM bookings 
+         WHERE customer_email = ? 
+         AND event_date = ? 
+         AND created_at > DATE_SUB(NOW(), INTERVAL 5 SECOND)
+         LIMIT 1"
+    );
+    
+    if ($checkStmt) {
+        $checkStmt->bind_param('ss', $data['customer_email'], $data['event_date']);
+        $checkStmt->execute();
+        $result = $checkStmt->get_result();
+        
+        if ($result && $result->num_rows > 0) {
+            $existing = $result->fetch_assoc();
+            $checkStmt->close();
+            return [
+                'success' => false, 
+                'error' => 'Duplicate booking detected',
+                'duplicate' => true,
+                'booking_id' => $existing['id'],
+                'message' => 'A booking was just created for this event. Please wait a moment.'
+            ];
+        }
+        $checkStmt->close();
+    }
+    
+    // Proceed with insert
     $statement = $connection->prepare(
         "INSERT INTO bookings (inquiry_id, customer_name, customer_email, customer_phone, 
          event_date, event_type, guest_count, items_json, total_amount, package_id, special_requests, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
     
-    if (!$statement) return false;
+    if (!$statement) return ['success' => false, 'error' => 'Database prepare failed'];
     
     $inquiry_id = $data['inquiry_id'] ?? null;
     $items_json = $data['items_json'] ?? null;
@@ -579,9 +649,18 @@ function saveBooking(array $data): bool
     );
     
     $saved = $statement->execute();
+    $insertId = $statement->insert_id;
     $statement->close();
     
-    return $saved;
+    if ($saved) {
+        return [
+            'success' => true,
+            'booking_id' => $insertId,
+            'message' => 'Booking created successfully'
+        ];
+    }
+    
+    return ['success' => false, 'error' => 'Failed to save booking'];
 }
 
 /**

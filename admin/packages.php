@@ -378,12 +378,12 @@ $menuItems = getMenuItems();
                     }, 10);
                     document.body.style.overflow = 'hidden';
                 } else {
-                    alert('Failed to load item details');
+                    showArcError('Failed to load item details');
                 }
             })
             .catch(error => {
                 console.error('Error loading item:', error);
-                alert('Failed to load item details. Check console (F12) for details.');
+                showArcError('Failed to load item details. Check console (F12) for details.');
             });
     }
 
@@ -532,16 +532,17 @@ $menuItems = getMenuItems();
         .then(response => response.json())
         .then(result => {
             if (result.success) {
-                alert('✅ Saved successfully!');
-                closeEditModal();
-                location.reload();
+                showArcSuccess('Saved successfully!', function() {
+                    closeEditModal();
+                    location.reload();
+                });
             } else {
-                alert('❌ Error: ' + (result.message || 'Failed to save'));
+                showArcError(result.message || 'Failed to save');
             }
         })
         .catch(error => {
             console.error('Error:', error);
-            alert('❌ Failed to save changes');
+            showArcError('Failed to save changes');
         });
     }
 
@@ -569,28 +570,36 @@ $menuItems = getMenuItems();
     }
 
     /**
-     * Delete item with confirmation
+     * Delete item with ARC Modal confirmation
      */
     function deleteItem(id, type) {
-        if (!confirm(`Are you sure you want to delete this ${type}?`)) return;
-        
-        fetch(`../api/delete-${type}.php`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: id })
-        })
-        .then(response => response.json())
-        .then(result => {
-            if (result.success) {
-                alert('✅ Deleted successfully!');
-                location.reload();
-            } else {
-                alert('❌ Error: ' + (result.message || 'Failed to delete'));
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('❌ Failed to delete');
+        const itemName = type === 'menu' ? 'menu item' : 'package';
+        showArcDeleteConfirm(itemName, function(confirmed) {
+            if (!confirmed) return;
+            
+            showArcLoading('Deleting...');
+            
+            fetch(`../api/delete-${type}.php`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: id })
+            })
+            .then(response => response.json())
+            .then(result => {
+                hideArcModal();
+                if (result.success) {
+                    showArcSuccess('Deleted successfully!', function() {
+                        location.reload();
+                    });
+                } else {
+                    showArcError(result.message || 'Failed to delete');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                hideArcModal();
+                showArcError('Failed to delete. Please try again.');
+            });
         });
     }
 
@@ -680,13 +689,13 @@ $menuItems = getMenuItems();
                     document.getElementById('count-ALL').textContent = data.total_count;
                 } else {
                     tbody.innerHTML = originalContent;
-                    alert('Failed to filter items');
+                    showArcError('Failed to filter items');
                 }
             })
             .catch(error => {
                 console.error('Error filtering:', error);
                 tbody.innerHTML = originalContent;
-                alert('Failed to filter items');
+                showArcError('Failed to filter items');
             });
     }
     
@@ -712,7 +721,6 @@ $menuItems = getMenuItems();
                     </button>
                 </div>
             `;
-            return;
         }
         
         // Build table rows
@@ -922,7 +930,7 @@ $menuItems = getMenuItems();
         event.preventDefault();
         
         if (selectedMenuItems.size === 0) {
-            alert('❌ Please select at least one menu item for the package');
+            showArcError('Please select at least one menu item for the package');
             return;
         }
         
@@ -1887,6 +1895,7 @@ $menuItems = getMenuItems();
     }
     </style>
 
+    <script src="../assets/js/notifications.js"></script>
     <script src="../assets/js/main.js"></script>
 </body>
 </html>
