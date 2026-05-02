@@ -629,14 +629,18 @@ function addItemRow(item = {}, index = null) {
     const isPackage = item.is_package == 1 || item.type === 'package';
     const icon = isPackage ? '📦' : '🍽️';
     const name = item.name || 'Unknown Item';
-    const qty = item.quantity || 1;
-    const price = item.unit_price || item.price || 0;
-    const subtotal = item.subtotal || (qty * price) || 0;
+    // Ensure numeric values are properly converted
+    const qty = parseInt(item.quantity) || 1;
+    const price = parseFloat(item.unit_price) || parseFloat(item.price) || 0;
+    const calculatedSubtotal = qty * price;
+    const subtotal = parseFloat(item.subtotal) || calculatedSubtotal || 0;
     const category = item.category || (isPackage ? 'Package' : 'Item');
     const itemId = item.id || 'new-' + Date.now();
+    const menuItemId = item.menu_item_id || '';
+    const packageId = item.package_id || '';
     
     const html = `
-        <div class="item-row ${isPackage ? 'package-row' : ''}" data-item-id="${itemId}">
+        <div class="item-row ${isPackage ? 'package-row' : ''}" data-item-id="${itemId}" data-menu-item-id="${menuItemId}" data-package-id="${packageId}">
             <div class="item-info" style="flex: 1;">
                 <div style="display: flex; align-items: center; gap: 0.5rem;">
                     <span style="font-size: 1.2rem;">${icon}</span>
@@ -674,7 +678,9 @@ function updateTotals() {
     let subtotal = 0;
     document.querySelectorAll('.item-row').forEach(row => {
         const qty = parseFloat(row.querySelector('.item-qty')?.value) || 0;
-        const price = parseFloat(row.querySelector('.item-price')?.value) || 0;
+        // Use specific selector for hidden price input
+        const priceInput = row.querySelector('input[type="hidden"].item-price');
+        const price = parseFloat(priceInput?.value) || 0;
         const rowSubtotal = qty * price;
         subtotal += rowSubtotal;
         
@@ -730,11 +736,18 @@ function saveSidebarChanges() {
     // Collect items data with all necessary fields
     const items = [];
     document.querySelectorAll('.item-row').forEach(row => {
-        const name = row.querySelector('.item-name')?.value || '';
-        const qty = parseInt(row.querySelector('.item-qty')?.value) || 0;
-        const price = parseFloat(row.querySelector('.item-price')?.value) || 0;
+        // Use input[type="hidden"] to get the actual input values, not the displayed text
+        const nameInput = row.querySelector('input[type="hidden"].item-name');
+        const priceInput = row.querySelector('input[type="hidden"].item-price');
+        const qtyInput = row.querySelector('.item-qty');
+        
+        const name = nameInput?.value || '';
+        const qty = parseInt(qtyInput?.value) || 0;
+        const price = parseFloat(priceInput?.value) || 0;
         const isPackage = row.classList.contains('package-row') ? 1 : 0;
         const itemId = row.dataset.itemId || null;
+        const menuItemId = row.dataset.menuItemId || null;
+        const packageId = row.dataset.packageId || null;
         
         if (name && qty > 0) {
             items.push({
@@ -745,7 +758,9 @@ function saveSidebarChanges() {
                 price: price,
                 subtotal: qty * price,
                 is_package: isPackage,
-                type: isPackage ? 'package' : 'item'
+                type: isPackage ? 'package' : 'item',
+                menu_item_id: menuItemId,
+                package_id: packageId
             });
         }
     });
@@ -761,7 +776,7 @@ function saveSidebarChanges() {
         event_date: document.getElementById('edit-event-date').value,
         event_type: document.getElementById('edit-event-type').value,
         guest_count: parseInt(document.getElementById('edit-guest-count').value) || 0,
-        items_json: JSON.stringify(items),
+        items: items,  // Send items array instead of items_json string
         total_amount: totalAmount,
         special_requests: document.getElementById('edit-special-requests').value,
     };
@@ -892,39 +907,97 @@ function renderPickerItems() {
 }
 
 function selectMenuItem(id, name, price, category) {
-    // Add item to the order
-    const newItem = {
-        product_id: id,
-        name: name,
-        unit_price: price,
-        price: price,
-        quantity: 1,
-        category: category,
-        type: 'item',
-        is_package: 0,
-        subtotal: price
-    };
+    // Check if item already exists
+    const existingRows = document.querySelectorAll('.item-row');
+    let found = false;
     
-    addItemRow(newItem);
+    for (const row of existingRows) {
+        const rowMenuItemId = row.dataset.menuItemId;
+        const nameInput = row.querySelector('input[type="hidden"].item-name');
+        const rowName = nameInput?.value || '';
+        
+        // Match by menu_item_id or by name (case insensitive)
+        if (rowMenuItemId === String(id) || rowName.toLowerCase() === name.toLowerCase()) {
+            // Item exists, increment quantity
+            const qtyInput = row.querySelector('.item-qty');
+            const currentQty = parseInt(qtyInput?.value) || 0;
+            const newQty = currentQty + 1;
+            
+            if (qtyInput) {
+                qtyInput.value = newQty;
+            }
+            
+            found = true;
+            break;
+        }
+    }
+    
+    // If not found, add new row
+    if (!found) {
+        const newItem = {
+            menu_item_id: id,
+            package_id: null,
+            name: name,
+            unit_price: price,
+            price: price,
+            quantity: 1,
+            category: category,
+            type: 'item',
+            is_package: 0,
+            subtotal: price
+        };
+        
+        addItemRow(newItem);
+    }
+    
     closeMenuPicker();
     updateTotals();
 }
 
 function selectPackageItem(id, name, price) {
-    // Add package to the order
-    const newItem = {
-        product_id: id,
-        name: name,
-        unit_price: price,
-        price: price,
-        quantity: 1,
-        category: 'Package',
-        type: 'package',
-        is_package: 1,
-        subtotal: price
-    };
+    // Check if package already exists
+    const existingRows = document.querySelectorAll('.item-row');
+    let found = false;
     
-    addItemRow(newItem);
+    for (const row of existingRows) {
+        const rowPackageId = row.dataset.packageId;
+        const nameInput = row.querySelector('input[type="hidden"].item-name');
+        const rowName = nameInput?.value || '';
+        
+        // Match by package_id or by name (case insensitive)
+        if (rowPackageId === String(id) || rowName.toLowerCase() === name.toLowerCase()) {
+            // Package exists, increment quantity
+            const qtyInput = row.querySelector('.item-qty');
+            const currentQty = parseInt(qtyInput?.value) || 0;
+            const newQty = currentQty + 1;
+            
+            if (qtyInput) {
+                qtyInput.value = newQty;
+            }
+            
+            found = true;
+            break;
+        }
+    }
+    
+    // If not found, add new row
+    if (!found) {
+        const newItem = {
+            menu_item_id: null,
+            package_id: id,
+            name: name,
+            unit_price: price,
+            price: price,
+            quantity: 1,
+            category: 'Package',
+            type: 'package',
+            is_package: 1,
+            subtotal: price
+        };
+        
+        addItemRow(newItem);
+    }
+    
     closeMenuPicker();
     updateTotals();
 }

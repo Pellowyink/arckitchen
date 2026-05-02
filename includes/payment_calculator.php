@@ -542,12 +542,15 @@ function populatePaymentCalculator(data, type) {
         data.items.forEach(item => {
             const isPackage = item.is_package == 1 || item.type === 'package';
             const icon = isPackage ? '📦' : '🍽️';
-            const subtotal = item.subtotal || (item.unit_price * item.quantity) || 0;
+            // Ensure proper numeric conversion
+            const unitPrice = parseFloat(item.unit_price) || parseFloat(item.price) || 0;
+            const quantity = parseInt(item.quantity) || 1;
+            const subtotal = parseFloat(item.subtotal) || (unitPrice * quantity) || 0;
             
             itemsContainer.innerHTML += `
                 <div class="summary-item">
-                    <span>${icon} ${item.name} x${item.quantity}</span>
-                    <span>₱${parseFloat(subtotal).toFixed(2)}</span>
+                    <span>${icon} ${item.name} x${quantity} @ ₱${unitPrice.toFixed(2)}</span>
+                    <span>₱${subtotal.toFixed(2)}</span>
                 </div>
             `;
         });

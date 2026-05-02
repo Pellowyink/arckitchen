@@ -51,12 +51,18 @@ $items = getInquiryItems($inquiry_id);
 // Add preferred package as an item if exists and not already in items
 $preferredPackage = $inquiry['package_interest'] ?? '';
 if ($preferredPackage && !empty($preferredPackage)) {
-    // Check if package is already in items
+    // Check if package is already in items (bidirectional check)
     $packageExists = false;
+    $preferredLower = strtolower(trim($preferredPackage));
     foreach ($items as $item) {
-        if ($item['is_package'] == 1 && stripos($item['name'], $preferredPackage) !== false) {
-            $packageExists = true;
-            break;
+        if ($item['is_package'] == 1) {
+            $itemNameLower = strtolower(trim($item['name']));
+            // Check if either name contains the other
+            if (stripos($itemNameLower, $preferredLower) !== false || 
+                stripos($preferredLower, $itemNameLower) !== false) {
+                $packageExists = true;
+                break;
+            }
         }
     }
     

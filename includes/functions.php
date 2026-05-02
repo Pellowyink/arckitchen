@@ -520,6 +520,15 @@ function getBookings(array $filters = []): array
     
     $sql = "SELECT * FROM bookings WHERE 1=1";
     
+    // Filter by archived status - only apply when explicitly set
+    if (isset($filters['archived'])) {
+        if ($filters['archived'] === true) {
+            $sql .= " AND archived_at IS NOT NULL";
+        } else {
+            $sql .= " AND (archived_at IS NULL OR archived_at = '')";
+        }
+    }
+    
     // Filter by status
     if (!empty($filters['status'])) {
         $status = $filters['status'];
@@ -790,6 +799,15 @@ function getInquiriesFiltered(array $filters = []): array
     
     $sql = "SELECT * FROM inquiries WHERE 1=1";
     
+    // Filter by archived status - only apply when explicitly set
+    if (isset($filters['archived'])) {
+        if ($filters['archived'] === true) {
+            $sql .= " AND archived_at IS NOT NULL";
+        } else {
+            $sql .= " AND (archived_at IS NULL OR archived_at = '')";
+        }
+    }
+    
     // Filter by status
     if (!empty($filters['status'])) {
         $status = $filters['status'];
@@ -827,6 +845,73 @@ function getInquiriesFiltered(array $filters = []): array
     $result->free();
     
     return $inquiries ?: [];
+}
+
+/**
+ * Get archived bookings
+ */
+function getArchivedBookings(): array
+{
+    return getBookings(['archived' => true]);
+}
+
+/**
+ * Get archived inquiries
+ */
+function getArchivedInquiries(): array
+{
+    return getInquiriesFiltered(['archived' => true]);
+}
+
+/**
+ * Get sales report data from archived bookings
+ * @param string $dateFrom - Start date (YYYY-MM-DD)
+ * @param string $dateTo - End date (YYYY-MM-DD)
+ * @return array
+ */
+function getSalesReport(string $dateFrom = '', string $dateTo = ''): array
+{
+    $connection = getDbConnection();
+    if (!$connection) return [];
+    
+    $sql = "SELECT 
+                id,
+                customer_name,
+                customer_email,
+                total_amount,
+                event_date,
+                archived_at,
+                status
+            FROM bookings 
+            WHERE archived_at IS NOT NULL 
+            AND status = 'completed'";
+    
+    if (!empty($dateFrom)) {
+        $sql .= " AND event_date >= '" . $connection->real_escape_string($dateFrom) . "'";
+    }
+    if (!empty($dateTo)) {
+        $sql .= " AND event_date <= '" . $connection->real_escape_string($dateTo) . "'";
+    }
+    
+    $sql .= " ORDER BY event_date DESC";
+    
+    $result = $connection->query($sql);
+    if (!$result) return [];
+    
+    $bookings = $result->fetch_all(MYSQLI_ASSOC);
+    $result->free();
+    
+    // Calculate totals
+    $total = 0;
+    foreach ($bookings as $booking) {
+        $total += (float)($booking['total_amount'] ?? 0);
+    }
+    
+    return [
+        'bookings' => $bookings,
+        'total_sales' => $total,
+        'count' => count($bookings)
+    ];
 }
 
 /**

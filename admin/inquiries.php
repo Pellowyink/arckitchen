@@ -130,7 +130,7 @@ $rejected_inquiries = getInquiriesFiltered(['status' => 'rejected']);
                                     </td>
                                     <td>
                                         <div class="action-buttons">
-                                            <button class="btn-admin btn-secondary-admin btn-small" onclick="openEditModal(<?php echo (int)$inquiry['id']; ?>, 'inquiry')">Edit</button>
+                                            <button class="btn-admin btn-secondary-admin btn-small" onclick="archiveItem(<?php echo (int)$inquiry['id']; ?>, 'inquiry')">📦 Archive</button>
                                             <span class="badge badge-danger">Rejected</span>
                                         </div>
                                     </td>
@@ -235,6 +235,39 @@ $rejected_inquiries = getInquiriesFiltered(['status' => 'rejected']);
                     if (dateTo && rowDate > new Date(dateTo)) show = false;
                     row.style.display = show ? '' : 'none';
                 }
+            });
+        }
+
+        /**
+         * Archive an inquiry
+         */
+        function archiveItem(id, type) {
+            if (!confirm('Are you sure you want to archive this ' + type + '?')) {
+                return;
+            }
+            
+            fetch('../api/archive-item.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: id, type: type })
+            })
+            .then(r => r.json())
+            .then(result => {
+                if (result.success) {
+                    const row = document.getElementById(type + '-' + id);
+                    if (row) {
+                        row.style.transition = 'opacity 0.3s';
+                        row.style.opacity = '0';
+                        setTimeout(() => row.remove(), 300);
+                    }
+                    alert('Item archived successfully!');
+                } else {
+                    alert('Error: ' + (result.message || 'Failed to archive item'));
+                }
+            })
+            .catch(err => {
+                console.error('Archive error:', err);
+                alert('Failed to archive item. Please try again.');
             });
         }
     </script>
