@@ -5,14 +5,14 @@ requireAdminCheck();
 
 $data_type = 'bookings';
 
-// Get active bookings (pending, confirmed)
-$active_bookings = getBookings(['status' => 'confirmed']);
-$pending_bookings = getBookings(['status' => 'pending']);
+// Get active bookings (pending, confirmed) - exclude archived
+$active_bookings = getBookings(['status' => 'confirmed', 'archived' => false]);
+$pending_bookings = getBookings(['status' => 'pending', 'archived' => false]);
 $active_bookings = array_merge($pending_bookings, $active_bookings);
 
-// Get completed and cancelled separately
-$completed_bookings = getBookings(['status' => 'completed']);
-$cancelled_bookings = getBookings(['status' => 'cancelled']);
+// Get completed and cancelled separately - exclude archived
+$completed_bookings = getBookings(['status' => 'completed', 'archived' => false]);
+$cancelled_bookings = getBookings(['status' => 'cancelled', 'archived' => false]);
 
 ?><!DOCTYPE html>
 <html lang="en">
@@ -85,11 +85,11 @@ $cancelled_bookings = getBookings(['status' => 'cancelled']);
                                         <div class="action-buttons">
                                             <button class="btn-admin btn-secondary-admin btn-small" onclick="openEditModal(<?php echo (int)$booking['id']; ?>, 'booking')">Edit</button>
                                             <?php if ($status === 'pending'): ?>
-                                                <button class="btn-admin btn-primary-admin btn-small" onclick="updateBookingStatus(<?php echo (int)$booking['id']; ?>, 'confirmed')">Confirm</button>
-                                                <button class="btn-admin btn-danger-admin btn-small" onclick="updateBookingStatus(<?php echo (int)$booking['id']; ?>, 'cancelled')">Cancel</button>
+                                                <button class="btn-admin btn-primary-admin btn-small" onclick="changeBookingStatus(<?php echo (int)$booking['id']; ?>, 'confirmed')">Confirm</button>
+                                                <button class="btn-admin btn-danger-admin btn-small" onclick="changeBookingStatus(<?php echo (int)$booking['id']; ?>, 'cancelled')">Cancel</button>
                                             <?php elseif ($status === 'confirmed'): ?>
-                                                <button class="btn-admin btn-success-admin btn-small" onclick="updateBookingStatus(<?php echo (int)$booking['id']; ?>, 'completed')">Complete & Pay</button>
-                                                <button class="btn-admin btn-danger-admin btn-small" onclick="updateBookingStatus(<?php echo (int)$booking['id']; ?>, 'cancelled')">Cancel</button>
+                                                <button class="btn-admin btn-success-admin btn-small" onclick="changeBookingStatus(<?php echo (int)$booking['id']; ?>, 'completed')">Complete & Pay</button>
+                                                <button class="btn-admin btn-danger-admin btn-small" onclick="changeBookingStatus(<?php echo (int)$booking['id']; ?>, 'cancelled')">Cancel</button>
                                             <?php endif; ?>
                                         </div>
                                     </td>
@@ -245,7 +245,7 @@ $cancelled_bookings = getBookings(['status' => 'cancelled']);
         /**
          * Update booking status
          */
-        function updateBookingStatus(bookingId, newStatus) {
+        function changeBookingStatus(bookingId, newStatus) {
             
             // Complete booking with payment calculator
             if (newStatus === 'completed') {
@@ -253,8 +253,19 @@ $cancelled_bookings = getBookings(['status' => 'cancelled']);
                 return;
             }
             
-            if (!confirm(`Change status to ${newStatus}?`)) return;
-            
+            if (typeof showArcConfirm === 'function') {
+                showArcConfirm(`Change status to ${newStatus}?`, function(confirmed) {
+                    if (confirmed) {
+                        doUpdateStatus(bookingId, newStatus);
+                    }
+                });
+            } else {
+                if (!confirm(`Change status to ${newStatus}?`)) return;
+                doUpdateStatus(bookingId, newStatus);
+            }
+        }
+        
+        function doUpdateStatus(bookingId, newStatus) {
             fetch(`../api/update-booking-status.php`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -263,13 +274,28 @@ $cancelled_bookings = getBookings(['status' => 'cancelled']);
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert('✅ ' + data.message);
-                    refreshAllTables();
+                    if (typeof showArcSuccess === 'function') {
+                        showArcSuccess(data.message, function() {
+                            refreshAllTables();
+                        });
+                    } else {
+                        alert('✅ ' + data.message);
+                        refreshAllTables();
+                    }
                 } else {
-                    alert('Error: ' + data.message);
+                    if (typeof showArcError === 'function') {
+                        showArcError(data.message || 'Failed to update status');
+                    } else {
+                        alert('Error: ' + data.message);
+                    }
                 }
             })
-            .catch(error => console.error('Error:', error));
+            .catch(error => {
+                console.error('Error:', error);
+                if (typeof showArcError === 'function') {
+                    showArcError('Network error. Please try again.');
+                }
+            });
         }
 
         // Set up date filter listeners
@@ -315,10 +341,21 @@ $cancelled_bookings = getBookings(['status' => 'cancelled']);
          * Archive a booking or inquiry
          */
         function archiveItem(id, type) {
-            if (!confirm('Are you sure you want to archive this ' + type + '?')) {
-                return;
+            if (typeof showArcConfirm === 'function') {
+                showArcConfirm('Are you sure you want to archive this ' + type + '?', function(confirmed) {
+                    if (confirmed) {
+                        doArchiveItem(id, type);
+                    }
+                });
+            } else {
+                if (!confirm('Are you sure you want to archive this ' + type + '?')) {
+                    return;
+                }
+                doArchiveItem(id, type);
             }
-            
+        }
+        
+        function doArchiveItem(id, type) {
             fetch('../api/archive-item.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -334,18 +371,34 @@ $cancelled_bookings = getBookings(['status' => 'cancelled']);
                         row.style.opacity = '0';
                         setTimeout(() => row.remove(), 300);
                     }
-                    alert('Item archived successfully!');
+                    if (typeof showArcSuccess === 'function') {
+                        showArcSuccess('Item archived successfully!', function() {
+                            location.reload();
+                        });
+                    } else {
+                        alert('Item archived successfully!');
+                        location.reload();
+                    }
                 } else {
-                    alert('Error: ' + (result.message || 'Failed to archive item'));
+                    if (typeof showArcError === 'function') {
+                        showArcError(result.message || 'Failed to archive item');
+                    } else {
+                        alert('Error: ' + (result.message || 'Failed to archive item'));
+                    }
                 }
             })
             .catch(err => {
                 console.error('Archive error:', err);
-                alert('Failed to archive item. Please try again.');
+                if (typeof showArcError === 'function') {
+                    showArcError('Failed to archive item. Please try again.');
+                } else {
+                    alert('Failed to archive item. Please try again.');
+                }
             });
         }
     </script>
 
+    <script src="../assets/js/notifications.js"></script>
     <script src="../assets/js/main.js"></script>
 </body>
 </html>

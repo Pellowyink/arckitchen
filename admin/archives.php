@@ -3,12 +3,17 @@
 require_once __DIR__ . '/../includes/functions.php';
 requireAdminCheck();
 
-// Get archived items
-$archived_bookings = getArchivedBookings();
+// Get all archived items
+$all_archived_bookings = getArchivedBookings();
 $archived_inquiries = getArchivedInquiries();
 
 // Get sales report (all completed archived bookings)
 $sales_report = getSalesReport();
+
+// Filter out completed bookings from archived bookings (they're in sales report)
+$archived_bookings = array_filter($all_archived_bookings, function($booking) {
+    return strtolower($booking['status']) !== 'completed';
+});
 
 ?><!DOCTYPE html>
 <html lang="en">

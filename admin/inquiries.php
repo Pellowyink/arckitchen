@@ -5,11 +5,11 @@ requireAdminCheck();
 
 $data_type = 'inquiries';
 
-// Get active (pending) inquiries
-$active_inquiries = getInquiriesFiltered(['status' => 'pending']);
+// Get active (pending) inquiries - exclude archived
+$active_inquiries = getInquiriesFiltered(['status' => 'pending', 'archived' => false]);
 
-// Get rejected inquiries separately
-$rejected_inquiries = getInquiriesFiltered(['status' => 'rejected']);
+// Get rejected inquiries separately - exclude archived
+$rejected_inquiries = getInquiriesFiltered(['status' => 'rejected', 'archived' => false]);
 
 ?><!DOCTYPE html>
 <html lang="en">
@@ -180,8 +180,19 @@ $rejected_inquiries = getInquiriesFiltered(['status' => 'rejected']);
          * Reject an inquiry
          */
         function rejectInquiry(inquiryId) {
-            if (!confirm('Reject this inquiry? This action cannot be undone.')) return;
-
+            if (typeof showArcConfirm === 'function') {
+                showArcConfirm('Reject this inquiry? This action cannot be undone.', function(confirmed) {
+                    if (confirmed) {
+                        doRejectInquiry(inquiryId);
+                    }
+                });
+            } else {
+                if (!confirm('Reject this inquiry? This action cannot be undone.')) return;
+                doRejectInquiry(inquiryId);
+            }
+        }
+        
+        function doRejectInquiry(inquiryId) {
             fetch(`../api/update-inquiry-status.php`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -190,13 +201,28 @@ $rejected_inquiries = getInquiriesFiltered(['status' => 'rejected']);
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert('❌ Inquiry rejected');
-                    refreshAllTables();
+                    if (typeof showArcSuccess === 'function') {
+                        showArcSuccess('Inquiry rejected', function() {
+                            refreshAllTables();
+                        });
+                    } else {
+                        alert('❌ Inquiry rejected');
+                        refreshAllTables();
+                    }
                 } else {
-                    alert('Error: ' + data.message);
+                    if (typeof showArcError === 'function') {
+                        showArcError(data.message || 'Failed to reject inquiry');
+                    } else {
+                        alert('Error: ' + data.message);
+                    }
                 }
             })
-            .catch(error => console.error('Error:', error));
+            .catch(error => {
+                console.error('Error:', error);
+                if (typeof showArcError === 'function') {
+                    showArcError('Network error. Please try again.');
+                }
+            });
         }
 
         // Set up filter event listeners for date filters
@@ -242,10 +268,21 @@ $rejected_inquiries = getInquiriesFiltered(['status' => 'rejected']);
          * Archive an inquiry
          */
         function archiveItem(id, type) {
-            if (!confirm('Are you sure you want to archive this ' + type + '?')) {
-                return;
+            if (typeof showArcConfirm === 'function') {
+                showArcConfirm('Are you sure you want to archive this ' + type + '?', function(confirmed) {
+                    if (confirmed) {
+                        doArchiveItem(id, type);
+                    }
+                });
+            } else {
+                if (!confirm('Are you sure you want to archive this ' + type + '?')) {
+                    return;
+                }
+                doArchiveItem(id, type);
             }
-            
+        }
+        
+        function doArchiveItem(id, type) {
             fetch('../api/archive-item.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -260,18 +297,35 @@ $rejected_inquiries = getInquiriesFiltered(['status' => 'rejected']);
                         row.style.opacity = '0';
                         setTimeout(() => row.remove(), 300);
                     }
-                    alert('Item archived successfully!');
+                    if (typeof showArcSuccess === 'function') {
+                        showArcSuccess('Item archived successfully!', function() {
+                            // Refresh to update counts and ensure consistency
+                            location.reload();
+                        });
+                    } else {
+                        alert('Item archived successfully!');
+                        location.reload();
+                    }
                 } else {
-                    alert('Error: ' + (result.message || 'Failed to archive item'));
+                    if (typeof showArcError === 'function') {
+                        showArcError(result.message || 'Failed to archive item');
+                    } else {
+                        alert('Error: ' + (result.message || 'Failed to archive item'));
+                    }
                 }
             })
             .catch(err => {
                 console.error('Archive error:', err);
-                alert('Failed to archive item. Please try again.');
+                if (typeof showArcError === 'function') {
+                    showArcError('Failed to archive item. Please try again.');
+                } else {
+                    alert('Failed to archive item. Please try again.');
+                }
             });
         }
     </script>
 
+    <script src="../assets/js/notifications.js"></script>
     <script src="../assets/js/main.js"></script>
 </body>
 </html>

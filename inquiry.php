@@ -314,9 +314,32 @@ require_once __DIR__ . '/includes/sidebar.php';
                 </div>
                 
                 <div style="text-align: center; margin-top: 1.5rem;">
-                    <button type="submit" class="button" style="padding: 1rem 2.5rem; font-size: 1.1rem; background: linear-gradient(135deg, #8a2927 0%, #6c1d12 100%);">📩 Confirm & Submit Order</button>
+                    <button type="button" onclick="showOrderSummary()" class="button" style="padding: 1rem 2.5rem; font-size: 1.1rem; background: linear-gradient(135deg, #8a2927 0%, #6c1d12 100%);">📩 Confirm & Submit Order</button>
                 </div>
             </form>
+
+<!-- Order Summary Modal -->
+<div id="orderSummaryOverlay" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 10000; backdrop-filter: blur(4px);"></div>
+<div id="orderSummaryModal" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 16px; max-width: 600px; width: 90%; max-height: 85vh; overflow-y: auto; z-index: 10001; box-shadow: 0 25px 50px rgba(0,0,0,0.3);">
+    <div style="background: linear-gradient(135deg, #8a2927 0%, #6c1d12 100%); padding: 1.5rem; border-radius: 16px 16px 0 0;">
+        <h3 style="color: white; margin: 0; font-size: 1.3rem; display: flex; align-items: center; gap: 0.75rem;">
+            <span>📋</span> Review Your Order
+        </h3>
+    </div>
+    <div style="padding: 1.5rem;">
+        <div id="summaryContent">
+            <!-- Content populated by JavaScript -->
+        </div>
+        <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+            <button type="button" onclick="closeOrderSummary()" style="flex: 1; padding: 0.875rem; border: 2px solid #ddd; background: white; border-radius: 8px; cursor: pointer; font-weight: 500; color: #666;">
+                ← Edit Order
+            </button>
+            <button type="button" onclick="submitOrder()" style="flex: 1; padding: 0.875rem; border: none; background: linear-gradient(135deg, #8a2927 0%, #6c1d12 100%); color: white; border-radius: 8px; cursor: pointer; font-weight: 600;">
+                ✓ Confirm & Submit
+            </button>
+        </div>
+    </div>
+</div>
                 </div>
             </div>
         </div>
@@ -882,6 +905,143 @@ function showToast(message) {
     setTimeout(() => toast.classList.add('fade-out'), 2000);
     setTimeout(() => toast.remove(), 2300);
 }
+
+// Order Summary Modal Functions
+function showOrderSummary() {
+    // Get form values
+    const fullName = document.getElementById('full_name').value;
+    const email = document.getElementById('email').value;
+    const phone = document.getElementById('phone').value;
+    const eventType = document.getElementById('event_type').value;
+    const guestCount = document.getElementById('guest_count').value;
+    const eventDate = document.getElementById('selectedDate').value;
+    const message = document.getElementById('message').value;
+    
+    // Validate required fields
+    if (!fullName || !email || !phone || !eventDate) {
+        if (typeof showArcAlert === 'function') {
+            showArcAlert('Please fill in all required fields: Full Name, Email, Phone, and Event Date.');
+        } else {
+            alert('Please fill in all required fields: Full Name, Email, Phone, and Event Date.');
+        }
+        return;
+    }
+    
+    // Fetch cart items via AJAX
+    fetch('includes/sidebar.php?action=get_cart')
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success || !data.items || data.items.length === 0) {
+                if (typeof showArcAlert === 'function') {
+                    showArcAlert('Your cart is empty. Please add items before submitting.');
+                } else {
+                    alert('Your cart is empty. Please add items before submitting.');
+                }
+                return;
+            }
+            
+            // Build summary HTML
+            let itemsHtml = '';
+            let total = 0;
+            data.items.forEach(item => {
+                const isPackage = item.type === 'package';
+                const icon = isPackage ? '📦' : '🍽️';
+                const subtotal = item.product_price * item.quantity;
+                total += subtotal;
+                
+                itemsHtml += `
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: #f9f9f9; border-radius: 8px; margin-bottom: 0.5rem;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <span>${icon}</span>
+                            <div>
+                                <strong>${item.product_name}</strong>
+                                <small style="color: #666; display: block;">
+                                    ${isPackage ? 'Package' : 'Item'} • ₱${parseFloat(item.product_price).toFixed(2)} each
+                                </small>
+                            </div>
+                        </div>
+                        <div style="text-align: right;">
+                            <span style="font-weight: 600;">x${item.quantity}</span>
+                            <span style="display: block; color: #8a2927; font-weight: 600;">₱${subtotal.toFixed(2)}</span>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            // Format date
+            const formattedDate = eventDate ? new Date(eventDate).toLocaleDateString('en-US', { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+            }) : 'Not selected';
+            
+            // Build complete summary
+            const summaryHtml = `
+                <div style="margin-bottom: 1.5rem;">
+                    <h4 style="color: #8a2927; margin: 0 0 1rem 0; font-size: 1.1rem;">📞 Customer Information</h4>
+                    <div style="background: #fafafa; padding: 1rem; border-radius: 8px;">
+                        <p style="margin: 0.25rem 0;"><strong>Name:</strong> ${fullName}</p>
+                        <p style="margin: 0.25rem 0;"><strong>Email:</strong> ${email}</p>
+                        <p style="margin: 0.25rem 0;"><strong>Phone:</strong> ${phone}</p>
+                    </div>
+                </div>
+                
+                <div style="margin-bottom: 1.5rem;">
+                    <h4 style="color: #8a2927; margin: 0 0 1rem 0; font-size: 1.1rem;">📅 Event Details</h4>
+                    <div style="background: #fafafa; padding: 1rem; border-radius: 8px;">
+                        <p style="margin: 0.25rem 0;"><strong>Date:</strong> ${formattedDate}</p>
+                        <p style="margin: 0.25rem 0;"><strong>Type:</strong> ${eventType || 'Not specified'}</p>
+                        <p style="margin: 0.25rem 0;"><strong>Guests:</strong> ${guestCount} pax</p>
+                    </div>
+                </div>
+                
+                <div style="margin-bottom: 1.5rem;">
+                    <h4 style="color: #8a2927; margin: 0 0 1rem 0; font-size: 1.1rem;">🍽️ Order Items</h4>
+                    ${itemsHtml}
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: #8a2927; color: white; border-radius: 8px; margin-top: 0.5rem;">
+                        <strong>Total:</strong>
+                        <strong style="font-size: 1.25rem;">₱${total.toFixed(2)}</strong>
+                    </div>
+                </div>
+                
+                ${message ? `
+                <div style="margin-bottom: 1rem;">
+                    <h4 style="color: #8a2927; margin: 0 0 1rem 0; font-size: 1.1rem;">📝 Special Requests</h4>
+                    <div style="background: #fafafa; padding: 1rem; border-radius: 8px; color: #555;">
+                        ${message}
+                    </div>
+                </div>
+                ` : ''}
+            `;
+            
+            document.getElementById('summaryContent').innerHTML = summaryHtml;
+            
+            // Show modal
+            document.getElementById('orderSummaryOverlay').style.display = 'block';
+            document.getElementById('orderSummaryModal').style.display = 'block';
+            document.body.style.overflow = 'hidden';
+        })
+        .catch(error => {
+            console.error('Error fetching cart:', error);
+            if (typeof showArcAlert === 'function') {
+                showArcAlert('Error loading order summary. Please try again.');
+            } else {
+                alert('Error loading order summary. Please try again.');
+            }
+        });
+}
+
+function closeOrderSummary() {
+    document.getElementById('orderSummaryOverlay').style.display = 'none';
+    document.getElementById('orderSummaryModal').style.display = 'none';
+    document.body.style.overflow = '';
+}
+
+function submitOrder() {
+    // Submit the form
+    document.querySelector('form[data-validate]').submit();
+}
 </script>
 
 <style>
@@ -1381,5 +1541,7 @@ function showToast(message) {
     document.head.appendChild(spinnerStyle);
 })();
 </script>
+
+<script src="assets/js/notifications.js"></script>
 
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

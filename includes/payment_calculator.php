@@ -508,13 +508,21 @@ function openPaymentCalculator(id, type, action) {
                 loading.style.display = 'none';
                 body.style.display = 'block';
             } else {
-                alert('Failed to load order details');
+                if (typeof showArcError === 'function') {
+                    showArcError('Failed to load order details. Please try again.');
+                } else {
+                    alert('Failed to load order details');
+                }
                 closePaymentCalculator();
             }
         })
         .catch(error => {
             console.error('Error:', error);
-            alert('Failed to load order details');
+            if (typeof showArcError === 'function') {
+                showArcError('Failed to load order details. Please check your connection and try again.');
+            } else {
+                alert('Failed to load order details');
+            }
             closePaymentCalculator();
         });
 }
@@ -662,17 +670,35 @@ function confirmWithPayment() {
             if (action === 'approve') actionText = 'approved';
             else if (action === 'completed') actionText = 'completed';
             else actionText = 'confirmed';
-            alert(`✅ Order ${actionText} successfully with payment recorded!`);
-            closePaymentCalculator();
-            location.reload();
+            
+            if (typeof showArcSuccess === 'function') {
+                showArcSuccess(`Order ${actionText} successfully with payment recorded!`, function() {
+                    closePaymentCalculator();
+                    location.reload();
+                });
+            } else {
+                alert(`✅ Order ${actionText} successfully with payment recorded!`);
+                closePaymentCalculator();
+                location.reload();
+            }
         } else {
             console.error('Server error:', data);
-            alert('❌ Error: ' + (data.message || 'Failed to save payment.') + '\n\nCheck XAMPP php_error.log for detailed error message.');
+            const errorMsg = 'Error: ' + (data.message || 'Failed to save payment.');
+            if (typeof showArcError === 'function') {
+                showArcError(errorMsg);
+            } else {
+                alert('❌ ' + errorMsg + '\n\nCheck XAMPP php_error.log for detailed error message.');
+            }
         }
     })
     .catch(error => {
         console.error('Network/Error:', error);
-        alert('❌ Network error. Check:\n1. XAMPP Apache is running\n2. Check XAMPP php_error.log\n3. Open F12 console for details');
+        const errorMsg = 'Network error. Please check your connection and try again.';
+        if (typeof showArcError === 'function') {
+            showArcError(errorMsg);
+        } else {
+            alert('❌ ' + errorMsg + '\n\nCheck:\n1. XAMPP Apache is running\n2. Check XAMPP php_error.log\n3. Open F12 console for details');
+        }
     });
 }
 
