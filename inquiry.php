@@ -153,8 +153,8 @@ require_once __DIR__ . '/includes/sidebar.php';
                 <button type="button" class="button button-small" onclick="openAddItemsSidebar()">+ Add More Items</button>
             </div>
             
-            <?php if (!empty($cartItems)): ?>
             <div class="order-summary-list" id="orderSummaryList">
+                <?php if (!empty($cartItems)): ?>
                 <?php foreach ($cartItems as $index => $item): ?>
                 <div class="order-item editable" data-item-id="<?php echo $item['id']; ?>">
                     <div class="order-item-info">
@@ -172,17 +172,17 @@ require_once __DIR__ . '/includes/sidebar.php';
                     <button type="button" class="remove-btn-sm" onclick="removeCartItem(<?php echo $item['id']; ?>)" title="Remove">×</button>
                 </div>
                 <?php endforeach; ?>
+                <?php else: ?>
+                <div class="empty-cart-message" style="text-align: center; padding: 2rem; color: #666;">
+                    <p>Your cart is empty. Add items from the menu to get started.</p>
+                    <a href="menu.php" class="button" style="margin-top: 1rem;">Browse Menu</a>
+                </div>
+                <?php endif; ?>
             </div>
             <div class="order-total-bar">
                 <span>Order Total:</span>
                 <strong id="cartTotalDisplay">₱<?php echo number_format($cartTotal, 2); ?></strong>
             </div>
-            <?php else: ?>
-            <div class="empty-cart-message" style="text-align: center; padding: 2rem; color: #666;">
-                <p>Your cart is empty. Add items from the menu to get started.</p>
-                <a href="menu.php" class="button" style="margin-top: 1rem;">Browse Menu</a>
-            </div>
-            <?php endif; ?>
         </div>
         
         <!-- Two Column Layout: Calendar + Form -->
@@ -594,15 +594,29 @@ function removeCartItem(itemId) {
 
 // Add Items Sidebar
 function openAddItemsSidebar() {
-    document.getElementById('addItemsSidebar').classList.add('is-open');
-    document.getElementById('addItemsOverlay').classList.add('is-visible');
-    document.body.style.overflow = 'hidden';
+    console.log('Opening sidebar...');
+    const sidebar = document.getElementById('addItemsSidebar');
+    const overlay = document.getElementById('addItemsOverlay');
+    console.log('Sidebar element:', sidebar);
+    console.log('Overlay element:', overlay);
+    if (sidebar && overlay) {
+        sidebar.classList.add('is-open');
+        overlay.classList.add('is-visible');
+        document.body.style.overflow = 'hidden';
+        console.log('Sidebar opened');
+    } else {
+        console.error('Sidebar elements not found!');
+    }
 }
 
 function closeAddItemsSidebar() {
-    document.getElementById('addItemsSidebar').classList.remove('is-open');
-    document.getElementById('addItemsOverlay').classList.remove('is-visible');
-    document.body.style.overflow = '';
+    const sidebar = document.getElementById('addItemsSidebar');
+    const overlay = document.getElementById('addItemsOverlay');
+    if (sidebar && overlay) {
+        sidebar.classList.remove('is-open');
+        overlay.classList.remove('is-visible');
+        document.body.style.overflow = '';
+    }
 }
 
 function quickAddToCart(id, type, name, price) {
@@ -620,19 +634,41 @@ function quickAddToCart(id, type, name, price) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
     })
-    .then(r => r.json())
+    .then(async r => {
+        const text = await r.text();
+        try {
+            // Try to find JSON in response (in case there's whitespace before/after)
+            const jsonMatch = text.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                return JSON.parse(jsonMatch[0]);
+            }
+            return JSON.parse(text);
+        } catch (e) {
+            console.error('JSON parse error:', e, 'Response:', text);
+            throw new Error('Invalid response from server');
+        }
+    })
     .then(result => {
         if (result.success) {
             // Update UI without reload
             updateCartUI(result.cart_items || [], result.cart_total || 0);
             showToast(`Added ${name}`);
         } else {
-            alert('Failed to add item');
+            console.error('Server error:', result.message);
+            if (typeof showArcError === 'function') {
+                showArcError(result.message || 'Failed to add item');
+            } else {
+                alert(result.message || 'Failed to add item');
+            }
         }
     })
     .catch(err => {
         console.error('Error:', err);
-        alert('Failed to add item');
+        if (typeof showArcError === 'function') {
+            showArcError('Failed to add item. Please try again.');
+        } else {
+            alert('Failed to add item. Please try again.');
+        }
     });
 }
 
@@ -640,10 +676,17 @@ function quickAddToCart(id, type, name, price) {
 let allPackages = [];
 
 function openPackagePicker() {
+    console.log('Opening package picker...');
     const modal = document.getElementById('packagePickerModal');
-    modal.classList.add('active');
-    document.body.style.overflow = 'hidden';
-    loadPackages();
+    console.log('Modal element:', modal);
+    if (modal) {
+        modal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+        loadPackages();
+        console.log('Package picker opened');
+    } else {
+        console.error('Package picker modal not found!');
+    }
 }
 
 function closePackagePicker() {
@@ -715,7 +758,20 @@ function addPackageToCart(pkgId, pkgName, pkgPrice) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
     })
-    .then(r => r.json())
+    .then(async r => {
+        const text = await r.text();
+        try {
+            // Try to find JSON in response (in case there's whitespace before/after)
+            const jsonMatch = text.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                return JSON.parse(jsonMatch[0]);
+            }
+            return JSON.parse(text);
+        } catch (e) {
+            console.error('JSON parse error:', e, 'Response:', text);
+            throw new Error('Invalid response from server');
+        }
+    })
     .then(result => {
         if (result.success) {
             // Update UI without reload
@@ -724,12 +780,21 @@ function addPackageToCart(pkgId, pkgName, pkgPrice) {
             showToast(`Added ${pkgName}`);
             closePackagePicker();
         } else {
-            alert('Failed to add package');
+            console.error('Server error:', result.message);
+            if (typeof showArcError === 'function') {
+                showArcError(result.message || 'Failed to add package');
+            } else {
+                alert(result.message || 'Failed to add package');
+            }
         }
     })
     .catch(err => {
         console.error('Error:', err);
-        alert('Failed to add package');
+        if (typeof showArcError === 'function') {
+            showArcError('Failed to add package. Please try again.');
+        } else {
+            alert('Failed to add package. Please try again.');
+        }
     });
 }
 
@@ -744,6 +809,12 @@ function updateCartUI(cartItems, cartTotal) {
     const container = document.getElementById('orderSummaryList');
     const totalDisplay = document.getElementById('cartTotalDisplay');
     
+    // Check if elements exist (sidebar might not be loaded yet)
+    if (!container) {
+        console.warn('updateCartUI: orderSummaryList element not found');
+        return;
+    }
+    
     if (cartItems.length === 0) {
         container.innerHTML = `
             <div class="empty-cart-message" style="text-align: center; padding: 2rem; color: #666;">
@@ -751,35 +822,39 @@ function updateCartUI(cartItems, cartTotal) {
                 <a href="menu.php" class="button" style="margin-top: 1rem;">Browse Menu</a>
             </div>
         `;
-    } else {
-        let html = '';
-        cartItems.forEach(item => {
-            const isPackage = item.type === 'package';
-            const icon = isPackage ? '📦' : '🍽️';
-            const badge = isPackage ? '<span style="background: #8a2927; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.65rem; margin-left: 0.5rem;">PACKAGE</span>' : '';
-            
-            html += `
-                <div class="order-item editable ${isPackage ? 'package-item' : ''}" data-item-id="${item.id}">
-                    <div class="order-item-info">
-                        <div style="display: flex; align-items: center;">
-                            <span style="margin-right: 0.5rem;">${icon}</span>
-                            <strong>${escapeHtml(item.product_name)}</strong>
-                            ${badge}
-                        </div>
-                        ${item.notes ? `<small>${escapeHtml(item.notes)}</small>` : ''}
-                    </div>
-                    <div class="order-item-controls">
-                        <button type="button" class="qty-btn" onclick="updateCartItemQty(${item.id}, ${item.quantity - 1})" ${item.quantity <= 1 ? 'disabled' : ''}>−</button>
-                        <span class="qty-display">${item.quantity}</span>
-                        <button type="button" class="qty-btn" onclick="updateCartItemQty(${item.id}, ${item.quantity + 1})" ${item.quantity >= 99 ? 'disabled' : ''}>+</button>
-                    </div>
-                    <div class="order-item-price">₱${parseFloat(item.product_price * item.quantity).toFixed(2)}</div>
-                    <button type="button" class="remove-btn-sm" onclick="removeCartItem(${item.id})" title="Remove">×</button>
-                </div>
-            `;
-        });
-        container.innerHTML = html;
+        if (totalDisplay) {
+            totalDisplay.textContent = '₱0.00';
+        }
+        return;
     }
+    
+    let html = '';
+    cartItems.forEach(item => {
+        const isPackage = item.type === 'package';
+        const icon = isPackage ? '📦' : '🍽️';
+        const badge = isPackage ? '<span style="background: #8a2927; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.65rem; margin-left: 0.5rem;">PACKAGE</span>' : '';
+        
+        html += `
+            <div class="order-item editable ${isPackage ? 'package-item' : ''}" data-item-id="${item.id}">
+                <div class="order-item-info">
+                    <div style="display: flex; align-items: center;">
+                        <span style="margin-right: 0.5rem;">${icon}</span>
+                        <strong>${escapeHtml(item.product_name)}</strong>
+                        ${badge}
+                    </div>
+                    ${item.notes ? `<small>${escapeHtml(item.notes)}</small>` : ''}
+                </div>
+                <div class="order-item-controls">
+                    <button type="button" class="qty-btn" onclick="updateCartItemQty(${item.id}, ${item.quantity - 1})" ${item.quantity <= 1 ? 'disabled' : ''}>−</button>
+                    <span class="qty-display">${item.quantity}</span>
+                    <button type="button" class="qty-btn" onclick="updateCartItemQty(${item.id}, ${item.quantity + 1})" ${item.quantity >= 99 ? 'disabled' : ''}>+</button>
+                </div>
+                <div class="order-item-price">₱${parseFloat(item.product_price * item.quantity).toFixed(2)}</div>
+                <button type="button" class="remove-btn-sm" onclick="removeCartItem(${item.id})" title="Remove">×</button>
+            </div>
+        `;
+    });
+    container.innerHTML = html;
     
     // Update total
     if (totalDisplay) {
@@ -1197,16 +1272,11 @@ function showToast(message) {
             });
     }
     
-    // Protect all add-to-cart actions
+    // Add-to-cart wrapper for validation
     const originalQuickAdd = window.quickAddToCart;
     window.quickAddToCart = function(id, type, name, price) {
-        if (!systemReady) {
-            showArcWait('Menu data still loading, please wait a second...');
-            setTimeout(() => hideArcModal(), 1500);
-            return;
-        }
         if (!id || !price) {
-            showArcError('Invalid item data. Please refresh the page.');
+            showArcError ? showArcError('Invalid item data. Please refresh the page.') : alert('Invalid item data');
             return;
         }
         return originalQuickAdd(id, type, name, price);
@@ -1219,7 +1289,11 @@ function showToast(message) {
             // Check system ready
             if (!systemReady) {
                 e.preventDefault();
-                showArcWait('System initializing, please wait...');
+                if (typeof showArcWait === 'function') {
+                    showArcWait('System initializing, please wait...');
+                } else {
+                    alert('System initializing, please wait...');
+                }
                 return false;
             }
             
@@ -1233,7 +1307,11 @@ function showToast(message) {
             const cartItems = document.querySelectorAll('.order-item');
             if (cartItems.length === 0) {
                 e.preventDefault();
-                showArcError('Please add at least one item to your order before submitting.');
+                if (typeof showArcError === 'function') {
+                    showArcError('Please add at least one item to your order before submitting.');
+                } else {
+                    alert('Please add at least one item to your order before submitting.');
+                }
                 return false;
             }
             
@@ -1247,35 +1325,43 @@ function showToast(message) {
             }
             
             // Show loading modal
-            showArcLoading('Processing your order...');
+            if (typeof showArcLoading === 'function') {
+                showArcLoading('Processing your order...');
+            }
             
             // Allow form to submit
             return true;
         });
     }
     
-    // Replace removeCartItem confirm with modal
-    const originalRemoveCartItem = window.removeCartItem;
-    window.removeCartItem = function(itemId) {
-        showArcConfirm('Remove this item from your order?', function(confirmed) {
-            if (confirmed) {
-                fetch('includes/sidebar.php?action=remove_cart_item', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ item_id: itemId })
-                })
-                .then(r => r.json())
-                .then(result => {
-                    if (result.success) {
-                        updateCartUI(result.cart_items || [], result.cart_total || 0);
-                        showArcSuccess('Item removed');
-                    } else {
-                        showArcError('Failed to remove item');
-                    }
-                });
-            }
-        });
-    };
+    // Replace removeCartItem confirm with modal (if notifications are available)
+    if (typeof showArcConfirm === 'function') {
+        const originalRemoveCartItem = window.removeCartItem;
+        window.removeCartItem = function(itemId) {
+            showArcConfirm('Remove this item from your order?', function(confirmed) {
+                if (confirmed) {
+                    fetch('includes/sidebar.php?action=remove_cart_item', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ item_id: itemId })
+                    })
+                    .then(r => r.json())
+                    .then(result => {
+                        if (result.success) {
+                            updateCartUI(result.cart_items || [], result.cart_total || 0);
+                            if (typeof showArcSuccess === 'function') {
+                                showArcSuccess('Item removed');
+                            }
+                        } else {
+                            if (typeof showArcError === 'function') {
+                                showArcError('Failed to remove item');
+                            }
+                        }
+                    });
+                }
+            });
+        };
+    }
     
     // Add spinner style
     const spinnerStyle = document.createElement('style');
@@ -1293,7 +1379,6 @@ function showToast(message) {
         }
     `;
     document.head.appendChild(spinnerStyle);
-    
 })();
 </script>
 

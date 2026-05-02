@@ -345,7 +345,20 @@ function quickAddItem(id, type, name, price) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
     })
-    .then(r => r.json())
+    .then(async r => {
+        const text = await r.text();
+        try {
+            // Try to find JSON in response (in case there's whitespace before/after)
+            const jsonMatch = text.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                return JSON.parse(jsonMatch[0]);
+            }
+            return JSON.parse(text);
+        } catch (e) {
+            console.error('JSON parse error:', e, 'Response:', text);
+            throw new Error('Invalid response from server');
+        }
+    })
     .then(result => {
         if (result.success) {
             showAddToast(name);
@@ -355,12 +368,13 @@ function quickAddItem(id, type, name, price) {
                 cartCountBadge.textContent = result.cart_count;
             }
         } else {
-            alert('Failed to add item');
+            console.error('Server error:', result.message);
+            alert(result.message || 'Failed to add item');
         }
     })
     .catch(err => {
         console.error('Error:', err);
-        alert('Failed to add item');
+        alert('Failed to add item. Please try again.');
     });
 }
 

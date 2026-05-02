@@ -4,6 +4,7 @@
  * Dynamic ordering sidebar for product and package customization
  * Included in menu.php and inquiry.php
  */
+
 require_once __DIR__ . '/functions.php';
 
 // Initialize session cart if not exists
@@ -37,6 +38,7 @@ if ($action === 'add_to_cart' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $cartTotal += $cartItem['product_price'] * $cartItem['quantity'];
         }
         
+        header('Content-Type: application/json');
         echo json_encode([
             'success' => true, 
             'cart_count' => count($_SESSION['cart']),
@@ -44,6 +46,7 @@ if ($action === 'add_to_cart' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             'cart_total' => $cartTotal
         ]);
     } else {
+        header('Content-Type: application/json');
         echo json_encode(['success' => false, 'message' => 'Invalid data']);
     }
     exit;
