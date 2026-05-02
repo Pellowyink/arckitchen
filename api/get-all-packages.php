@@ -5,7 +5,6 @@
  */
 
 require_once __DIR__ . '/../includes/functions.php';
-requireAdminCheck();
 
 header('Content-Type: application/json');
 
