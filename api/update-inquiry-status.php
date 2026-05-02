@@ -69,6 +69,33 @@ if ($action === 'approve') {
     try {
         $result = approveInquiryWithPayment($inquiry_id, $down_payment, $full_payment, $total_amount);
         if ($result) {
+            // Send confirmation email to customer
+            $conn = getDbConnection();
+            $inquiryStmt = $conn->prepare("SELECT full_name, email, event_date FROM inquiries WHERE id = ?");
+            $inquiryStmt->bind_param('i', $inquiry_id);
+            $inquiryStmt->execute();
+            $inquiryData = $inquiryStmt->get_result()->fetch_assoc();
+            $inquiryStmt->close();
+            
+            if ($inquiryData) {
+                $emailData = [
+                    'customer_name' => $inquiryData['full_name'],
+                    'booking_id' => $inquiry_id,
+                    'event_date' => $inquiryData['event_date']
+                ];
+                
+                $emailResult = sendArcEmail(
+                    $inquiryData['email'],
+                    'Your Order is Confirmed! - Arc Kitchen',
+                    'inquiry_confirmed',
+                    $emailData
+                );
+                
+                if (!$emailResult['success']) {
+                    error_log("Failed to send confirmation email for inquiry #$inquiry_id: " . $emailResult['message']);
+                }
+            }
+            
             echo json_encode(['success' => true, 'message' => 'Inquiry approved and booking created with payment recorded']);
         } else {
             $errorMsg = $lastError ?: 'Function returned false - check error logs';

@@ -112,6 +112,30 @@ if (isPostRequest()) {
                     // Clear cart after successful submission
                     $_SESSION['cart'] = [];
                     
+                    // Send confirmation email to customer
+                    $emailData = [
+                        'inquiry_id' => $inquiryId,
+                        'full_name' => $_POST['full_name'],
+                        'email' => $_POST['email'],
+                        'phone' => $_POST['phone'],
+                        'event_type' => $_POST['event_type'],
+                        'event_date' => $_POST['event_date'],
+                        'guest_count' => $_POST['guest_count'],
+                        'message' => $_POST['message'],
+                        'items' => $cartItems
+                    ];
+                    
+                    $emailResult = sendArcEmail(
+                        $_POST['email'],
+                        'Inquiry Received! - Arc Kitchen',
+                        'new_inquiry',
+                        $emailData
+                    );
+                    
+                    if (!$emailResult['success']) {
+                        error_log("Failed to send inquiry confirmation email: " . $emailResult['message']);
+                    }
+                    
                     // Build success message
                     $successMsg = "Your order has been submitted successfully! ARC Kitchen will contact you shortly to confirm your booking.";
                     if (!empty($failedItems)) {
@@ -250,7 +274,7 @@ require_once __DIR__ . '/includes/sidebar.php';
             <?php if (isset($_GET['success'])): ?>
                 <div class="success-message" style="background: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
                     <strong>✓ Order Submitted!</strong><br>
-                    Your booking inquiry #<?php echo (int)$_GET['inquiry_id']; ?> has been received. ARC Kitchen will contact you shortly to confirm.
+                    Your booking inquiry has been received. ARC Kitchen will contact you shortly to confirm.
                 </div>
             <?php endif; ?>
             
@@ -919,89 +943,82 @@ function showOrderSummary() {
     
     // Validate required fields
     if (!fullName || !email || !phone || !eventDate) {
-        if (typeof showArcAlert === 'function') {
-            showArcAlert('Please fill in all required fields: Full Name, Email, Phone, and Event Date.');
-        } else {
-            alert('Please fill in all required fields: Full Name, Email, Phone, and Event Date.');
-        }
+        showArcAlert('Please fill in all required fields: Full Name, Email, Phone, and Event Date.');
         return;
     }
     
-    // Fetch cart items via AJAX
-    fetch('includes/sidebar.php?action=get_cart')
-        .then(response => response.json())
-        .then(data => {
-            if (!data.success || !data.items || data.items.length === 0) {
-                if (typeof showArcAlert === 'function') {
-                    showArcAlert('Your cart is empty. Please add items before submitting.');
-                } else {
-                    alert('Your cart is empty. Please add items before submitting.');
-                }
-                return;
-            }
-            
-            // Build summary HTML
-            let itemsHtml = '';
-            let total = 0;
-            data.items.forEach(item => {
-                const isPackage = item.type === 'package';
-                const icon = isPackage ? '📦' : '🍽️';
-                const subtotal = item.product_price * item.quantity;
-                total += subtotal;
-                
-                itemsHtml += `
-                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: #f9f9f9; border-radius: 8px; margin-bottom: 0.5rem;">
-                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                            <span>${icon}</span>
-                            <div>
-                                <strong>${item.product_name}</strong>
-                                <small style="color: #666; display: block;">
-                                    ${isPackage ? 'Package' : 'Item'} • ₱${parseFloat(item.product_price).toFixed(2)} each
-                                </small>
-                            </div>
-                        </div>
-                        <div style="text-align: right;">
-                            <span style="font-weight: 600;">x${item.quantity}</span>
-                            <span style="display: block; color: #8a2927; font-weight: 600;">₱${subtotal.toFixed(2)}</span>
-                        </div>
-                    </div>
-                `;
-            });
-            
-            // Format date
-            const formattedDate = eventDate ? new Date(eventDate).toLocaleDateString('en-US', { 
-                weekday: 'long', 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric' 
-            }) : 'Not selected';
-            
-            // Build complete summary
-            const summaryHtml = `
-                <div style="margin-bottom: 1.5rem;">
-                    <h4 style="color: #8a2927; margin: 0 0 1rem 0; font-size: 1.1rem;">📞 Customer Information</h4>
-                    <div style="background: #fafafa; padding: 1rem; border-radius: 8px;">
-                        <p style="margin: 0.25rem 0;"><strong>Name:</strong> ${fullName}</p>
-                        <p style="margin: 0.25rem 0;"><strong>Email:</strong> ${email}</p>
-                        <p style="margin: 0.25rem 0;"><strong>Phone:</strong> ${phone}</p>
+    // Check for items in the DOM (Order Summary) instead of AJAX call
+    const orderItems = document.querySelectorAll('#orderSummaryList .order-item');
+    if (orderItems.length === 0) {
+        showArcAlert('Your cart is empty. Please add items before submitting.');
+        return;
+    }
+    
+    // Build summary HTML from DOM items
+    let itemsHtml = '';
+    let total = 0;
+    orderItems.forEach(item => {
+        const nameEl = item.querySelector('.order-item-info strong');
+        const priceEl = item.querySelector('.order-item-price');
+        const qtyEl = item.querySelector('.qty-display');
+        const isPackage = item.classList.contains('package-item');
+        
+        const name = nameEl ? nameEl.textContent : 'Unknown Item';
+        const priceText = priceEl ? priceEl.textContent : '₱0.00';
+        const qty = qtyEl ? parseInt(qtyEl.textContent) : 1;
+        const price = parseFloat(priceText.replace(/[^0-9.]/g, ''));
+        const subtotal = price;
+        total += subtotal;
+        const icon = isPackage ? '📦' : '🍽️';
+        
+        itemsHtml += `
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: #f9f9f9; border-radius: 8px; margin-bottom: 0.5rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <span>${icon}</span>
+                    <div>
+                        <div style="font-weight: 600; color: #4a1414;">${name}</div>
+                        <small style="color: #666;">Qty: ${qty} × ₱${(price/qty).toFixed(2)}</small>
                     </div>
                 </div>
-                
-                <div style="margin-bottom: 1.5rem;">
-                    <h4 style="color: #8a2927; margin: 0 0 1rem 0; font-size: 1.1rem;">📅 Event Details</h4>
-                    <div style="background: #fafafa; padding: 1rem; border-radius: 8px;">
-                        <p style="margin: 0.25rem 0;"><strong>Date:</strong> ${formattedDate}</p>
-                        <p style="margin: 0.25rem 0;"><strong>Type:</strong> ${eventType || 'Not specified'}</p>
-                        <p style="margin: 0.25rem 0;"><strong>Guests:</strong> ${guestCount} pax</p>
-                    </div>
-                </div>
-                
-                <div style="margin-bottom: 1.5rem;">
-                    <h4 style="color: #8a2927; margin: 0 0 1rem 0; font-size: 1.1rem;">🍽️ Order Items</h4>
-                    ${itemsHtml}
-                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: #8a2927; color: white; border-radius: 8px; margin-top: 0.5rem;">
-                        <strong>Total:</strong>
-                        <strong style="font-size: 1.25rem;">₱${total.toFixed(2)}</strong>
+                <div style="font-weight: 600; color: #8a2927;">₱${subtotal.toFixed(2)}</div>
+            </div>
+        `;
+    });
+    
+    // Format date
+    const formattedDate = eventDate ? new Date(eventDate).toLocaleDateString('en-US', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+    }) : 'Not selected';
+    
+    // Build complete summary
+    const summaryHtml = `
+        <div style="margin-bottom: 1.5rem;">
+            <h4 style="color: #8a2927; margin: 0 0 1rem 0; font-size: 1.1rem;">📞 Customer Information</h4>
+            <div style="background: #fafafa; padding: 1rem; border-radius: 8px;">
+                <p style="margin: 0.25rem 0;"><strong>Name:</strong> ${fullName}</p>
+                <p style="margin: 0.25rem 0;"><strong>Email:</strong> ${email}</p>
+                <p style="margin: 0.25rem 0;"><strong>Phone:</strong> ${phone}</p>
+            </div>
+        </div>
+        
+        <div style="margin-bottom: 1.5rem;">
+            <h4 style="color: #8a2927; margin: 0 0 1rem 0; font-size: 1.1rem;">📅 Event Details</h4>
+            <div style="background: #fafafa; padding: 1rem; border-radius: 8px;">
+                <p style="margin: 0.25rem 0;"><strong>Date:</strong> ${formattedDate}</p>
+                <p style="margin: 0.25rem 0;"><strong>Type:</strong> ${eventType || 'Not specified'}</p>
+                <p style="margin: 0.25rem 0;"><strong>Guests:</strong> ${guestCount} pax</p>
+            </div>
+        </div>
+        
+        <div style="margin-bottom: 1.5rem;">
+            <h4 style="color: #8a2927; margin: 0 0 1rem 0; font-size: 1.1rem;">🍽️ Order Items</h4>
+            ${itemsHtml}
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: #8a2927; color: white; border-radius: 8px; margin-top: 0.5rem;">
+                <strong>Total:</strong>
+                <strong style="font-size: 1.25rem;">₱${total.toFixed(2)}</strong>
                     </div>
                 </div>
                 
@@ -1021,16 +1038,8 @@ function showOrderSummary() {
             document.getElementById('orderSummaryOverlay').style.display = 'block';
             document.getElementById('orderSummaryModal').style.display = 'block';
             document.body.style.overflow = 'hidden';
-        })
-        .catch(error => {
-            console.error('Error fetching cart:', error);
-            if (typeof showArcAlert === 'function') {
-                showArcAlert('Error loading order summary. Please try again.');
-            } else {
-                alert('Error loading order summary. Please try again.');
-            }
-        });
 }
+
 
 function closeOrderSummary() {
     document.getElementById('orderSummaryOverlay').style.display = 'none';

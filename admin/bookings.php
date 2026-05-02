@@ -88,8 +88,14 @@ $cancelled_bookings = getBookings(['status' => 'cancelled', 'archived' => false]
                                                 <button class="btn-admin btn-primary-admin btn-small" onclick="changeBookingStatus(<?php echo (int)$booking['id']; ?>, 'confirmed')">Confirm</button>
                                                 <button class="btn-admin btn-danger-admin btn-small" onclick="changeBookingStatus(<?php echo (int)$booking['id']; ?>, 'cancelled')">Cancel</button>
                                             <?php elseif ($status === 'confirmed'): ?>
+                                                <button class="btn-admin btn-warning-admin btn-small" onclick="showETAModal(<?php echo (int)$booking['id']; ?>)">👨‍🍳 In-Progress</button>
                                                 <button class="btn-admin btn-success-admin btn-small" onclick="changeBookingStatus(<?php echo (int)$booking['id']; ?>, 'completed')">Complete & Pay</button>
                                                 <button class="btn-admin btn-danger-admin btn-small" onclick="changeBookingStatus(<?php echo (int)$booking['id']; ?>, 'cancelled')">Cancel</button>
+                                                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #ddd;">
+                                                    <small style="color: #666; display: block; margin-bottom: 4px;">📢 Customer Alerts:</small>
+                                                    <button id="pickupBtn-<?php echo (int)$booking['id']; ?>" class="btn-admin btn-secondary-admin btn-small" onclick="sendQuickNotification(<?php echo (int)$booking['id']; ?>, 'ready_pickup')" style="background: #8a2927; color: white; margin-right: 4px;">📦 Ready</button>
+                                                    <button id="onwayBtn-<?php echo (int)$booking['id']; ?>" class="btn-admin btn-secondary-admin btn-small" onclick="sendQuickNotification(<?php echo (int)$booking['id']; ?>, 'on_the_way')" style="background: #8a2927; color: white;">🚚 On The Way</button>
+                                                </div>
                                             <?php endif; ?>
                                         </div>
                                     </td>
@@ -396,7 +402,201 @@ $cancelled_bookings = getBookings(['status' => 'cancelled', 'archived' => false]
                 }
             });
         }
+        
+        // ============================================
+        // ETA MODAL & CUSTOMER NOTIFICATIONS
+        // ============================================
+        
+        let currentBookingId = null;
+        let currentAction = null;
+        
+        /**
+         * Show ETA Modal when transitioning to In-Progress
+         */
+        function showETAModal(bookingId) {
+            currentBookingId = bookingId;
+            currentAction = 'in-progress';
+            document.getElementById('etaModalOverlay').style.display = 'block';
+            document.getElementById('etaModal').style.display = 'block';
+            document.body.style.overflow = 'hidden';
+        }
+        
+        /**
+         * Close ETA Modal
+         */
+        function closeETAModal() {
+            document.getElementById('etaModalOverlay').style.display = 'none';
+            document.getElementById('etaModal').style.display = 'none';
+            document.body.style.overflow = '';
+            currentBookingId = null;
+            currentAction = null;
+        }
+        
+        /**
+         * Submit ETA and update status
+         */
+        function submitETA() {
+            const eta = document.getElementById('etaInput').value;
+            if (!eta) {
+                if (typeof showArcError === 'function') {
+                    showArcError('Please enter an estimated completion time.');
+                } else {
+                    alert('Please enter an estimated completion time.');
+                }
+                return;
+            }
+            
+            // Disable button to prevent duplicate submissions
+            const submitBtn = document.getElementById('etaSubmitBtn');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Sending...';
+            
+            fetch('../api/update-booking-status.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    id: currentBookingId, 
+                    status: 'in-progress',
+                    eta: eta,
+                    send_email: true
+                }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Confirm & Notify Customer';
+                
+                if (data.success) {
+                    closeETAModal();
+                    if (typeof showArcSuccess === 'function') {
+                        showArcSuccess('Status updated and customer notified!', function() {
+                            refreshAllTables();
+                        });
+                    } else {
+                        alert('✅ Status updated and customer notified!');
+                        refreshAllTables();
+                    }
+                } else {
+                    if (typeof showArcError === 'function') {
+                        showArcError(data.message || 'Failed to update status');
+                    } else {
+                        alert('Error: ' + data.message);
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Confirm & Notify Customer';
+                if (typeof showArcError === 'function') {
+                    showArcError('Network error. Please try again.');
+                }
+            });
+        }
+        
+        /**
+         * Send Quick Notification (Ready for Pickup / On The Way)
+         */
+        function sendQuickNotification(bookingId, type) {
+            const typeLabels = {
+                'ready_pickup': 'Ready for Pickup',
+                'on_the_way': 'On The Way'
+            };
+            
+            if (typeof showArcConfirm === 'function') {
+                showArcConfirm(`Send "${typeLabels[type]}" notification to customer?`, function(confirmed) {
+                    if (confirmed) {
+                        doSendNotification(bookingId, type);
+                    }
+                });
+            } else {
+                if (!confirm(`Send "${typeLabels[type]}" notification to customer?`)) return;
+                doSendNotification(bookingId, type);
+            }
+        }
+        
+        function doSendNotification(bookingId, type) {
+            // Disable button to prevent duplicate submissions
+            const btnId = type === 'ready_pickup' ? 'pickupBtn-' + bookingId : 'onwayBtn-' + bookingId;
+            const btn = document.getElementById(btnId);
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = 'Sending...';
+            }
+            
+            fetch('../api/send-notification.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    booking_id: bookingId, 
+                    type: type 
+                }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    if (typeof showArcSuccess === 'function') {
+                        showArcSuccess('Notification sent successfully!');
+                    } else {
+                        alert('✅ Notification sent successfully!');
+                    }
+                } else {
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.textContent = type === 'ready_pickup' ? '📦 Ready for Pickup' : '🚚 On The Way';
+                    }
+                    if (typeof showArcError === 'function') {
+                        showArcError(data.message || 'Failed to send notification');
+                    } else {
+                        alert('Error: ' + data.message);
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = type === 'ready_pickup' ? '📦 Ready for Pickup' : '🚚 On The Way';
+                }
+                if (typeof showArcError === 'function') {
+                    showArcError('Network error. Please try again.');
+                }
+            });
+        }
     </script>
+
+    <!-- ETA Modal -->
+    <div id="etaModalOverlay" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 10000; backdrop-filter: blur(4px);"></div>
+    <div id="etaModal" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 25px; max-width: 450px; width: 90%; z-index: 10001; box-shadow: 0 25px 50px rgba(0,0,0,0.3);">
+        <div style="background: linear-gradient(135deg, #4a1414 0%, #6c1d12 100%); padding: 1.5rem; border-radius: 25px 25px 0 0;">
+            <h3 style="color: white; margin: 0; font-size: 1.3rem; display: flex; align-items: center; gap: 0.75rem;">
+                <span>⏰</span> Set Estimated Time
+            </h3>
+        </div>
+        <div style="padding: 1.5rem;">
+            <p style="color: #5c4a42; margin-bottom: 1.5rem; line-height: 1.6;">
+                When will this order be ready? Enter an estimated completion time to notify the customer.
+            </p>
+            <div style="margin-bottom: 1.5rem;">
+                <label style="display: block; color: #4a1414; font-weight: 600; margin-bottom: 0.5rem; font-family: 'League Spartan', sans-serif;">
+                    Estimated Completion Time
+                </label>
+                <input type="text" id="etaInput" placeholder="e.g., 3:00 PM today, or May 15, 2:00 PM" 
+                    style="width: 100%; padding: 0.875rem 1rem; border: 2px solid #e8ddd4; border-radius: 10px; font-size: 1rem; color: #4a1414; box-sizing: border-box;">
+                <small style="color: #8a6d5b; display: block; margin-top: 0.5rem;">
+                    Examples: "Today at 3:00 PM", "Tomorrow at noon", "May 15, 2:00 PM"
+                </small>
+            </div>
+            <div style="display: flex; gap: 1rem;">
+                <button type="button" onclick="closeETAModal()" style="flex: 1; padding: 0.875rem; border: 2px solid #ddd; background: white; border-radius: 10px; cursor: pointer; font-weight: 500; color: #666;">
+                    Cancel
+                </button>
+                <button type="button" id="etaSubmitBtn" onclick="submitETA()" style="flex: 1; padding: 0.875rem; border: none; background: linear-gradient(135deg, #8a2927 0%, #6c1d12 100%); color: white; border-radius: 10px; cursor: pointer; font-weight: 600;">
+                    Confirm & Notify Customer
+                </button>
+            </div>
+        </div>
+    </div>
 
     <script src="../assets/js/notifications.js"></script>
     <script src="../assets/js/main.js"></script>

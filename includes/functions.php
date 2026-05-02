@@ -1495,3 +1495,369 @@ function formatCurrency(float $amount): string
     return '₱' . number_format($amount, 2);
 }
 
+// ============================================
+// ARC KITCHEN EMAIL NOTIFICATION SYSTEM
+// ============================================
+
+require_once __DIR__ . '/mailer_init.php';
+
+/**
+ * Main email sending function for Arc Kitchen
+ * @param string $to Recipient email address
+ * @param string $subject Email subject line
+ * @param string $type Email type: 'new_inquiry', 'inquiry_confirmed', 'in_progress', 'completed', 'ready_pickup', 'on_the_way'
+ * @param array $data Data array containing relevant information
+ * @return array ['success' => bool, 'message' => string]
+ */
+function sendArcEmail(string $to, string $subject, string $type, array $data): array {
+    $mail = initializeArcMailer();
+    
+    if (!$mail) {
+        return ['success' => false, 'message' => 'Failed to initialize mailer'];
+    }
+    
+    try {
+        $mail->addAddress($to);
+        $mail->Subject = $subject;
+        
+        // Generate content based on type
+        $content = generateEmailContent($type, $data);
+        $mail->Body = getArcEmailTemplate($subject, $content);
+        $mail->AltBody = strip_tags(str_replace(['<br>', '</p>'], "\n", $content));
+        
+        $mail->send();
+        return ['success' => true, 'message' => 'Email sent successfully'];
+        
+    } catch (Exception $e) {
+        error_log("Arc Kitchen Email Error: " . $e->getMessage());
+        return ['success' => false, 'message' => 'Mailer Error: ' . $e->getMessage()];
+    }
+}
+
+/**
+ * Generate email content based on notification type
+ */
+function generateEmailContent(string $type, array $data): string {
+    switch ($type) {
+        case 'new_inquiry':
+            return generateNewInquiryEmail($data);
+        case 'inquiry_confirmed':
+            return generateInquiryConfirmedEmail($data);
+        case 'in_progress':
+            return generateInProgressEmail($data);
+        case 'completed':
+            return generateCompletedEmail($data);
+        case 'ready_pickup':
+            return generateReadyPickupEmail($data);
+        case 'on_the_way':
+            return generateOnTheWayEmail($data);
+        default:
+            return '<p>Thank you for choosing Arc Kitchen!</p>';
+    }
+}
+
+/**
+ * Generate New Inquiry email content
+ */
+function generateNewInquiryEmail(array $data): string {
+    $name = escape($data['full_name'] ?? 'Valued Customer');
+    $email = escape($data['email'] ?? '');
+    $phone = escape($data['phone'] ?? '');
+    $eventType = escape($data['event_type'] ?? 'Not specified');
+    $eventDate = isset($data['event_date']) ? date('F d, Y', strtotime($data['event_date'])) : 'Not specified';
+    $guestCount = (int)($data['guest_count'] ?? 0);
+    $message = escape($data['message'] ?? '');
+    
+    $html = <<<HTML
+<h2>Inquiry Received! 📋</h2>
+<p>Dear {$name},</p>
+<p>Thank you for your interest in Arc Kitchen! We have received your catering inquiry and our team will review your request shortly.</p>
+
+<div class="info-box">
+    <strong>📞 Your Contact Information</strong>
+    <p style="margin: 0;">Email: {$email}<br>Phone: {$phone}</p>
+</div>
+
+<div class="info-box">
+    <strong>📅 Event Details</strong>
+    <p style="margin: 0;">
+        Event Type: {$eventType}<br>
+        Event Date: {$eventDate}<br>
+        Guest Count: {$guestCount} pax
+    </p>
+</div>
+HTML;
+
+    // Add order items if available
+    if (!empty($data['items']) && is_array($data['items'])) {
+        $html .= generateOrderItemsTable($data['items']);
+    }
+    
+    if ($message) {
+        $html .= <<<HTML
+<div class="info-box">
+    <strong>📝 Special Requests</strong>
+    <p style="margin: 0;">{$message}</p>
+</div>
+HTML;
+    }
+    
+    $inquiryId = $data['inquiry_id'] ?? 'N/A';
+    
+    $html .= <<<HTML
+<div class="divider"></div>
+<p>We will contact you within 24-48 hours to discuss your requirements and confirm availability.</p>
+<p style="margin-top: 20px;"><strong>Reference Number:</strong> #{$inquiryId}</p>
+HTML;
+
+    return $html;
+}
+
+/**
+ * Generate Inquiry Confirmed email content
+ */
+function generateInquiryConfirmedEmail(array $data): string {
+    $name = escape($data['customer_name'] ?? 'Valued Customer');
+    $bookingId = $data['booking_id'] ?? 'N/A';
+    $eventDate = isset($data['event_date']) ? date('F d, Y', strtotime($data['event_date'])) : 'Not specified';
+    $customerEmail = escape($data['email'] ?? '');
+    $customerPhone = escape($data['phone'] ?? '');
+    $venue = escape($data['venue'] ?? 'Not specified');
+    
+    return <<<HTML
+<h2>Your Order is Confirmed! ✅</h2>
+<p>Dear {$name},</p>
+<p>Great news! Your inquiry has been officially confirmed and upgraded to a booking.</p>
+
+<div class="info-box">
+    <strong>📋 Booking Information</strong>
+    <p style="margin: 0;">
+        <strong>Booking ID:</strong> #{$bookingId}<br>
+        <strong>Event Date:</strong> {$eventDate}<br>
+        <strong>Status:</strong> <span class="status-badge status-confirmed">Confirmed</span>
+    </p>
+</div>
+
+<p>Your event is now locked in our calendar. Our team will begin preparing for your special occasion.</p>
+
+<div class="divider"></div>
+<p>If you need to make any changes to your booking, please contact us as soon as possible.</p>
+HTML;
+}
+
+/**
+ * Generate In-Progress email content with ETA
+ */
+function generateInProgressEmail(array $data): string {
+    $name = escape($data['customer_name'] ?? 'Valued Customer');
+    $eta = escape($data['eta'] ?? '');
+    $bookingId = $data['booking_id'] ?? 'N/A';
+    
+    $etaHtml = '';
+    if ($eta) {
+        $etaHtml = <<<HTML
+<div class="eta-box">
+    <h3>⏰ Estimated Completion Time</h3>
+    <p class="time">{$eta}</p>
+</div>
+HTML;
+    }
+    
+    return <<<HTML
+<h2>Your Order is Almost Done! 👨‍🍳</h2>
+<p>Dear {$name},</p>
+<p>Exciting update! Your catering order is now being prepared by our culinary team.</p>
+
+<div class="info-box">
+    <strong>📋 Order Status</strong>
+    <p style="margin: 0;">
+        <strong>Booking ID:</strong> #{$bookingId}<br>
+        <strong>Current Status:</strong> <span class="status-badge status-inprogress">In Progress</span>
+    </p>
+</div>
+
+{$etaHtml}
+
+<div class="divider"></div>
+<p>Our chefs are working hard to prepare delicious dishes for your event. We'll notify you when everything is ready!</p>
+HTML;
+}
+
+/**
+ * Generate Completed email content
+ */
+function generateCompletedEmail(array $data): string {
+    $name = escape($data['customer_name'] ?? 'Valued Customer');
+    $bookingId = $data['booking_id'] ?? 'N/A';
+    
+    return <<<HTML
+<h2>Order Complete! 🎉</h2>
+<p>Dear {$name},</p>
+<p>Your catering order has been successfully completed!</p>
+
+<div class="info-box">
+    <strong>📋 Final Status</strong>
+    <p style="margin: 0;">
+        <strong>Booking ID:</strong> #{$bookingId}<br>
+        <strong>Status:</strong> <span class="status-badge status-complete">Completed</span>
+    </p>
+</div>
+
+<p>We hope you enjoyed our catering services. Thank you for choosing Arc Kitchen for your special event!</p>
+
+<div class="divider"></div>
+<p style="text-align: center; font-size: 16px;"><strong>Thank you for your trust in Arc Kitchen! 🍽️</strong></p>
+HTML;
+}
+
+/**
+ * Generate Ready for Pickup email content
+ */
+function generateReadyPickupEmail(array $data): string {
+    $name = escape($data['customer_name'] ?? 'Valued Customer');
+    $bookingId = $data['booking_id'] ?? 'N/A';
+    
+    return <<<HTML
+<h2>Ready for Pickup! 📦</h2>
+<p>Dear {$name},</p>
+<p>Your catering order is ready and waiting for you at our kitchen!</p>
+
+<div class="info-box">
+    <strong>📋 Pickup Information</strong>
+    <p style="margin: 0;">
+        <strong>Booking ID:</strong> #{$bookingId}<br>
+        <strong>Status:</strong> <span class="status-badge status-ready">Ready for Pickup</span><br>
+        <strong>Location:</strong> Arc Kitchen Main Branch
+    </p>
+</div>
+
+<p>Please come to our location to collect your order. Don't forget to bring your reference number!</p>
+
+<div class="divider"></div>
+<p><strong>Pickup Hours:</strong> Monday-Sunday, 8:00 AM - 8:00 PM</p>
+HTML;
+}
+
+/**
+ * Generate On The Way email content
+ */
+function generateOnTheWayEmail(array $data): string {
+    $name = escape($data['customer_name'] ?? 'Valued Customer');
+    $bookingId = $data['booking_id'] ?? 'N/A';
+    $venue = escape($data['venue'] ?? 'Your venue');
+    
+    return <<<HTML
+<h2>We're On The Way! 🚚</h2>
+<p>Dear {$name},</p>
+<p>Our catering team has departed and is en route to your venue!</p>
+
+<div class="info-box">
+    <strong>📋 Delivery Information</strong>
+    <p style="margin: 0;">
+        <strong>Booking ID:</strong> #{$bookingId}<br>
+        <strong>Status:</strong> <span class="status-badge status-inprogress">On The Way</span><br>
+        <strong>Destination:</strong> {$venue}
+    </p>
+</div>
+
+<p>Our team will arrive shortly to set up everything for your event. Please ensure someone is available to receive the delivery.</p>
+
+<div class="divider"></div>
+<p>See you soon! 👋</p>
+HTML;
+}
+
+/**
+ * Generate order items HTML table
+ */
+function generateOrderItemsTable(array $items): string {
+    $html = <<<HTML
+<div class="divider"></div>
+<h3>🍽️ Your Order Items</h3>
+<table class="order-table">
+    <thead>
+        <tr>
+            <th>Item</th>
+            <th>Qty</th>
+            <th>Price</th>
+            <th>Subtotal</th>
+        </tr>
+    </thead>
+    <tbody>
+HTML;
+
+    $total = 0;
+    foreach ($items as $item) {
+        $itemName = escape($item['name'] ?? $item['product_name'] ?? 'Unknown Item');
+        $qty = (int)($item['quantity'] ?? 1);
+        $price = (float)($item['unit_price'] ?? $item['product_price'] ?? 0);
+        $subtotal = $qty * $price;
+        $total += $subtotal;
+        
+        $html .= <<<HTML
+        <tr>
+            <td>{$itemName}</td>
+            <td>{$qty}</td>
+            <td>₱{$price}</td>
+            <td>₱{$subtotal}</td>
+        </tr>
+HTML;
+    }
+    
+    $html .= <<<HTML
+        <tr class="total-row">
+            <td colspan="3"><strong>Total Amount</strong></td>
+            <td><strong>₱{$total}</strong></td>
+        </tr>
+    </tbody>
+</table>
+HTML;
+
+    return $html;
+}
+
+/**
+ * Send notification to customer (wrapper function for admin use)
+ * @param string $type Notification type
+ * @param int $bookingId Booking ID
+ * @param array $extraData Additional data (eta, etc.)
+ * @return array Result with success status
+ */
+function sendCustomerNotification(string $type, int $bookingId, array $extraData = []): array {
+    // Get booking details
+    $booking = getBookingById($bookingId);
+    if (!$booking) {
+        return ['success' => false, 'message' => 'Booking not found'];
+    }
+    
+    $customerEmail = $booking['customer_email'] ?? '';
+    if (!$customerEmail) {
+        return ['success' => false, 'message' => 'Customer email not found'];
+    }
+    
+    $data = [
+        'customer_name' => $booking['customer_name'],
+        'booking_id' => $bookingId,
+        'event_date' => $booking['event_date'],
+        'venue' => $booking['venue'] ?? '',
+    ];
+    
+    // Merge with extra data
+    $data = array_merge($data, $extraData);
+    
+    // Define subject and email type
+    $subjects = [
+        'new_inquiry' => 'Inquiry Received! - Arc Kitchen',
+        'inquiry_confirmed' => 'Your Order is Confirmed! - Arc Kitchen',
+        'in_progress' => 'Your Order is Almost Done! - Arc Kitchen',
+        'completed' => 'Order Complete! - Arc Kitchen',
+        'ready_pickup' => 'Ready for Pickup! - Arc Kitchen',
+        'on_the_way' => "We're On The Way! - Arc Kitchen",
+    ];
+    
+    $subject = $subjects[$type] ?? 'Arc Kitchen Notification';
+    
+    return sendArcEmail($customerEmail, $subject, $type, $data);
+}
+
+
