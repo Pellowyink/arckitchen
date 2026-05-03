@@ -653,6 +653,19 @@ function confirmWithPayment() {
         total_amount: currentTotal
     };
     
+    // Show loading animation
+    if (typeof showArcLoading === 'function') {
+        showArcLoading('Processing payment...');
+    }
+    
+    // Disable the confirm button to prevent double submission
+    const confirmBtn = document.getElementById('btn-confirm-payment');
+    if (confirmBtn) {
+        confirmBtn.disabled = true;
+        confirmBtn.style.opacity = '0.6';
+        confirmBtn.style.cursor = 'not-allowed';
+    }
+    
     // Send to appropriate endpoint
     const endpoint = currentPaymentType === 'inquiry' 
         ? '../api/update-inquiry-status.php'

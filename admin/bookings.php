@@ -272,6 +272,11 @@ $cancelled_bookings = getBookings(['status' => 'cancelled', 'archived' => false]
         }
         
         function doUpdateStatus(bookingId, newStatus) {
+            // Show loading animation
+            if (typeof showArcLoading === 'function') {
+                showArcLoading('Updating status...');
+            }
+            
             fetch(`../api/update-booking-status.php`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -446,6 +451,11 @@ $cancelled_bookings = getBookings(['status' => 'cancelled', 'archived' => false]
                 return;
             }
             
+            // Show loading animation
+            if (typeof showArcLoading === 'function') {
+                showArcLoading('Updating status...');
+            }
+            
             // Disable button to prevent duplicate submissions
             const submitBtn = document.getElementById('etaSubmitBtn');
             submitBtn.disabled = true;
@@ -516,6 +526,11 @@ $cancelled_bookings = getBookings(['status' => 'cancelled', 'archived' => false]
         }
         
         function doSendNotification(bookingId, type) {
+            // Show loading animation
+            if (typeof showArcLoading === 'function') {
+                showArcLoading('Sending notification...');
+            }
+            
             // Disable button to prevent duplicate submissions
             const btnId = type === 'ready_pickup' ? 'pickupBtn-' + bookingId : 'onwayBtn-' + bookingId;
             const btn = document.getElementById(btnId);

@@ -1048,8 +1048,23 @@ function closeOrderSummary() {
 }
 
 function submitOrder() {
-    // Submit the form
-    document.querySelector('form[data-validate]').submit();
+    // Show loading animation
+    if (typeof showArcLoading === 'function') {
+        showArcLoading('Sending your order to ARC Kitchen...');
+    }
+    
+    // Disable the submit button to prevent double submission
+    const submitBtn = document.querySelector('#orderSummaryModal button[onclick="submitOrder()"]');
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="arc-spinner-inline"></span> Sending...';
+        submitBtn.style.opacity = '0.7';
+    }
+    
+    // Small delay to show loading animation before form submission
+    setTimeout(() => {
+        document.querySelector('form[data-validate]').submit();
+    }, 300);
 }
 </script>
 
@@ -1495,7 +1510,7 @@ function submitOrder() {
             
             // Show loading modal
             if (typeof showArcLoading === 'function') {
-                showArcLoading('Processing your order...');
+                showArcLoading('Sending your order to ARC Kitchen...');
             }
             
             // Allow form to submit

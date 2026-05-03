@@ -193,6 +193,11 @@ $rejected_inquiries = getInquiriesFiltered(['status' => 'rejected', 'archived' =
         }
         
         function doRejectInquiry(inquiryId) {
+            // Show loading animation
+            if (typeof showArcLoading === 'function') {
+                showArcLoading('Rejecting inquiry...');
+            }
+            
             fetch(`../api/update-inquiry-status.php`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
