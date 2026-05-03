@@ -46,6 +46,18 @@ $total_amount = isset($data['total_amount']) ? (float)$data['total_amount'] : nu
 if ($status === 'in-progress') {
     $conn = getDbConnection();
     
+    if (!$conn) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'message' => 'Database connection failed']);
+        exit;
+    }
+    
+    // Auto-add eta column if it doesn't exist
+    $checkColumn = $conn->query("SHOW COLUMNS FROM inquiries LIKE 'eta'");
+    if ($checkColumn->num_rows === 0) {
+        $conn->query("ALTER TABLE inquiries ADD COLUMN eta VARCHAR(100) DEFAULT NULL AFTER status");
+    }
+    
     // Update status and save ETA
     $sql = "UPDATE inquiries SET status = ?, eta = ?, updated_at = NOW() WHERE id = ?";
     $stmt = $conn->prepare($sql);

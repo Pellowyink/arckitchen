@@ -88,7 +88,7 @@ $cancelled_bookings = getBookings(['status' => 'cancelled', 'archived' => false]
                                                 <button class="btn-admin btn-primary-admin btn-small" onclick="changeBookingStatus(<?php echo (int)$booking['id']; ?>, 'confirmed')">Confirm</button>
                                                 <button class="btn-admin btn-danger-admin btn-small" onclick="changeBookingStatus(<?php echo (int)$booking['id']; ?>, 'cancelled')">Cancel</button>
                                             <?php elseif ($status === 'confirmed'): ?>
-                                                <button class="btn-admin btn-warning-admin btn-small" onclick="showETAModal(<?php echo (int)$booking['id']; ?>)">👨‍🍳 In-Progress</button>
+                                                <button class="btn-admin btn-warning-admin btn-small" onclick="event.stopPropagation(); showETAModal(<?php echo (int)$booking['id']; ?>); return false;">👨‍🍳 In-Progress</button>
                                                 <button class="btn-admin btn-success-admin btn-small" onclick="changeBookingStatus(<?php echo (int)$booking['id']; ?>, 'completed')">Complete & Pay</button>
                                                 <button class="btn-admin btn-danger-admin btn-small" onclick="changeBookingStatus(<?php echo (int)$booking['id']; ?>, 'cancelled')">Cancel</button>
                                                 <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #ddd;">
@@ -311,6 +311,25 @@ $cancelled_bookings = getBookings(['status' => 'cancelled', 'archived' => false]
 
         // Set up date filter listeners
         document.addEventListener('DOMContentLoaded', () => {
+            // ETA Modal: Close when clicking overlay (outside modal)
+            const etaOverlay = document.getElementById('etaModalOverlay');
+            const etaModal = document.getElementById('etaModal');
+            
+            if (etaOverlay) {
+                etaOverlay.addEventListener('click', function(e) {
+                    if (e.target === etaOverlay) {
+                        closeETAModal();
+                    }
+                });
+            }
+            
+            // Stop modal content clicks from closing modal
+            if (etaModal) {
+                etaModal.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                });
+            }
+            
             // Apply date filters on change
             document.getElementById('date-from')?.addEventListener('change', () => {
                 const dateFrom = document.getElementById('date-from').value;
@@ -421,9 +440,33 @@ $cancelled_bookings = getBookings(['status' => 'cancelled', 'archived' => false]
         function showETAModal(bookingId) {
             currentBookingId = bookingId;
             currentAction = 'in-progress';
-            document.getElementById('etaModalOverlay').style.display = 'block';
-            document.getElementById('etaModal').style.display = 'block';
-            document.body.style.overflow = 'hidden';
+            
+            const overlay = document.getElementById('etaModalOverlay');
+            const modal = document.getElementById('etaModal');
+            
+            if (overlay && modal) {
+                overlay.style.display = 'block';
+                modal.style.display = 'block';
+                document.body.style.overflow = 'hidden';
+                
+                // Clear previous ETA input
+                const etaInput = document.getElementById('etaInput');
+                if (etaInput) {
+                    etaInput.value = '';
+                }
+                
+                // Reset submit button
+                const submitBtn = document.getElementById('etaSubmitBtn');
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Confirm & Notify Customer';
+                }
+            } else {
+                console.error('ETA Modal elements not found');
+                alert('Error: Modal not found. Please refresh the page.');
+            }
+            
+            return false; // Prevent default action
         }
         
         /**
@@ -476,6 +519,11 @@ $cancelled_bookings = getBookings(['status' => 'cancelled', 'archived' => false]
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Confirm & Notify Customer';
                 
+                // Hide loading animation
+                if (typeof hideArcLoading === 'function') {
+                    hideArcLoading();
+                }
+                
                 if (data.success) {
                     closeETAModal();
                     if (typeof showArcSuccess === 'function') {
@@ -498,6 +546,12 @@ $cancelled_bookings = getBookings(['status' => 'cancelled', 'archived' => false]
                 console.error('Error:', error);
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Confirm & Notify Customer';
+                
+                // Hide loading animation
+                if (typeof hideArcLoading === 'function') {
+                    hideArcLoading();
+                }
+                
                 if (typeof showArcError === 'function') {
                     showArcError('Network error. Please try again.');
                 }

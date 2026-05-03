@@ -507,12 +507,17 @@ $cartTotal = calculateCartTotal();
     overflow: hidden;
     background: #f7efe2;
     margin-bottom: 1rem;
+    position: relative;
 }
 
 .product-image-lg img {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 2;
 }
 
 .product-meta {
@@ -691,10 +696,18 @@ function populateSidebar(item, type) {
 }
 
 function generateProductHTML(product) {
+    // Generate slug from product name for image path
+    const slug = product.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const imagePath = `assets/images/menu/${slug}.jpg`;
+    
     return `
         <div class="product-detail">
             <div class="product-image-lg">
-                <img src="${product.image || 'assets/images/food-placeholder.svg'}" alt="${product.name}">
+                <img src="${imagePath}" alt="${product.name}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                <div class="product-image-placeholder" style="display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: #f5ebe3; align-items: center; justify-content: center; flex-direction: column; text-align: center;">
+                    <span style="font-size: 3rem; margin-bottom: 0.5rem;">🍽️</span>
+                    <small style="font-size: 0.8rem; color: #8a2927; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">${product.name}</small>
+                </div>
             </div>
             <div class="product-meta">
                 <span class="product-category">${product.category}</span>

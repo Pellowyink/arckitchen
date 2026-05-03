@@ -64,7 +64,20 @@ require_once __DIR__ . '/includes/header.php';
                 <div class="category-panel <?php echo $first ? 'active' : ''; ?>" data-category="<?php echo escape($category); ?>">
                     <div class="menu-items-row">
                         <?php foreach ($items as $item): ?>
+                            <?php
+                            // Generate slug from item name
+                            $itemSlug = strtolower($item['name']);
+                            $itemSlug = preg_replace('/[^a-z0-9]+/', '-', $itemSlug);
+                            $itemSlug = trim($itemSlug, '-');
+                            ?>
                             <article class="menu-card" data-item-id="<?php echo (int)$item['id']; ?>" data-item-type="item" data-item-name="<?php echo addslashes($item['name']); ?>" data-item-price="<?php echo $item['price']; ?>">
+                                <div class="menu-card-image">
+                                    <img src="assets/images/menu/<?php echo escape($itemSlug); ?>.jpg" alt="<?php echo escape($item['name']); ?>">
+                                    <div class="menu-image-placeholder">
+                                        <span>🍽️</span>
+                                        <small><?php echo escape($item['name']); ?></small>
+                                    </div>
+                                </div>
                                 <p class="pill"><?php echo escape($item['category']); ?></p>
                                 <h3 onclick="openSidebar(<?php echo (int)$item['id']; ?>, 'item')" style="cursor: pointer;"><?php echo escape($item['name']); ?></h3>
                                 <p onclick="openSidebar(<?php echo (int)$item['id']; ?>, 'item')" style="cursor: pointer;"><?php echo escape($item['description']); ?></p>
@@ -291,6 +304,64 @@ require_once __DIR__ . '/includes/header.php';
     box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
 }
 
+/* Menu Card Image */
+.menu-card-image {
+    position: relative;
+    width: 100%;
+    height: 140px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #f5ebe3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 0.5rem;
+}
+
+.menu-card-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 2;
+}
+
+.menu-card-image img:not([src]) + .menu-image-placeholder,
+.menu-card-image img[src=""] + .menu-image-placeholder,
+.menu-card-image img.error + .menu-image-placeholder {
+    display: flex;
+}
+
+.menu-image-placeholder {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 0.5rem;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1;
+}
+
+.menu-image-placeholder span {
+    font-size: 2rem;
+    margin-bottom: 0.25rem;
+}
+
+.menu-image-placeholder small {
+    font-size: 0.7rem;
+    color: #8a2927;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
 /* Quick Add Buttons */
 .menu-card-actions, .package-card-actions {
     display: flex;
@@ -413,6 +484,35 @@ function quickAddItem(id, type, name, price) {
         alert('Failed to add item. Please try again.');
     });
 }
+
+// Handle menu image loading
+function handleMenuImageErrors() {
+    const menuImages = document.querySelectorAll('.menu-card-image img');
+    menuImages.forEach(img => {
+        // If image fails to load, add error class to show placeholder
+        img.addEventListener('error', function() {
+            this.classList.add('error');
+            this.style.display = 'none';
+        });
+        
+        // If image loads successfully, make sure it's visible
+        img.addEventListener('load', function() {
+            this.classList.remove('error');
+            this.style.display = 'block';
+        });
+        
+        // Trigger load check for cached images
+        if (img.complete) {
+            if (img.naturalWidth === 0) {
+                img.classList.add('error');
+                img.style.display = 'none';
+            }
+        }
+    });
+}
+
+// Run on page load
+document.addEventListener('DOMContentLoaded', handleMenuImageErrors);
 
 // Show toast notification
 function showAddToast(itemName) {
