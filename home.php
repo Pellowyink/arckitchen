@@ -104,21 +104,24 @@ require_once __DIR__ . '/includes/header.php';
             <div class="section-heading">
                 <div>
                     <span class="eyebrow">Why ARC Kitchen</span>
-                    <h2>A polished placeholder layout for your final brand story</h2>
+                    <h2>Delicious party trays crafted with passion and quality ingredients for every occasion.</h2>
                 </div>
             </div>
             <div class="grid-3">
                 <article class="feature-card">
-                    <h3>Feature Placeholder 1</h3>
-                    <p>Replace this copy with your final value proposition or service highlight.</p>
+                    <img src="assets/images/chicken_stroganoff.png" alt="Chicken Stroganoff - ARC Kitchen" style="width: 100%; height: 200px; object-fit: cover; border-radius: 12px; margin-bottom: 1rem;">
+                    <h3>Premium Quality</h3>
+                    <p>We use only the freshest ingredients and time-tested recipes to deliver exceptional flavor in every tray. From our creamy Chicken Stroganoff to our signature dishes, quality is our priority.</p>
                 </article>
                 <article class="feature-card">
-                    <h3>Feature Placeholder 2</h3>
-                    <p>Replace this copy with your final value proposition or service highlight.</p>
+                    <img src="assets/images/crispykarekare.png" alt="Crispy Kare-Kare - ARC Kitchen" style="width: 100%; height: 200px; object-fit: cover; border-radius: 12px; margin-bottom: 1rem;">
+                    <h3>Filipino Favorites</h3>
+                    <p>Bringing you beloved Filipino classics with a gourmet twist. Our Crispy Kare-Kare combines traditional flavors with modern presentation that your guests will love.</p>
                 </article>
                 <article class="feature-card">
-                    <h3>Feature Placeholder 3</h3>
-                    <p>Replace this copy with your final value proposition or service highlight.</p>
+                    <img src="assets/images/arc's-jackie-chan.jpg" alt="ARC's Jackie Chan Noodles - ARC Kitchen" style="width: 100%; height: 200px; object-fit: cover; border-radius: 12px; margin-bottom: 1rem;">
+                    <h3>Creative Specialties</h3>
+                    <p>Discover our unique creations like the famous ARC's Jackie Chan - a flavorful noodle dish that showcases our passion for innovative and delicious party food.</p>
                 </article>
             </div>
         </div>
