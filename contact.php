@@ -47,9 +47,9 @@ require_once __DIR__ . '/includes/header.php';
 
                 <div class="contact-map">
                     <iframe 
-                        src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3851.4473394642514!2d120.6018!3d15.1314!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMTXCsDA3JzUzLjEiTiAxMjDCsDM2JzA2LjEiRQ!5e0!3m2!1sen!2sph!4v1704067200000!5m2!1sen!2sph" 
+                        src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d240.73514866201137!2d120.5922205!3d15.1164194!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3396f3f152327149%3A0x2974b87023d84cb4!2zQVJD4oCZcyBLaXRjaGVu!5e0!3m2!1sen!2sph!4v1777777384306!5m2!1sen!2sph"
                         width="100%" 
-                        height="450" 
+                        height="720" 
                         style="border:0; border-radius: 20px;" 
                         allowfullscreen="" 
                         loading="lazy" 

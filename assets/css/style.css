@@ -437,15 +437,15 @@ button.button:hover {
 }
 
 .pill {
-    display: inline-flex;
-    padding: 0.3rem 0.6rem;
-    border-radius: 6px;
-    background: rgba(108, 29, 18, 0.08);
-    color: var(--surface-dark);
-    font-size: 0.7rem;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-    line-height: 1;
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: #f5ebe3;
+    color: #5a3d2b;
+    font-size: 0.6rem;
+    font-weight: 600;
+    line-height: 1.2;
+    text-transform: uppercase;
 }
 
 .price-tag {

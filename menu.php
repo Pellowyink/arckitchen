@@ -97,7 +97,7 @@ require_once __DIR__ . '/includes/header.php';
                     <h2>Whatever the occasion, there’s a package ready to get the party started.</h2>
                 </div>
             </div>
-            <div class="grid-3">
+            <div class="packages-row">
                 <?php foreach ($packages as $package): ?>
                     <article class="package-card" data-package-id="<?php echo (int)$package['id']; ?>">
                         <p class="pill">PACKAGE</p>
@@ -218,6 +218,38 @@ require_once __DIR__ . '/includes/header.php';
     border-radius: 4px;
 }
 
+/* Horizontal Packages Row */
+.packages-row {
+    display: flex;
+    gap: 1rem;
+    overflow-x: auto;
+    padding-bottom: 1rem;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: #8a2927 #f5f5f5;
+}
+
+.packages-row::-webkit-scrollbar {
+    height: 8px;
+}
+
+.packages-row::-webkit-scrollbar-track {
+    background: #f5f5f5;
+    border-radius: 4px;
+}
+
+.packages-row::-webkit-scrollbar-thumb {
+    background: #8a2927;
+    border-radius: 4px;
+}
+
+.packages-row .package-card {
+    flex: 0 0 300px;
+    min-width: 300px;
+    max-width: 300px;
+    padding: 1.25rem;
+}
+
 .menu-items-row .menu-card {
     flex: 0 0 260px;
     min-width: 260px;
@@ -225,24 +257,28 @@ require_once __DIR__ . '/includes/header.php';
     padding: 1.25rem;
 }
 
-.menu-card {
+.menu-card,
+.package-card {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
 }
 
-.menu-card .pill {
+.menu-card .pill,
+.package-card .pill {
     align-self: flex-start;
     margin-bottom: 0.25rem;
 }
 
-.menu-card h3 {
+.menu-card h3,
+.package-card h3 {
     font-size: 1.1rem;
     line-height: 1.3;
     margin: 0;
 }
 
-.menu-card p {
+.menu-card p,
+.package-card p {
     font-size: 0.9rem;
     line-height: 1.5;
     color: #666;

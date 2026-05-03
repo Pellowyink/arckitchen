@@ -58,7 +58,6 @@ require_once __DIR__ . '/includes/header.php';
             <div class="grid-3">
                 <?php foreach ($menuItems as $item): ?>
                     <article class="menu-card">
-                        <img src="<?php echo escape($item['image']); ?>" alt="<?php echo escape($item['name']); ?>">
                         <p class="pill"><?php echo escape($item['category']); ?></p>
                         <h3><?php echo escape($item['name']); ?></h3>
                         <p><?php echo escape($item['description']); ?></p>
