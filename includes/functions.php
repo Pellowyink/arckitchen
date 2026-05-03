@@ -518,6 +518,16 @@ function getBookings(array $filters = []): array
     $connection = getDbConnection();
     if (!$connection) return [];
     
+    // Auto-add archived_at column if it doesn't exist (for fresh database imports)
+    static $bookingColumnChecked = false;
+    if (!$bookingColumnChecked) {
+        $checkColumn = $connection->query("SHOW COLUMNS FROM bookings LIKE 'archived_at'");
+        if ($checkColumn && $checkColumn->num_rows === 0) {
+            $connection->query("ALTER TABLE bookings ADD COLUMN archived_at DATETIME NULL AFTER status");
+        }
+        $bookingColumnChecked = true;
+    }
+    
     $sql = "SELECT * FROM bookings WHERE 1=1";
     
     // Filter by archived status - only apply when explicitly set
@@ -796,6 +806,16 @@ function getInquiriesFiltered(array $filters = []): array
 {
     $connection = getDbConnection();
     if (!$connection) return [];
+    
+    // Auto-add archived_at column if it doesn't exist (for fresh database imports)
+    static $columnChecked = false;
+    if (!$columnChecked) {
+        $checkColumn = $connection->query("SHOW COLUMNS FROM inquiries LIKE 'archived_at'");
+        if ($checkColumn && $checkColumn->num_rows === 0) {
+            $connection->query("ALTER TABLE inquiries ADD COLUMN archived_at DATETIME NULL AFTER status");
+        }
+        $columnChecked = true;
+    }
     
     $sql = "SELECT * FROM inquiries WHERE 1=1";
     
