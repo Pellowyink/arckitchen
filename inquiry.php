@@ -271,12 +271,37 @@ require_once __DIR__ . '/includes/sidebar.php';
             <h2>✅ Complete Your Booking</h2>
             <p style="color: var(--text-soft); margin-bottom: 1rem;">Review your order above and fill in your details to confirm your booking.</p>
             
-            <?php if (isset($_GET['success'])): ?>
-                <div class="success-message" style="background: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
-                    <strong>✓ Order Submitted!</strong><br>
-                    Your booking inquiry has been received. ARC Kitchen will contact you shortly to confirm.
+            <!-- Success Popup Modal -->
+            <div id="successModalOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center;">
+                <div id="successModal" style="background: white; border-radius: 12px; padding: 2rem; max-width: 400px; width: 90%; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.3); animation: popupIn 0.3s ease;">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">✅</div>
+                    <h3 style="color: #155724; margin-bottom: 0.5rem; font-size: 1.25rem;">Order Submitted!</h3>
+                    <p style="color: #666; margin-bottom: 1.5rem; line-height: 1.5;">Your booking inquiry has been received. ARC Kitchen will contact you shortly to confirm.</p>
+                    <button onclick="closeSuccessModal()" style="background: #155724; color: white; border: none; padding: 0.75rem 2rem; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 1rem;">Got it!</button>
                 </div>
-            <?php endif; ?>
+            </div>
+            
+            <style>
+                @keyframes popupIn {
+                    from { opacity: 0; transform: scale(0.9) translateY(-20px); }
+                    to { opacity: 1; transform: scale(1) translateY(0); }
+                }
+            </style>
+            
+            <script>
+                function closeSuccessModal() {
+                    document.getElementById('successModalOverlay').style.display = 'none';
+                    document.body.style.overflow = '';
+                }
+                
+                <?php if (isset($_GET['success'])): ?>
+                // Auto-show popup on success
+                document.addEventListener('DOMContentLoaded', function() {
+                    document.getElementById('successModalOverlay').style.display = 'flex';
+                    document.body.style.overflow = 'hidden';
+                });
+                <?php endif; ?>
+            </script>
             
             <?php if ($errors): ?>
                 <div class="error-list">
