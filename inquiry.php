@@ -271,34 +271,38 @@ require_once __DIR__ . '/includes/sidebar.php';
             <h2>✅ Complete Your Booking</h2>
             <p style="color: var(--text-soft); margin-bottom: 1rem;">Review your order above and fill in your details to confirm your booking.</p>
             
-            <!-- Success Popup Modal -->
-            <div id="successModalOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center;">
-                <div id="successModal" style="background: white; border-radius: 12px; padding: 2rem; max-width: 400px; width: 90%; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.3); animation: popupIn 0.3s ease;">
-                    <div style="font-size: 3rem; margin-bottom: 1rem;">✅</div>
-                    <h3 style="color: #155724; margin-bottom: 0.5rem; font-size: 1.25rem;">Order Submitted!</h3>
-                    <p style="color: #666; margin-bottom: 1.5rem; line-height: 1.5;">Your booking inquiry has been received. ARC Kitchen will contact you shortly to confirm.</p>
-                    <button onclick="closeSuccessModal()" style="background: #155724; color: white; border: none; padding: 0.75rem 2rem; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 1rem;">Got it!</button>
+            <!-- Success Popup (floating, doesn't block scroll) -->
+            <div id="successPopup" style="display: none; position: fixed; top: 20px; right: 20px; background: white; border-radius: 12px; padding: 1.5rem; max-width: 350px; width: 90%; box-shadow: 0 10px 40px rgba(0,0,0,0.3); z-index: 1000; animation: slideInRight 0.3s ease; border-left: 4px solid #155724;">
+                <button onclick="closeSuccessPopup()" style="position: absolute; top: 10px; right: 10px; background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #999;">×</button>
+                <div style="display: flex; align-items: flex-start; gap: 1rem;">
+                    <div style="font-size: 2rem; flex-shrink: 0;">✅</div>
+                    <div>
+                        <h3 style="color: #155724; margin: 0 0 0.25rem 0; font-size: 1.1rem;">Order Submitted!</h3>
+                        <p style="color: #666; margin: 0; font-size: 0.9rem; line-height: 1.4;">Your booking inquiry has been received. ARC Kitchen will contact you shortly to confirm.</p>
+                    </div>
                 </div>
             </div>
             
             <style>
-                @keyframes popupIn {
-                    from { opacity: 0; transform: scale(0.9) translateY(-20px); }
-                    to { opacity: 1; transform: scale(1) translateY(0); }
+                @keyframes slideInRight {
+                    from { opacity: 0; transform: translateX(100%); }
+                    to { opacity: 1; transform: translateX(0); }
                 }
             </style>
             
             <script>
-                function closeSuccessModal() {
-                    document.getElementById('successModalOverlay').style.display = 'none';
-                    document.body.style.overflow = '';
+                function closeSuccessPopup() {
+                    document.getElementById('successPopup').style.display = 'none';
                 }
                 
                 <?php if (isset($_GET['success'])): ?>
                 // Auto-show popup on success
                 document.addEventListener('DOMContentLoaded', function() {
-                    document.getElementById('successModalOverlay').style.display = 'flex';
-                    document.body.style.overflow = 'hidden';
+                    document.getElementById('successPopup').style.display = 'block';
+                    // Auto-hide after 5 seconds
+                    setTimeout(function() {
+                        closeSuccessPopup();
+                    }, 5000);
                 });
                 <?php endif; ?>
             </script>
