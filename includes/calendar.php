@@ -24,6 +24,9 @@ foreach ($bookedDates as $b) {
     }
 }
 
+// Always block today's date (cannot book same day)
+$dateStatus[$today] = 'blocked';
+
 // Calendar generation
 $firstDay = strtotime("$currentYear-$currentMonth-01");
 $daysInMonth = date('t', $firstDay);

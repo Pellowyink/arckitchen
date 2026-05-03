@@ -19,18 +19,39 @@ if ($action === 'add_to_cart' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $data = json_decode(file_get_contents('php://input'), true);
     
     if ($data && !empty($data['product_id'])) {
-        $item = [
-            'id' => time(), // unique cart item id
-            'product_id' => (int)$data['product_id'],
-            'product_name' => $data['product_name'] ?? 'Unknown Item',
-            'product_price' => (float)$data['product_price'] ?? 0,
-            'quantity' => (int)($data['quantity'] ?? 1),
-            'notes' => $data['special_instructions'] ?? '',
-            'variant' => $data['variant'] ?? '',
-            'type' => $data['type'] ?? 'item' // 'item' or 'package'
-        ];
+        $productId = (int)$data['product_id'];
+        $productName = $data['product_name'] ?? 'Unknown Item';
+        $productPrice = (float)$data['product_price'] ?? 0;
+        $quantity = (int)($data['quantity'] ?? 1);
+        $notes = $data['special_instructions'] ?? '';
+        $variant = $data['variant'] ?? '';
+        $type = $data['type'] ?? 'item';
         
-        $_SESSION['cart'][] = $item;
+        // Check if same product already exists in cart (by product_id and type)
+        $found = false;
+        foreach ($_SESSION['cart'] as $key => $existingItem) {
+            if ($existingItem['product_id'] == $productId && $existingItem['type'] == $type) {
+                // Increment quantity of existing item
+                $_SESSION['cart'][$key]['quantity'] += $quantity;
+                $found = true;
+                break;
+            }
+        }
+        
+        // If not found, add as new item
+        if (!$found) {
+            $item = [
+                'id' => time(), // unique cart item id
+                'product_id' => $productId,
+                'product_name' => $productName,
+                'product_price' => $productPrice,
+                'quantity' => $quantity,
+                'notes' => $notes,
+                'variant' => $variant,
+                'type' => $type
+            ];
+            $_SESSION['cart'][] = $item;
+        }
         
         // Calculate total
         $cartTotal = 0;

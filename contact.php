@@ -3,38 +3,6 @@
 require_once __DIR__ . '/includes/functions.php';
 
 $pageTitle = 'ARC Kitchen | Contact Us';
-$errors = [];
-
-if (isPostRequest()) {
-    $errors = validateRequiredFields([
-        'full_name' => 'Full name',
-        'email' => 'Email address',
-        'subject' => 'Subject',
-        'message' => 'Message',
-    ]);
-
-    if (!filter_var($_POST['email'] ?? '', FILTER_VALIDATE_EMAIL)) {
-        $errors[] = 'Please enter a valid email address.';
-    }
-
-    if (!$errors) {
-        $saved = saveContactMessage([
-            'full_name' => trim($_POST['full_name']),
-            'email' => trim($_POST['email']),
-            'subject' => trim($_POST['subject']),
-            'message' => trim($_POST['message']),
-        ]);
-
-        if ($saved) {
-            setFlashMessage('success', 'Your message has been sent. We will get back to you soon.');
-            redirect('contact.php');
-        }
-
-        $errors[] = 'Database connection is unavailable. Please import the SQL file and try again.';
-    }
-}
-
-$flashMessage = getFlashMessage('success');
 
 require_once __DIR__ . '/includes/header.php';
 ?>
@@ -57,54 +25,37 @@ require_once __DIR__ . '/includes/header.php';
                     <h2>Get in touch!</h2>
                     <p class="lead">We would love to hear from you. Reach us through any of the channels below.</p>
 
-                    <?php if ($flashMessage): ?>
-                        <div class="flash success"><?php echo escape($flashMessage); ?></div>
-                    <?php endif; ?>
-
-                    <?php if ($errors): ?>
-                        <div class="error-list">
-                            <ul>
-                                <?php foreach ($errors as $error): ?>
-                                    <li><?php echo escape($error); ?></li>
-                                <?php endforeach; ?>
-                            </ul>
-                        </div>
-                    <?php endif; ?>
-
-                    <div class="info-card spacer-bottom-md">
-                        <p><strong>Facebook:</strong> <a href="https://www.facebook.com/aRCsKitchen.2020" target="_blank" rel="noopener noreferrer"> facebook.com/aRCsKitchen.2020 </a> </p>
-                        <p><strong>Address:</strong> #1032 Marlboro Street, Villa Leoncia Subdivision, Santo Domingo, Angeles City</p>
-                        <p><strong>Email:</strong> <a href="mailto:arckitchen@gmail.com">arckitchen@gmail.com</p>
-                        <p><strong>Phone:</strong> 0975 272 1171</p>
+                    <div class="info-card spacer-bottom-md" style="background: #fffdf8; border: 2px solid #e8ddd4; border-radius: 15px; padding: 1.5rem;">
+                        <p style="margin: 0.75rem 0;"><strong style="color: #4a1414;">📍 Address:</strong><br>
+                        #1032 Marlboro Street, Villa Leoncia Subdivision,<br>Santo Domingo, Angeles City, Pampanga</p>
+                        
+                        <p style="margin: 0.75rem 0;"><strong style="color: #4a1414;">📞 Phone:</strong><br>
+                        <a href="tel:09752721171" style="color: #8a2927; text-decoration: none;">0975 272 1171</a></p>
+                        
+                        <p style="margin: 0.75rem 0;"><strong style="color: #4a1414;">✉️ Email:</strong><br>
+                        <a href="mailto:arckitchen@gmail.com" style="color: #8a2927; text-decoration: none;">arckitchen@gmail.com</a></p>
+                        
+                        <p style="margin: 0.75rem 0;"><strong style="color: #4a1414;">📱 Facebook:</strong><br>
+                        <a href="https://www.facebook.com/aRCsKitchen.2020" target="_blank" rel="noopener noreferrer" style="color: #8a2927; text-decoration: none;">facebook.com/aRCsKitchen.2020</a></p>
                     </div>
-
-                    <form method="post" data-validate>
-                        <div class="form-grid">
-                            <div class="field">
-                                <label for="full_name">Full Name</label>
-                                <input id="full_name" name="full_name" type="text" required value="<?php echo escape($_POST['full_name'] ?? ''); ?>">
-                            </div>
-                            <div class="field">
-                                <label for="email">Email Address</label>
-                                <input id="email" name="email" type="email" required value="<?php echo escape($_POST['email'] ?? ''); ?>">
-                            </div>
-                            <div class="field-full">
-                                <label for="subject">Subject</label>
-                                <input id="subject" name="subject" type="text" required value="<?php echo escape($_POST['subject'] ?? ''); ?>">
-                            </div>
-                            <div class="field-full">
-                                <label for="message">Message</label>
-                                <textarea id="message" name="message" required><?php echo escape($_POST['message'] ?? ''); ?></textarea>
-                            </div>
-                        </div>
-                        <div class="stack-inline">
-                            <button type="submit" class="button">Send Message</button>
-                        </div>
-                    </form>
+                    
+                    <div style="background: linear-gradient(135deg, #8a2927 0%, #4a1414 100%); border-radius: 15px; padding: 1.25rem; color: white; text-align: center;">
+                        <p style="margin: 0; font-size: 0.95rem;">⏰ <strong>Business Hours:</strong><br>
+                        Monday - Saturday: 8:00 AM - 6:00 PM</p>
+                    </div>
                 </div>
 
                 <div class="contact-map">
-                    <img src="assets/images/map-placeholder.svg" alt="Map location placeholder for ARC Kitchen">
+                    <iframe 
+                        src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3851.4473394642514!2d120.6018!3d15.1314!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMTXCsDA3JzUzLjEiTiAxMjDCsDM2JzA2LjEiRQ!5e0!3m2!1sen!2sph!4v1704067200000!5m2!1sen!2sph" 
+                        width="100%" 
+                        height="450" 
+                        style="border:0; border-radius: 20px;" 
+                        allowfullscreen="" 
+                        loading="lazy" 
+                        referrerpolicy="no-referrer-when-downgrade"
+                        title="Arc Kitchen Location - Villa Leoncia, Angeles City">
+                    </iframe>
                 </div>
             </div>
         </div>

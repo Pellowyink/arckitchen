@@ -29,11 +29,14 @@ foreach ($bookedDates as $b) {
     }
 }
 
+// Always block today's date (cannot book same day)
+$today = date('Y-m-d');
+$dateStatus[$today] = 'blocked';
+
 // Calendar generation
 $firstDay = strtotime("$currentYear-$currentMonth-01");
 $daysInMonth = date('t', $firstDay);
 $startWeekday = date('w', $firstDay); // 0 = Sunday
-$today = date('Y-m-d');
 
 // Month navigation
 $prevMonth = date('m', strtotime('-1 month', $firstDay));
