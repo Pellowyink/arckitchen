@@ -578,6 +578,15 @@ function populatePaymentCalculator(data, type) {
         document.getElementById('full-payment-input').value = record.full_payment;
     }
     
+    // AUTO-FILL: If completing booking and full payment is empty, fill with remaining balance
+    if (currentPaymentAction === 'completed' && !record.full_payment) {
+        const downPayment = parseFloat(record.down_payment) || 0;
+        const remainingBalance = currentTotal - downPayment;
+        if (remainingBalance > 0) {
+            document.getElementById('full-payment-input').value = remainingBalance.toFixed(2);
+        }
+    }
+    
     // Calculate initial state
     calculatePayments();
 }

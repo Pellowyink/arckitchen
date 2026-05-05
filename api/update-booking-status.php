@@ -123,17 +123,41 @@ function autoArchiveCompleted($booking_id) {
 // If confirming or completing with payment data
 if (($status === 'confirmed' || $status === 'completed') && ($down_payment !== null || $full_payment !== null)) {
     if (updateBookingStatusWithPayment($booking_id, $status, $down_payment, $full_payment, $total_amount)) {
-        // Auto-archive if completed
+        // Auto-archive if completed and send Final Receipt
         if ($status === 'completed') {
             autoArchiveCompleted($booking_id);
             
-            $emailResult = sendCustomerNotification('completed', $booking_id);
-            if (!$emailResult['success']) {
-                error_log("Failed to send completion email for booking #$booking_id: " . $emailResult['message']);
+            // Get booking details for Final Receipt
+            $booking = getBookingById($booking_id);
+            if ($booking) {
+                // Parse items from JSON
+                $items = [];
+                if (!empty($booking['items_json'])) {
+                    $items = json_decode($booking['items_json'], true) ?: [];
+                }
+                
+                // Calculate total paid
+                $totalPaid = (float)($booking['down_payment'] ?? 0) + (float)($booking['full_payment'] ?? 0);
+                
+                $receiptData = [
+                    'customer_name' => $booking['customer_name'],
+                    'booking_id' => $booking_id,
+                    'event_date' => $booking['event_date'],
+                    'event_time' => $booking['event_time'] ?? '',
+                    'event_location' => $booking['event_location'] ?? ($booking['venue'] ?? ''),
+                    'total_amount' => $booking['total_amount'],
+                    'total_paid' => $totalPaid,
+                    'items' => $items
+                ];
+                
+                $emailResult = sendCustomerNotification('final_receipt', $booking_id, $receiptData);
+                if (!$emailResult['success']) {
+                    error_log("Failed to send final receipt for booking #$booking_id: " . $emailResult['message']);
+                }
             }
         }
         
-        $message = $status === 'completed' ? 'Booking completed and archived to Sales Report' : 'Booking confirmed with payment recorded';
+        $message = $status === 'completed' ? 'Booking completed and archived to Sales Report. Final receipt sent to customer.' : 'Booking confirmed with payment recorded';
         echo json_encode([
             'success' => true,
             'message' => $message,

@@ -68,7 +68,7 @@ usort($all_rejected_inquiries, function($a, $b) {
                                 <th>Customer</th>
                                 <th>Email</th>
                                 <th>Phone</th>
-                                <th>Event Date</th>
+                                <th>Event Details</th>
                                 <th>Guests</th>
                                 <th>Submitted</th>
                                 <th>Status</th>
@@ -82,7 +82,23 @@ usort($all_rejected_inquiries, function($a, $b) {
                                     <td><strong><?php echo escape($inquiry['full_name']); ?></strong></td>
                                     <td><?php echo escape($inquiry['email']); ?></td>
                                     <td><?php echo escape($inquiry['phone']); ?></td>
-                                    <td><?php echo date('M d, Y', strtotime($inquiry['event_date'])); ?></td>
+                                    <td>
+                                        <div style="font-size: 0.85rem;">
+                                            <div style="color: #4a1414; font-weight: 600;">
+                                                <?php echo date('M d, Y', strtotime($inquiry['event_date'])); ?>
+                                            </div>
+                                            <?php if (!empty($inquiry['event_time'])): ?>
+                                            <div style="color: #666;">
+                                                <?php echo date('g:i A', strtotime($inquiry['event_time'])); ?>
+                                            </div>
+                                            <?php endif; ?>
+                                            <?php if (!empty($inquiry['event_location'])): ?>
+                                            <div style="color: #8a2927; font-size: 0.75rem; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="<?php echo escape($inquiry['event_location']); ?>">
+                                                <?php echo escape($inquiry['event_location']); ?>
+                                            </div>
+                                            <?php endif; ?>
+                                        </div>
+                                    </td>
                                     <td><?php echo (int)$inquiry['guest_count']; ?> pax</td>
                                     <td><?php echo date('M d', strtotime($inquiry['created_at'])); ?></td>
                                     <td>
@@ -90,7 +106,7 @@ usort($all_rejected_inquiries, function($a, $b) {
                                     </td>
                                     <td>
                                         <div class="action-buttons">
-                                            <button class="btn-admin btn-secondary-admin btn-small" onclick="openEditModal(<?php echo (int)$inquiry['id']; ?>, 'inquiry')">Edit</button>
+                                            <button class="btn-admin btn-secondary-admin btn-small" onclick="openEditModal(<?php echo (int)$inquiry['id']; ?>, 'inquiry')">View Order</button>
                                             <button class="btn-admin btn-primary-admin btn-small" onclick="approveInquiry(<?php echo (int)$inquiry['id']; ?>)">Approve</button>
                                             <button class="btn-admin btn-danger-admin btn-small" onclick="rejectInquiry(<?php echo (int)$inquiry['id']; ?>)">Reject</button>
                                         </div>

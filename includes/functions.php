@@ -756,19 +756,21 @@ function approveInquiry(int $inquiry_id): bool
     // Create corresponding booking
     $insert_stmt = $connection->prepare(
         "INSERT INTO bookings (inquiry_id, customer_name, customer_email, customer_phone, 
-         event_date, event_type, guest_count, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')"
+         event_date, event_time, event_location, event_type, guest_count, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')"
     );
     
     if (!$insert_stmt) return false;
     
     $insert_stmt->bind_param(
-        'isssssi',
+        'issssssis',
         $inquiry_id,
         $inquiry['full_name'],
         $inquiry['email'],
         $inquiry['phone'],
         $inquiry['event_date'],
+        $inquiry['event_time'],
+        $inquiry['event_location'],
         $inquiry['event_type'],
         $inquiry['guest_count']
     );
@@ -1445,9 +1447,9 @@ function approveInquiryWithPayment(int $inquiryId, float $downPayment, float $fu
         // Create booking from inquiry
         $bookingStmt = $connection->prepare(
             "INSERT INTO bookings (inquiry_id, customer_name, customer_email, customer_phone, 
-             event_date, event_type, guest_count, items_json, total_amount, down_payment, full_payment, 
+             event_date, event_time, event_location, event_type, guest_count, items_json, total_amount, down_payment, full_payment, 
              payment_status, special_requests, status, created_at) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW())"
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW())"
         );
         
         if (!$bookingStmt) {
@@ -1457,12 +1459,14 @@ function approveInquiryWithPayment(int $inquiryId, float $downPayment, float $fu
         }
         
         $bookingStmt->bind_param(
-            'issssisdddsss',
+            'issssssisdddsss',
             $inquiryId,
             $inquiry['full_name'],
             $inquiry['email'],
             $inquiry['phone'],
             $inquiry['event_date'],
+            $inquiry['event_time'],
+            $inquiry['event_location'],
             $inquiry['event_type'],
             $inquiry['guest_count'],
             $itemsJson,
@@ -1644,6 +1648,8 @@ function generateNewInquiryEmail(array $data): string {
     $phone = escape($data['phone'] ?? '');
     $eventType = escape($data['event_type'] ?? 'Not specified');
     $eventDate = isset($data['event_date']) ? date('F d, Y', strtotime($data['event_date'])) : 'Not specified';
+    $eventTime = escape($data['event_time'] ?? 'Not specified');
+    $eventLocation = escape($data['event_location'] ?? 'Not specified');
     $guestCount = (int)($data['guest_count'] ?? 0);
     $message = escape($data['message'] ?? '');
     
@@ -1662,6 +1668,8 @@ function generateNewInquiryEmail(array $data): string {
     <p style="margin: 0;">
         Event Type: {$eventType}<br>
         Event Date: {$eventDate}<br>
+        Event Time: {$eventTime}<br>
+        Event Location: {$eventLocation}<br>
         Guest Count: {$guestCount} pax
     </p>
 </div>
@@ -1786,6 +1794,109 @@ function generateCompletedEmail(array $data): string {
 
 <div class="divider"></div>
 <p style="text-align: center; font-size: 16px;"><strong>Thank you for your trust in Arc Kitchen! 🍽️</strong></p>
+HTML;
+}
+
+/**
+ * Generate Final Receipt email content
+ */
+function generateFinalReceiptEmail(array $data): string {
+    $name = escape($data['customer_name'] ?? 'Valued Customer');
+    $bookingId = $data['booking_id'] ?? 'N/A';
+    $eventDate = isset($data['event_date']) ? date('F d, Y', strtotime($data['event_date'])) : 'N/A';
+    $eventTime = escape($data['event_time'] ?? 'N/A');
+    $eventLocation = escape($data['event_location'] ?? 'N/A');
+    $totalAmount = number_format((float)($data['total_amount'] ?? 0), 2);
+    $totalPaid = number_format((float)($data['total_paid'] ?? 0), 2);
+    $items = $data['items'] ?? [];
+    
+    // Generate items table
+    $itemsHtml = '';
+    foreach ($items as $item) {
+        $itemName = escape($item['name'] ?? $item['product_name'] ?? 'Unknown Item');
+        $qty = (int)($item['quantity'] ?? 1);
+        $price = number_format((float)($item['unit_price'] ?? $item['product_price'] ?? 0), 2);
+        $subtotal = number_format($qty * (float)str_replace(',', '', $price), 2);
+        $itemsHtml .= <<<ITEM
+        <tr style="border-bottom: 1px solid #e5d5c5;">
+            <td style="padding: 12px; text-align: left;">{$itemName}</td>
+            <td style="padding: 12px; text-align: center;">{$qty}</td>
+            <td style="padding: 12px; text-align: right;">₱{$price}</td>
+            <td style="padding: 12px; text-align: right;">₱{$subtotal}</td>
+        </tr>
+ITEM;
+    }
+    
+    return <<<HTML
+<div style="background: #fffdf8; border-radius: 25px; padding: 2rem; max-width: 600px; margin: 0 auto; font-family: 'League Spartan', sans-serif;">
+    <!-- Header -->
+    <div style="background: linear-gradient(135deg, #4a1414 0%, #6c1d12 100%); border-radius: 20px; padding: 2rem; text-align: center; margin-bottom: 2rem;">
+        <h1 style="color: #fff; margin: 0; font-size: 1.8rem; font-weight: 700;">🧾 Your ARC Kitchen Receipt</h1>
+        <p style="color: #e5d5c5; margin: 0.5rem 0 0 0; font-size: 1rem;">Order #{$bookingId}</p>
+    </div>
+    
+    <!-- Thank You Message -->
+    <div style="text-align: center; margin-bottom: 2rem;">
+        <h2 style="color: #4a1414; margin: 0 0 0.5rem 0; font-size: 1.5rem; font-weight: 600;">Thank you, {$name}!</h2>
+        <p style="color: #666; margin: 0; font-size: 1rem; line-height: 1.6; font-style: italic;">
+            We hope you enjoyed our artisanal catering. It was our pleasure serving your special event!
+        </p>
+    </div>
+    
+    <!-- Event Details -->
+    <div style="background: #faf5f0; border-radius: 15px; padding: 1.5rem; margin-bottom: 2rem;">
+        <h3 style="color: #4a1414; margin: 0 0 1rem 0; font-size: 1.1rem;">📅 Event Details</h3>
+        <p style="margin: 0.25rem 0; color: #333;"><strong>Date:</strong> {$eventDate}</p>
+        <p style="margin: 0.25rem 0; color: #333;"><strong>Time:</strong> {$eventTime}</p>
+        <p style="margin: 0.25rem 0; color: #333;"><strong>Location:</strong> {$eventLocation}</p>
+    </div>
+    
+    <!-- Order Items -->
+    <div style="margin-bottom: 2rem;">
+        <h3 style="color: #4a1414; margin: 0 0 1rem 0; font-size: 1.1rem;">🍽️ Order Summary</h3>
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.95rem;">
+            <thead>
+                <tr style="background: #4a1414; color: #fff;">
+                    <th style="padding: 12px; text-align: left; border-radius: 10px 0 0 0;">Item</th>
+                    <th style="padding: 12px; text-align: center;">Qty</th>
+                    <th style="padding: 12px; text-align: right;">Price</th>
+                    <th style="padding: 12px; text-align: right; border-radius: 0 10px 0 0;">Subtotal</th>
+                </tr>
+            </thead>
+            <tbody>
+                {$itemsHtml}
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Financial Summary -->
+    <div style="background: #4a1414; border-radius: 15px; padding: 1.5rem; color: #fff; margin-bottom: 2rem;">
+        <h3 style="color: #fff; margin: 0 0 1rem 0; font-size: 1.1rem;">💰 Payment Summary</h3>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+            <span>Total Amount:</span>
+            <span style="font-weight: 600;">₱{$totalAmount}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+            <span>Total Collected:</span>
+            <span style="font-weight: 600; color: #90EE90;">₱{$totalPaid}</span>
+        </div>
+        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.3);">
+            <span style="background: #8a2927; padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.9rem; font-weight: 600;">
+                ✅ STATUS: FULLY PAID
+            </span>
+        </div>
+    </div>
+    
+    <!-- Footer -->
+    <div style="text-align: center; padding-top: 1rem; border-top: 2px solid #e5d5c5;">
+        <p style="color: #4a1414; font-size: 1.1rem; font-weight: 600; margin: 0 0 0.5rem 0; font-family: Georgia, serif; font-style: italic;">
+            "Crafted with care, served with love"
+        </p>
+        <p style="color: #666; margin: 0; font-size: 0.9rem;">
+            The ARC Kitchen Family
+        </p>
+    </div>
+</div>
 HTML;
 }
 
@@ -1930,6 +2041,7 @@ function sendCustomerNotification(string $type, int $bookingId, array $extraData
         'inquiry_confirmed' => 'Your Order is Confirmed! - Arc Kitchen',
         'in_progress' => 'Your Order is Almost Done! - Arc Kitchen',
         'completed' => 'Order Complete! - Arc Kitchen',
+        'final_receipt' => 'Your ARC Kitchen Order Receipt – Thank You!',
         'ready_pickup' => 'Ready for Pickup! - Arc Kitchen',
         'on_the_way' => "We're On The Way! - Arc Kitchen",
     ];

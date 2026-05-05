@@ -26,6 +26,8 @@ if (isPostRequest()) {
         'email' => 'Email address',
         'phone' => 'Phone number',
         'event_date' => 'Event date',
+        'event_time' => 'Event time',
+        'event_location' => 'Event location',
     ]);
 
     if (!filter_var($_POST['email'] ?? '', FILTER_VALIDATE_EMAIL)) {
@@ -42,17 +44,19 @@ if (isPostRequest()) {
         $connection = getDbConnection();
         if ($connection) {
             $stmt = $connection->prepare(
-                "INSERT INTO inquiries (full_name, email, phone, event_date, event_type, guest_count, package_interest, message, status)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')"
+                "INSERT INTO inquiries (full_name, email, phone, event_date, event_time, event_location, event_type, guest_count, package_interest, message, status)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')"
             );
             
             if ($stmt) {
                 $stmt->bind_param(
-                    'sssssiss',
+                    'ssssssisss',
                     $_POST['full_name'],
                     $_POST['email'],
                     $_POST['phone'],
                     $_POST['event_date'],
+                    $_POST['event_time'],
+                    $_POST['event_location'],
                     $_POST['event_type'],
                     $_POST['guest_count'],
                     $_POST['package_interest'],
@@ -120,6 +124,8 @@ if (isPostRequest()) {
                         'phone' => $_POST['phone'],
                         'event_type' => $_POST['event_type'],
                         'event_date' => $_POST['event_date'],
+                        'event_time' => $_POST['event_time'],
+                        'event_location' => $_POST['event_location'],
                         'guest_count' => $_POST['guest_count'],
                         'message' => $_POST['message'],
                         'items' => $cartItems
@@ -149,7 +155,13 @@ if (isPostRequest()) {
             }
         }
         
-        $errors[] = 'Failed to save your order. Please try again later.';
+        // Log the actual error for debugging
+        if (isset($connection) && $connection->error) {
+            error_log("Inquiry save failed: " . $connection->error);
+            $errors[] = 'Database error: ' . $connection->error;
+        } else {
+            $errors[] = 'Failed to save your order. Please try again later.';
+        }
     }
 }
 
@@ -272,41 +284,6 @@ require_once __DIR__ . '/includes/sidebar.php';
             <h2>✅ Complete Your Booking</h2>
             <p style="color: var(--text-soft); margin-bottom: 1rem;">Review your order above and fill in your details to confirm your booking.</p>
             
-            <!-- Success Popup (floating, doesn't block scroll) -->
-            <div id="successPopup" style="display: none; position: fixed; top: 20px; right: 20px; background: white; border-radius: 12px; padding: 1.5rem; max-width: 350px; width: 90%; box-shadow: 0 10px 40px rgba(0,0,0,0.3); z-index: 1000; animation: slideInRight 0.3s ease; border-left: 4px solid #155724;">
-                <button onclick="closeSuccessPopup()" style="position: absolute; top: 10px; right: 10px; background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #999;">×</button>
-                <div style="display: flex; align-items: flex-start; gap: 1rem;">
-                    <div style="font-size: 2rem; flex-shrink: 0;">✅</div>
-                    <div>
-                        <h3 style="color: #155724; margin: 0 0 0.25rem 0; font-size: 1.1rem;">Order Submitted!</h3>
-                        <p style="color: #666; margin: 0; font-size: 0.9rem; line-height: 1.4;">Your booking inquiry has been received. ARC Kitchen will contact you shortly to confirm.</p>
-                    </div>
-                </div>
-            </div>
-            
-            <style>
-                @keyframes slideInRight {
-                    from { opacity: 0; transform: translateX(100%); }
-                    to { opacity: 1; transform: translateX(0); }
-                }
-            </style>
-            
-            <script>
-                function closeSuccessPopup() {
-                    document.getElementById('successPopup').style.display = 'none';
-                }
-                
-                <?php if (isset($_GET['success'])): ?>
-                // Auto-show popup on success
-                document.addEventListener('DOMContentLoaded', function() {
-                    document.getElementById('successPopup').style.display = 'block';
-                    // Auto-hide after 5 seconds
-                    setTimeout(function() {
-                        closeSuccessPopup();
-                    }, 5000);
-                });
-                <?php endif; ?>
-            </script>
             
             <?php if ($errors): ?>
                 <div class="error-list">
@@ -360,6 +337,19 @@ require_once __DIR__ . '/includes/sidebar.php';
                             Click to view available packages and add to your order
                         </small>
                     </div>
+                </div>
+                
+                <!-- Event Logistics Row -->
+                <div class="form-grid" style="margin-top: 1rem;">
+                    <div class="field">
+                        <label for="event_time">Event Time *</label>
+                        <input id="event_time" name="event_time" type="time" required value="<?php echo escape($_POST['event_time'] ?? '12:00'); ?>" style="background: #fffdf8; border: 2px solid #e5d5c5; border-radius: 25px; padding: 0.75rem 1rem; color: #4a1414;">
+                    </div>
+                </div>
+                
+                <div class="field-full" style="margin-top: 1rem;">
+                    <label for="event_location">Event Location *</label>
+                    <input id="event_location" name="event_location" type="text" required placeholder="Enter venue address or specific location details..." value="<?php echo escape($_POST['event_location'] ?? ''); ?>" style="background: #fffdf8; border: 2px solid #e5d5c5; border-radius: 25px; padding: 0.75rem 1rem; color: #4a1414; width: 100%;">
                 </div>
                 
                 <div class="field-full">
@@ -971,9 +961,12 @@ function showOrderSummary() {
     const eventDate = document.getElementById('selectedDate').value;
     const message = document.getElementById('message').value;
     
+    const eventTime = document.getElementById('event_time').value;
+    const eventLocation = document.getElementById('event_location').value;
+    
     // Validate required fields
-    if (!fullName || !email || !phone || !eventDate) {
-        showArcAlert('Please fill in all required fields: Full Name, Email, Phone, and Event Date.');
+    if (!fullName || !email || !phone || !eventDate || !eventTime || !eventLocation) {
+        showArcAlert('Please fill in all required fields: Full Name, Email, Phone, Event Date, Event Time, and Event Location.');
         return;
     }
     
@@ -1038,6 +1031,8 @@ function showOrderSummary() {
             <h4 style="color: #8a2927; margin: 0 0 1rem 0; font-size: 1.1rem;">📅 Event Details</h4>
             <div style="background: #fafafa; padding: 1rem; border-radius: 8px;">
                 <p style="margin: 0.25rem 0;"><strong>Date:</strong> ${formattedDate}</p>
+                <p style="margin: 0.25rem 0;"><strong>Time:</strong> ${eventTime}</p>
+                <p style="margin: 0.25rem 0;"><strong>Location:</strong> ${eventLocation}</p>
                 <p style="margin: 0.25rem 0;"><strong>Type:</strong> ${eventType || 'Not specified'}</p>
                 <p style="margin: 0.25rem 0;"><strong>Guests:</strong> ${guestCount} pax</p>
             </div>
@@ -1594,6 +1589,73 @@ function submitOrder() {
     `;
     document.head.appendChild(spinnerStyle);
 })();
+</script>
+
+<!-- Centered Success Modal Overlay -->
+<div id="successModalOverlay" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); z-index: 9999;"></div>
+
+<!-- Centered Success Modal -->
+<div id="successModal" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.9); background: #fffdf8; border-radius: 25px; padding: 3rem; max-width: 500px; width: 90%; box-shadow: 0 25px 50px rgba(0,0,0,0.3); z-index: 10000; text-align: center; border: 3px solid #8a2927;">
+    <div style="font-size: 5rem; margin-bottom: 1rem; animation: checkmarkBounce 0.6s ease;">✅</div>
+    <h2 style="color: #4a1414; margin: 0 0 1rem 0; font-size: 2rem; font-weight: 700;">Thank you!</h2>
+    <p style="color: #666; margin: 0 0 2rem 0; font-size: 1.1rem; line-height: 1.6;">Your order has been received. ARC Kitchen will contact you shortly to confirm your booking details.</p>
+    <a href="index.php" onclick="closeSuccessModal()" class="button" style="padding: 1rem 2.5rem; font-size: 1.1rem; background: #8a2927; color: white; border-radius: 25px; text-decoration: none; display: inline-block; font-weight: 600;">Back to Home</a>
+</div>
+
+<style>
+    @keyframes checkmarkBounce {
+        0% { transform: scale(0); opacity: 0; }
+        50% { transform: scale(1.2); }
+        100% { transform: scale(1); opacity: 1; }
+    }
+    
+    @keyframes modalSlideIn {
+        from { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
+        to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    }
+    
+    #successModal.show {
+        animation: modalSlideIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    }
+    
+    @media (max-width: 600px) {
+        #successModal {
+            padding: 2rem 1.5rem;
+            width: 95%;
+        }
+        #successModal h2 {
+            font-size: 1.5rem;
+        }
+        #successModal p {
+            font-size: 1rem;
+        }
+    }
+</style>
+
+<script>
+    function showSuccessModal() {
+        document.getElementById('successModalOverlay').style.display = 'block';
+        document.getElementById('successModal').style.display = 'block';
+        document.getElementById('successModal').classList.add('show');
+        document.body.style.overflow = 'hidden';
+    }
+    
+    function closeSuccessModal() {
+        document.getElementById('successModalOverlay').style.display = 'none';
+        document.getElementById('successModal').style.display = 'none';
+        document.getElementById('successModal').classList.remove('show');
+        document.body.style.overflow = '';
+    }
+    
+    // Close modal on overlay click
+    document.getElementById('successModalOverlay')?.addEventListener('click', closeSuccessModal);
+    
+    <?php if (isset($_GET['success'])): ?>
+    // Auto-show centered modal on success
+    document.addEventListener('DOMContentLoaded', function() {
+        showSuccessModal();
+    });
+    <?php endif; ?>
 </script>
 
 <script src="assets/js/notifications.js"></script>

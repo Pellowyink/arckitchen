@@ -34,6 +34,8 @@ CREATE TABLE IF NOT EXISTS inquiries (
     email VARCHAR(150) NOT NULL,
     phone VARCHAR(50) NOT NULL,
     event_date DATE NOT NULL,
+    event_time TIME NULL COMMENT 'Event start time',
+    event_location TEXT NULL COMMENT 'Venue address and location details',
     event_type VARCHAR(100) NOT NULL,
     guest_count INT NOT NULL,
     package_interest VARCHAR(150) DEFAULT NULL,

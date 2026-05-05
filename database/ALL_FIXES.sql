@@ -1,0 +1,115 @@
+-- =====================================================
+-- ARC KITCHEN: MASTER SQL FIXES FILE
+-- This file contains ALL database fixes in one place
+-- Run this entire file in phpMyAdmin SQL tab
+-- Last Updated: May 5, 2026
+-- =====================================================
+
+-- Select the database (change 'arc_kitchen' to your actual database name if different)
+USE arc_kitchen;
+
+-- ============================================================================
+-- PART 1: CALENDAR SYSTEM FIXES (unavailable_dates table)
+-- ============================================================================
+
+-- Step 1.1: Add capacity_note column (ignore error if already exists)
+-- Note: MariaDB may not support IF NOT EXISTS on ALTER TABLE
+-- If you get error "Duplicate column name", it means column already exists - that's OK!
+ALTER TABLE unavailable_dates 
+ADD COLUMN capacity_note TEXT NULL 
+AFTER status;
+
+-- Step 1.2: Add UNIQUE key to date column (CRITICAL for ON DUPLICATE KEY UPDATE)
+ALTER TABLE unavailable_dates ADD UNIQUE KEY IF NOT EXISTS unique_date (date);
+
+-- Step 1.3: Fix all dates with empty status
+UPDATE unavailable_dates 
+SET status = 'limited' 
+WHERE (status = '' OR status IS NULL) 
+AND (capacity_note IS NOT NULL AND capacity_note != '');
+
+UPDATE unavailable_dates 
+SET status = 'blocked' 
+WHERE (status = '' OR status IS NULL) 
+AND (capacity_note IS NULL OR capacity_note = '');
+
+-- ============================================================================
+-- PART 2: BOOKING ENHANCEMENT FIXES (inquiries table)
+-- ============================================================================
+
+-- Step 2.1: Add event_time column to inquiries table
+-- Note: If column already exists, you'll get "Duplicate column name" error - that's OK!
+ALTER TABLE inquiries 
+ADD COLUMN event_time TIME NULL 
+AFTER event_date;
+
+-- Step 2.2: Add event_location column to inquiries table
+ALTER TABLE inquiries 
+ADD COLUMN event_location TEXT NULL 
+AFTER event_time;
+
+-- ============================================================================
+-- PART 3: STATUS & BOOKINGS FIXES (bookings table)
+-- ============================================================================
+
+-- Step 3.1: Add event_time column to bookings table
+ALTER TABLE bookings 
+ADD COLUMN event_time TIME NULL 
+AFTER event_date;
+
+-- Step 3.2: Add event_location column to bookings table
+ALTER TABLE bookings 
+ADD COLUMN event_location TEXT NULL 
+AFTER event_time;
+
+-- Fix bookings that should be fully paid but show as partial
+-- This sets full_payment to remaining balance when status is completed
+UPDATE bookings 
+SET 
+    full_payment = (total_amount - COALESCE(down_payment, 0)),
+    payment_status = 'fully_paid'
+WHERE 
+    status = 'completed' 
+    AND (full_payment IS NULL OR full_payment = 0)
+    AND (total_amount - COALESCE(down_payment, 0)) > 0;
+
+-- ============================================================================
+-- PART 4: VERIFICATION - Show current status
+-- ============================================================================
+
+SELECT '========================================' as '================================';
+SELECT 'ALL FIXES APPLIED SUCCESSFULLY!' as 'STATUS';
+SELECT '========================================' as '================================';
+
+-- Show unavailable dates status
+SELECT 
+    'Unavailable Dates Status' as section,
+    COUNT(*) as total_dates,
+    SUM(CASE WHEN status = 'limited' THEN 1 ELSE 0 END) as limited_dates,
+    SUM(CASE WHEN status = 'blocked' THEN 1 ELSE 0 END) as blocked_dates,
+    SUM(CASE WHEN status = 'fully_booked' THEN 1 ELSE 0 END) as booked_dates
+FROM unavailable_dates;
+
+-- Show inquiries table columns
+SELECT 
+    'Inquiries Table Columns' as section,
+    COLUMN_NAME as column_name,
+    DATA_TYPE as data_type
+FROM information_schema.columns 
+WHERE table_schema = DATABASE() 
+AND table_name = 'inquiries' 
+AND COLUMN_NAME IN ('event_date', 'event_time', 'event_location');
+
+-- Show bookings that were fixed
+SELECT 
+    'Bookings Fixed to Fully Paid' as section,
+    id,
+    customer_name,
+    total_amount,
+    down_payment,
+    full_payment,
+    payment_status
+FROM bookings 
+WHERE payment_status = 'fully_paid' 
+ORDER BY id DESC 
+LIMIT 5;

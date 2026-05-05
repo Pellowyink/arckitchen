@@ -71,8 +71,7 @@ usort($all_cancelled_bookings, function($a, $b) {
                                 <th>Email</th>
                                 <th>Guests</th>
                                 <th>Total Amount</th>
-                                <th>Event Date</th>
-                                <th>Notes</th>
+                                <th>Event Details</th>
                                 <th>Status</th>
                                 <th>Actions</th>
                             </tr>
@@ -87,8 +86,23 @@ usort($all_cancelled_bookings, function($a, $b) {
                                     <td><?php echo escape($booking['customer_email']); ?></td>
                                     <td><?php echo (int)$booking['guest_count']; ?> pax</td>
                                     <td><strong>₱<?php echo number_format((float)$booking['total_amount'], 2); ?></strong></td>
-                                    <td><?php echo date('M d, Y', strtotime($booking['event_date'])); ?></td>
-                                    <td><?php echo escape(substr($booking['special_requests'] ?? '—', 0, 30)); ?></td>
+                                    <td>
+                                        <div style="font-size: 0.85rem;">
+                                            <div style="color: #4a1414; font-weight: 600;">
+                                                <?php echo date('M d, Y', strtotime($booking['event_date'])); ?>
+                                            </div>
+                                            <?php if (!empty($booking['event_time'])): ?>
+                                            <div style="color: #666;">
+                                                <?php echo date('g:i A', strtotime($booking['event_time'])); ?>
+                                            </div>
+                                            <?php endif; ?>
+                                            <?php if (!empty($booking['event_location'])): ?>
+                                            <div style="color: #8a2927; font-size: 0.75rem; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="<?php echo escape($booking['event_location']); ?>">
+                                                <?php echo escape($booking['event_location']); ?>
+                                            </div>
+                                            <?php endif; ?>
+                                        </div>
+                                    </td>
                                     <td>
                                         <span class="badge badge-<?php echo strtolower(str_replace(' ', '-', $booking['status'])); ?>">
                                             <?php echo escape($booking['status']); ?>
@@ -96,7 +110,7 @@ usort($all_cancelled_bookings, function($a, $b) {
                                     </td>
                                     <td>
                                         <div class="action-buttons">
-                                            <button class="btn-admin btn-secondary-admin btn-small" onclick="openEditModal(<?php echo (int)$booking['id']; ?>, 'booking')">Edit</button>
+                                            <button class="btn-admin btn-secondary-admin btn-small" onclick="openEditModal(<?php echo (int)$booking['id']; ?>, 'booking')">View Order</button>
                                             <?php if ($status === 'pending'): ?>
                                                 <button class="btn-admin btn-primary-admin btn-small" onclick="changeBookingStatus(<?php echo (int)$booking['id']; ?>, 'confirmed')">Confirm</button>
                                                 <button class="btn-admin btn-danger-admin btn-small" onclick="changeBookingStatus(<?php echo (int)$booking['id']; ?>, 'cancelled')">Cancel</button>
@@ -782,6 +796,100 @@ usort($all_cancelled_bookings, function($a, $b) {
             </div>
         </div>
     </div>
+
+    <!-- Admin Success Modal -->
+    <div id="adminSuccessModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 9999;">
+        <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.9); background: #fffdf8; border-radius: 25px; padding: 3rem; max-width: 450px; width: 90%; box-shadow: 0 25px 50px rgba(0,0,0,0.3); text-align: center; border: 3px solid #4a1414; animation: modalSlideIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;">
+            <div style="font-size: 4rem; margin-bottom: 1rem;">✅</div>
+            <h2 style="color: #4a1414; margin: 0 0 1rem 0; font-size: 1.5rem;">Order Completed!</h2>
+            <p id="successModalMessage" style="color: #666; margin: 0 0 1.5rem 0; font-size: 1rem; line-height: 1.5;"></p>
+            <button onclick="closeAdminSuccessModal()" class="btn-admin btn-primary-admin" style="padding: 0.75rem 2rem; font-size: 1rem;">Close</button>
+        </div>
+    </div>
+    
+    <!-- Admin Error Modal -->
+    <div id="adminErrorModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 9999;">
+        <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.9); background: #fffdf8; border-radius: 25px; padding: 3rem; max-width: 450px; width: 90%; box-shadow: 0 25px 50px rgba(0,0,0,0.3); text-align: center; border: 3px solid #dc3545; animation: modalSlideIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;">
+            <div style="font-size: 4rem; margin-bottom: 1rem;">⚠️</div>
+            <h2 style="color: #dc3545; margin: 0 0 1rem 0; font-size: 1.5rem;">Email Failed</h2>
+            <p id="errorModalMessage" style="color: #666; margin: 0 0 1.5rem 0; font-size: 1rem; line-height: 1.5;">Failed to send final receipt email.</p>
+            <div style="display: flex; gap: 1rem; justify-content: center;">
+                <button id="retryEmailBtn" class="btn-admin btn-primary-admin" style="padding: 0.75rem 1.5rem;">🔄 Retry Email</button>
+                <button onclick="closeAdminErrorModal()" class="btn-admin btn-secondary-admin" style="padding: 0.75rem 1.5rem;">Complete Without Email</button>
+            </div>
+        </div>
+    </div>
+    
+    <style>
+        @keyframes modalSlideIn {
+            from { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
+            to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+    </style>
+    
+    <script>
+        let currentBookingIdForRetry = null;
+        
+        function showAdminSuccessModal(message) {
+            document.getElementById('successModalMessage').textContent = message;
+            document.getElementById('adminSuccessModal').style.display = 'block';
+        }
+        
+        function closeAdminSuccessModal() {
+            document.getElementById('adminSuccessModal').style.display = 'none';
+            window.location.reload();
+        }
+        
+        function showAdminErrorModal(message, bookingId) {
+            currentBookingIdForRetry = bookingId;
+            document.getElementById('errorModalMessage').textContent = message || 'Failed to send final receipt email.';
+            document.getElementById('adminErrorModal').style.display = 'block';
+        }
+        
+        function closeAdminErrorModal() {
+            document.getElementById('adminErrorModal').style.display = 'none';
+            window.location.reload();
+        }
+        
+        // Retry email function
+        document.getElementById('retryEmailBtn')?.addEventListener('click', async function() {
+            if (!currentBookingIdForRetry) return;
+            
+            this.textContent = '🔄 Sending...';
+            this.disabled = true;
+            
+            try {
+                const response = await fetch('../api/resend-receipt.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ booking_id: currentBookingIdForRetry })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    closeAdminErrorModal();
+                    showAdminSuccessModal('Final receipt resent successfully!');
+                } else {
+                    this.textContent = '🔄 Retry Email';
+                    this.disabled = false;
+                    alert('Failed to resend email: ' + data.message);
+                }
+            } catch (error) {
+                this.textContent = '🔄 Retry Email';
+                this.disabled = false;
+                alert('Network error. Please try again.');
+            }
+        });
+        
+        // Close modals on overlay click
+        document.getElementById('adminSuccessModal')?.addEventListener('click', function(e) {
+            if (e.target === this) closeAdminSuccessModal();
+        });
+        document.getElementById('adminErrorModal')?.addEventListener('click', function(e) {
+            if (e.target === this) closeAdminErrorModal();
+        });
+    </script>
 
     <script src="../assets/js/notifications.js"></script>
     <script src="../assets/js/main.js"></script>
