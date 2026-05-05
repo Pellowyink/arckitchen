@@ -600,18 +600,34 @@ function populateSidebarForm(record, type, data) {
 function populateItemsList(items, total) {
     const itemsList = document.getElementById('items-list');
     itemsList.innerHTML = '';
-    
-    if (items && items.length > 0) {
-        items.forEach((item, index) => {
+
+    // Safely parse items if it's a string
+    let itemsArray = [];
+    try {
+        if (typeof items === 'string') {
+            itemsArray = JSON.parse(items);
+            if (typeof itemsArray === 'string') {
+                itemsArray = JSON.parse(itemsArray); // Parse a second time if double-serialized
+            }
+        } else {
+            itemsArray = items;
+        }
+    } catch (e) {
+        console.error("Failed to parse items:", e);
+        itemsArray = [];
+    }
+
+    if (itemsArray && itemsArray.length > 0) {
+        itemsArray.forEach((item, index) => {
             addItemRow(item, index);
         });
     } else {
         // Show empty state
         itemsList.innerHTML = '<p style="color: #888; text-align: center; padding: 1rem;">No items in this order</p>';
     }
-    
+
     // Update totals display with actual total from database
-    updateTotalsDisplay(total, items);
+    updateTotalsDisplay(total, itemsArray);
 }
 
 /**
@@ -707,7 +723,7 @@ function updateTotalsDisplay(total, items) {
     let subtotal = 0;
     if (items && items.length > 0) {
         items.forEach(item => {
-            subtotal += (parseFloat(item.subtotal) || (item.unit_price * item.quantity) || 0);
+            subtotal += (parseFloat(item.subtotal) || (parseFloat(item.unit_price) * parseInt(item.quantity)) || 0);
         });
     }
     

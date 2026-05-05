@@ -102,10 +102,54 @@ $stmt->bind_param(
 if ($stmt->execute()) {
     $inquiry_id = $stmt->insert_id;
     $stmt->close();
-    
+
+    // Save cart items to inquiry_items
+    $cartItemsJson = $bookingData['items'] ?? '[]';
+    $cartItems = json_decode($cartItemsJson, true);
+    if (is_array($cartItems)) {
+        foreach ($cartItems as $item) {
+            $itemName = $connection->real_escape_string($item['name'] ?? '');
+            $itemPrice = (float)($item['price'] ?? 0);
+            $itemQuantity = (int)($item['quantity'] ?? 1);
+            $itemType = $item['type'] ?? 'item';
+            $isPackage = $itemType === 'package' ? 1 : 0;
+
+            // Find menu_item_id or package_id
+            $menuItemId = null;
+            $packageId = null;
+            if ($isPackage) {
+                $pkgStmt = $connection->prepare("SELECT id FROM packages WHERE name = ? LIMIT 1");
+                $pkgStmt->bind_param('s', $itemName);
+                $pkgStmt->execute();
+                $pkgResult = $pkgStmt->get_result();
+                if ($pkgRow = $pkgResult->fetch_assoc()) {
+                    $packageId = $pkgRow['id'];
+                }
+                $pkgStmt->close();
+            } else {
+                $menuStmt = $connection->prepare("SELECT id FROM menu_items WHERE name = ? LIMIT 1");
+                $menuStmt->bind_param('s', $itemName);
+                $menuStmt->execute();
+                $menuResult = $menuStmt->get_result();
+                if ($menuRow = $menuResult->fetch_assoc()) {
+                    $menuItemId = $menuRow['id'];
+                }
+                $menuStmt->close();
+            }
+
+            $itemStmt = $connection->prepare(
+                "INSERT INTO inquiry_items (inquiry_id, menu_item_id, is_package, package_id, quantity, unit_price, subtotal) VALUES (?, ?, ?, ?, ?, ?, ?)"
+            );
+            $subtotal = $itemPrice * $itemQuantity;
+            $itemStmt->bind_param('iiiiddd', $inquiry_id, $menuItemId, $isPackage, $packageId, $itemQuantity, $itemPrice, $subtotal);
+            $itemStmt->execute();
+            $itemStmt->close();
+        }
+    }
+
     // Clear pending data from session
     unset($_SESSION['pending_booking_data']);
-    
+
     // Send notification to admin
     try {
         // Get inquiry data for email

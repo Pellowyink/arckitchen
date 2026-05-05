@@ -13,9 +13,10 @@ ini_set('session.cookie_httponly', 1);
 ini_set('session.use_only_cookies', 1);
 ini_set('session.cookie_samesite', 'Lax');
 
-// Suppress all error display (log to file instead)
+// Enable error reporting temporarily for debugging
 error_reporting(E_ALL);
-ini_set('display_errors', 0);
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
 ini_set('log_errors', 1);
 
 session_start();
@@ -115,6 +116,14 @@ if (!$mail) {
 $mail->Timeout = 10; // 10 seconds max
 $mail->SMTPKeepAlive = false;
 
+// Sender information - MUST match authenticated Gmail address
+$mail->setFrom('dailyjunkie173@gmail.com', 'Arc Kitchen');
+$mail->addReplyTo('dailyjunkie173@gmail.com', 'Arc Kitchen');
+
+// Encoding
+$mail->CharSet = 'UTF-8';
+$mail->isHTML(true);
+
 $mail->addAddress($email);
 $mail->isHTML(true);
 $mail->Subject = "Your ARC Kitchen Verification Code";
@@ -129,14 +138,14 @@ $mail->Body = <<<HTML
     <title>ARC Kitchen Verification</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=League+Spartan:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
-        
+
         body {
             margin: 0;
             padding: 0;
             background-color: #fdf8f3;
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
         }
-        
+
         .email-wrapper {
             max-width: 500px;
             margin: 40px auto;
@@ -145,13 +154,13 @@ $mail->Body = <<<HTML
             overflow: hidden;
             box-shadow: 0 10px 40px rgba(74, 20, 20, 0.1);
         }
-        
+
         .email-header {
             background: linear-gradient(135deg, #4a1414 0%, #6c1d12 100%);
             padding: 40px 30px;
             text-align: center;
         }
-        
+
         .email-header h1 {
             color: #ffffff;
             margin: 0;
@@ -159,20 +168,20 @@ $mail->Body = <<<HTML
             font-size: 24px;
             font-weight: 700;
         }
-        
+
         .email-body {
             padding: 40px 30px;
             background: #ffffff;
             text-align: center;
         }
-        
+
         .email-body p {
             color: #5c4a42;
             font-size: 16px;
             line-height: 1.7;
             margin: 0 0 24px 0;
         }
-        
+
         .otp-box {
             background: linear-gradient(135deg, #4a1414 0%, #6c1d12 100%);
             color: #ffffff;
@@ -185,20 +194,20 @@ $mail->Body = <<<HTML
             margin: 30px 0;
             display: inline-block;
         }
-        
+
         .expiry-note {
             color: #8a6d5b;
             font-size: 14px;
             margin-top: 20px;
         }
-        
+
         .email-footer {
             background: #faf6f1;
             padding: 30px;
             text-align: center;
             border-top: 1px solid #f0e6dc;
         }
-        
+
         .email-footer p {
             color: #8a6d5b;
             font-size: 13px;
@@ -223,26 +232,33 @@ $mail->Body = <<<HTML
 </body>
 </html>
 HTML;
-    
-    $mail->send();
-    
-    // Clear recipient for next use
-    $mail->clearAddresses();
-    
+
+    // Wrap PHPMailer sending in try-catch
+    try {
+        $mail->send();
+        // Clear recipient for next use
+        $mail->clearAddresses();
+
+        ob_clean();
+        echo json_encode([
+            'status' => 'success',
+            'message' => 'Verification code sent to your email!',
+            'cooldown' => $cooldown_time
+        ]);
+    } catch (Exception $e) {
+        ob_clean();
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'Mail delivery failed: ' . $mail->ErrorInfo
+        ]);
+    }
+
+} catch (Throwable $e) { // FIX: Changed Exception to Throwable to catch fatal 500 crashes
+    error_log("OTP Send Fatal Error: " . $e->getMessage() . " on line " . $e->getLine());
     ob_clean();
     echo json_encode([
-        'status' => 'success', 
-        'message' => 'Verification code sent to your email!',
-        'cooldown' => $cooldown_time
-    ]);
-    
-} catch (Exception $e) {
-    error_log("OTP Send Exception: " . $e->getMessage());
-    ob_clean();
-    http_response_code(500);
-    echo json_encode([
-        'status' => 'error', 
-        'message' => 'Failed to send verification email. Please try again.'
+        'status' => 'error',
+        'message' => 'Server Error: ' . $e->getMessage()
     ]);
 }
 

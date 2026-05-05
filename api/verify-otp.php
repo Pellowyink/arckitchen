@@ -47,9 +47,9 @@ try {
 
     if (time() > $_SESSION['otp_expiry']) {
         // Clear expired OTP data
-        unset($_SESSION['email_otp']);
-        unset($_SESSION['otp_expiry']);
-        unset($_SESSION['otp_attempts']);
+        if(isset($_SESSION['email_otp'])) unset($_SESSION['email_otp']);
+        if(isset($_SESSION['otp_expiry'])) unset($_SESSION['otp_expiry']);
+        if(isset($_SESSION['otp_attempts'])) unset($_SESSION['otp_attempts']);
         
         error_log("OTP Verify Error: Code expired. Expiry: {$_SESSION['otp_expiry']}, Current: " . time());
         ob_clean();
@@ -65,15 +65,15 @@ try {
         exit;
     }
 
-    // Track attempts - safely using null coalescing
-    $current_attempts = ($_SESSION['otp_attempts'] ?? 0) + 1;
+    // FIX: Track attempts safely using null coalescing
+    $current_attempts = isset($_SESSION['otp_attempts']) ? $_SESSION['otp_attempts'] + 1 : 1;
     $_SESSION['otp_attempts'] = $current_attempts;
 
     if ($current_attempts > 3) {
         // Overwrite existing OTP to prevent brute-forcing
-        unset($_SESSION['email_otp']);
-        unset($_SESSION['otp_expiry']);
-        unset($_SESSION['otp_attempts']);
+        if(isset($_SESSION['email_otp'])) unset($_SESSION['email_otp']);
+        if(isset($_SESSION['otp_expiry'])) unset($_SESSION['otp_expiry']);
+        if(isset($_SESSION['otp_attempts'])) unset($_SESSION['otp_attempts']);
         
         ob_clean();
         echo json_encode([
@@ -89,9 +89,9 @@ try {
         $remaining_attempts = max(0, 3 - $current_attempts);
         
         // Clear OTP variables immediately on success
-        unset($_SESSION['email_otp']);
-        unset($_SESSION['otp_expiry']);
-        unset($_SESSION['otp_attempts']);
+        if(isset($_SESSION['email_otp'])) unset($_SESSION['email_otp']);
+        if(isset($_SESSION['otp_expiry'])) unset($_SESSION['otp_expiry']);
+        if(isset($_SESSION['otp_attempts'])) unset($_SESSION['otp_attempts']);
         
         // Set a secure variable state to allow database writing
         $_SESSION['email_verified'] = true;

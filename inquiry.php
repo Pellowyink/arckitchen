@@ -654,776 +654,7 @@ require_once __DIR__ . '/includes/sidebar.php';
 }
 </style>
 
-<script>
-// Override calendar component's selectDate
-function selectDate(dateStr) {
-    document.getElementById('selectedDate').value = dateStr;
-    document.getElementById('selectedDateValue').textContent = new Date(dateStr).toLocaleDateString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-    });
-    const display = document.getElementById('selectedDateDisplay');
-    display.style.display = 'block';
-    display.classList.add('has-date');
-}
 
-// Initialize selected date if present
-window.addEventListener('DOMContentLoaded', function() {
-    const selectedDateInput = document.getElementById('selectedDate');
-    if (selectedDateInput && selectedDateInput.value) {
-        document.getElementById('selectedDateValue').textContent = selectedDateInput.value;
-        const display = document.getElementById('selectedDateDisplay');
-        display.style.display = 'block';
-        display.classList.add('has-date');
-    }
-});
-
-// Cart Management on Booking Page
-function updateCartItemQty(itemId, newQty) {
-    if (newQty < 1) return;
-    
-    fetch('includes/sidebar.php?action=update_cart_item', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ item_id: itemId, quantity: newQty })
-    })
-    .then(r => r.json())
-    .then(result => {
-        if (result.success) {
-            // Update UI without reload
-            updateCartUI(result.cart_items || [], result.cart_total || 0);
-            showToast('Quantity updated');
-        }
-    });
-}
-
-function removeCartItem(itemId) {
-    if (!confirm('Remove this item from your order?')) return;
-    
-    fetch('includes/sidebar.php?action=remove_cart_item', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ item_id: itemId })
-    })
-    .then(r => r.json())
-    .then(result => {
-        if (result.success) {
-            // Update UI without reload
-            updateCartUI(result.cart_items || [], result.cart_total || 0);
-            showToast('Item removed');
-        }
-    });
-}
-
-// Add Items Sidebar
-function openAddItemsSidebar() {
-    console.log('Opening sidebar...');
-    const sidebar = document.getElementById('addItemsSidebar');
-    const overlay = document.getElementById('addItemsOverlay');
-    console.log('Sidebar element:', sidebar);
-    console.log('Overlay element:', overlay);
-    if (sidebar && overlay) {
-        sidebar.classList.add('is-open');
-        overlay.classList.add('is-visible');
-        document.body.style.overflow = 'hidden';
-        console.log('Sidebar opened');
-    } else {
-        console.error('Sidebar elements not found!');
-    }
-}
-
-function closeAddItemsSidebar() {
-    const sidebar = document.getElementById('addItemsSidebar');
-    const overlay = document.getElementById('addItemsOverlay');
-    if (sidebar && overlay) {
-        sidebar.classList.remove('is-open');
-        overlay.classList.remove('is-visible');
-        document.body.style.overflow = '';
-    }
-}
-
-function quickAddToCart(id, type, name, price) {
-    const data = {
-        product_id: id,
-        product_name: name,
-        product_price: price,
-        quantity: 1,
-        type: type,
-        special_instructions: ''
-    };
-    
-    fetch('includes/sidebar.php?action=add_to_cart', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-    })
-    .then(async r => {
-        const text = await r.text();
-        try {
-            // Try to find JSON in response (in case there's whitespace before/after)
-            const jsonMatch = text.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-                return JSON.parse(jsonMatch[0]);
-            }
-            return JSON.parse(text);
-        } catch (e) {
-            console.error('JSON parse error:', e, 'Response:', text);
-            throw new Error('Invalid response from server');
-        }
-    })
-    .then(result => {
-        if (result.success) {
-            // Update UI without reload
-            updateCartUI(result.cart_items || [], result.cart_total || 0);
-            showToast(`Added ${name}`);
-        } else {
-            console.error('Server error:', result.message);
-            if (typeof showArcError === 'function') {
-                showArcError(result.message || 'Failed to add item');
-            } else {
-                alert(result.message || 'Failed to add item');
-            }
-        }
-    })
-    .catch(err => {
-        console.error('Error:', err);
-        if (typeof showArcError === 'function') {
-            showArcError('Failed to add item. Please try again.');
-        } else {
-            alert('Failed to add item. Please try again.');
-        }
-    });
-}
-
-// Package Picker Functions
-let allPackages = [];
-
-function openPackagePicker() {
-    console.log('Opening package picker...');
-    const modal = document.getElementById('packagePickerModal');
-    console.log('Modal element:', modal);
-    if (modal) {
-        modal.classList.add('active');
-        document.body.style.overflow = 'hidden';
-        loadPackages();
-        console.log('Package picker opened');
-    } else {
-        console.error('Package picker modal not found!');
-    }
-}
-
-function closePackagePicker() {
-    const modal = document.getElementById('packagePickerModal');
-    modal.classList.remove('active');
-    document.body.style.overflow = '';
-}
-
-function loadPackages() {
-    const grid = document.getElementById('packagesGrid');
-    grid.innerHTML = '<div class="loading-text">Loading packages...</div>';
-    
-    fetch('api/get-all-packages.php')
-        .then(r => r.json())
-        .then(data => {
-            if (data.success) {
-                allPackages = data.items || [];
-                renderPackages(allPackages);
-            } else {
-                grid.innerHTML = '<div class="empty-state">Failed to load packages</div>';
-            }
-        })
-        .catch(err => {
-            console.error('Error loading packages:', err);
-            grid.innerHTML = '<div class="empty-state">Error loading packages</div>';
-        });
-}
-
-function renderPackages(packages) {
-    const grid = document.getElementById('packagesGrid');
-    
-    if (packages.length === 0) {
-        grid.innerHTML = `
-            <div class="empty-state">
-                <div class="empty-icon">📦</div>
-                <p>No packages available</p>
-            </div>
-        `;
-        return;
-    }
-    
-    let html = '';
-    packages.forEach(pkg => {
-        html += `
-            <div class="package-card" onclick="addPackageToCart(${pkg.id}, '${escapeHtml(pkg.name)}', ${pkg.price})">
-                <h4>${escapeHtml(pkg.name)}</h4>
-                <div class="serves">${pkg.description ? escapeHtml(pkg.description.substring(0, 60)) + '...' : 'Package'}</div>
-                <div class="price">₱${parseFloat(pkg.price).toFixed(2)}</div>
-                <button class="add-btn">+ Add</button>
-            </div>
-        `;
-    });
-    
-    grid.innerHTML = html;
-}
-
-function addPackageToCart(pkgId, pkgName, pkgPrice) {
-    const data = {
-        product_id: pkgId,
-        product_name: pkgName,
-        product_price: pkgPrice,
-        quantity: 1,
-        type: 'package',
-        special_instructions: ''
-    };
-    
-    fetch('includes/sidebar.php?action=add_to_cart', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-    })
-    .then(async r => {
-        const text = await r.text();
-        try {
-            // Try to find JSON in response (in case there's whitespace before/after)
-            const jsonMatch = text.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-                return JSON.parse(jsonMatch[0]);
-            }
-            return JSON.parse(text);
-        } catch (e) {
-            console.error('JSON parse error:', e, 'Response:', text);
-            throw new Error('Invalid response from server');
-        }
-    })
-    .then(result => {
-        if (result.success) {
-            // Update UI without reload
-            updateCartUI(result.cart_items || [], result.cart_total || 0);
-            
-            showToast(`Added ${pkgName}`);
-            closePackagePicker();
-        } else {
-            console.error('Server error:', result.message);
-            if (typeof showArcError === 'function') {
-                showArcError(result.message || 'Failed to add package');
-            } else {
-                alert(result.message || 'Failed to add package');
-            }
-        }
-    })
-    .catch(err => {
-        console.error('Error:', err);
-        if (typeof showArcError === 'function') {
-            showArcError('Failed to add package. Please try again.');
-        } else {
-            alert('Failed to add package. Please try again.');
-        }
-    });
-}
-
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-// Update cart UI dynamically without page reload
-function updateCartUI(cartItems, cartTotal) {
-    const container = document.getElementById('orderSummaryList');
-    const totalDisplay = document.getElementById('cartTotalDisplay');
-    
-    // Check if elements exist (sidebar might not be loaded yet)
-    if (!container) {
-        console.warn('updateCartUI: orderSummaryList element not found');
-        return;
-    }
-    
-    if (cartItems.length === 0) {
-        container.innerHTML = `
-            <div class="empty-cart-message" style="text-align: center; padding: 2rem; color: #666;">
-                <p>Your cart is empty. Add items from the menu to get started.</p>
-                <a href="menu.php" class="button" style="margin-top: 1rem;">Browse Menu</a>
-            </div>
-        `;
-        if (totalDisplay) {
-            totalDisplay.textContent = '₱0.00';
-        }
-        return;
-    }
-    
-    let html = '';
-    cartItems.forEach(item => {
-        const isPackage = item.type === 'package';
-        const icon = isPackage ? '📦' : '🍽️';
-        const badge = isPackage ? '<span style="background: #8a2927; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.65rem; margin-left: 0.5rem;">PACKAGE</span>' : '';
-        
-        html += `
-            <div class="order-item editable ${isPackage ? 'package-item' : ''}" data-item-id="${item.id}">
-                <div class="order-item-info">
-                    <div style="display: flex; align-items: center;">
-                        <span style="margin-right: 0.5rem;">${icon}</span>
-                        <strong>${escapeHtml(item.product_name)}</strong>
-                        ${badge}
-                    </div>
-                    ${item.notes ? `<small>${escapeHtml(item.notes)}</small>` : ''}
-                </div>
-                <div class="order-item-controls">
-                    <button type="button" class="qty-btn" onclick="updateCartItemQty(${item.id}, ${item.quantity - 1})" ${item.quantity <= 1 ? 'disabled' : ''}>−</button>
-                    <span class="qty-display">${item.quantity}</span>
-                    <button type="button" class="qty-btn" onclick="updateCartItemQty(${item.id}, ${item.quantity + 1})" ${item.quantity >= 99 ? 'disabled' : ''}>+</button>
-                </div>
-                <div class="order-item-price">₱${parseFloat(item.product_price * item.quantity).toFixed(2)}</div>
-                <button type="button" class="remove-btn-sm" onclick="removeCartItem(${item.id})" title="Remove">×</button>
-            </div>
-        `;
-    });
-    container.innerHTML = html;
-    
-    // Update total
-    if (totalDisplay) {
-        totalDisplay.textContent = '₱' + parseFloat(cartTotal).toFixed(2);
-    }
-}
-
-// Escape HTML helper
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-// Toast notification
-function showToast(message) {
-    const existing = document.querySelector('.toast-notification');
-    if (existing) existing.remove();
-    
-    const toast = document.createElement('div');
-    toast.className = 'toast-notification';
-    toast.innerHTML = `<span style="font-size: 1.1rem;">✓</span> ${escapeHtml(message)}`;
-    document.body.appendChild(toast);
-    
-    setTimeout(() => toast.classList.add('fade-out'), 2000);
-    setTimeout(() => toast.remove(), 2300);
-}
-
-// Order Summary Modal Functions
-function showOrderSummary() {
-    // Get form values
-    const fullName = document.getElementById('full_name').value;
-    const email = document.getElementById('email').value;
-    const phone = document.getElementById('phone').value;
-    const eventType = document.getElementById('event_type').value;
-    const guestCount = document.getElementById('guest_count').value;
-    const eventDate = document.getElementById('selectedDate').value;
-    const message = document.getElementById('message').value;
-    
-    const eventTime = document.getElementById('event_time').value;
-    const eventLocation = document.getElementById('event_location').value;
-    
-    // Validate required fields
-    if (!fullName || !email || !phone || !eventDate || !eventTime || !eventLocation) {
-        showArcAlert('Please fill in all required fields: Full Name, Email, Phone, Event Date, Event Time, and Event Location.');
-        return;
-    }
-    
-    // Check for items in the DOM (Order Summary) instead of AJAX call
-    const orderItems = document.querySelectorAll('#orderSummaryList .order-item');
-    if (orderItems.length === 0) {
-        showArcAlert('Your cart is empty. Please add items before submitting.');
-        return;
-    }
-    
-    // Build summary HTML from DOM items
-    let itemsHtml = '';
-    let total = 0;
-    orderItems.forEach(item => {
-        const nameEl = item.querySelector('.order-item-info strong');
-        const priceEl = item.querySelector('.order-item-price');
-        const qtyEl = item.querySelector('.qty-display');
-        const isPackage = item.classList.contains('package-item');
-        
-        const name = nameEl ? nameEl.textContent : 'Unknown Item';
-        const priceText = priceEl ? priceEl.textContent : '₱0.00';
-        const qty = qtyEl ? parseInt(qtyEl.textContent) : 1;
-        const price = parseFloat(priceText.replace(/[^0-9.]/g, ''));
-        const subtotal = price;
-        total += subtotal;
-        const icon = isPackage ? '📦' : '🍽️';
-        
-        itemsHtml += `
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: #f9f9f9; border-radius: 8px; margin-bottom: 0.5rem;">
-                <div style="display: flex; align-items: center; gap: 0.5rem;">
-                    <span>${icon}</span>
-                    <div>
-                        <div style="font-weight: 600; color: #4a1414;">${name}</div>
-                        <small style="color: #666;">Qty: ${qty} × ₱${(price/qty).toFixed(2)}</small>
-                    </div>
-                </div>
-                <div style="font-weight: 600; color: #8a2927;">₱${subtotal.toFixed(2)}</div>
-            </div>
-        `;
-    });
-    
-    // Format date
-    const formattedDate = eventDate ? new Date(eventDate).toLocaleDateString('en-US', { 
-        weekday: 'long', 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
-    }) : 'Not selected';
-    
-    // Build complete summary
-    const summaryHtml = `
-        <div style="margin-bottom: 1.5rem;">
-            <h4 style="color: #8a2927; margin: 0 0 1rem 0; font-size: 1.1rem;">📞 Customer Information</h4>
-            <div style="background: #fafafa; padding: 1rem; border-radius: 8px;">
-                <p style="margin: 0.25rem 0;"><strong>Name:</strong> ${fullName}</p>
-                <p style="margin: 0.25rem 0;"><strong>Email:</strong> ${email}</p>
-                <p style="margin: 0.25rem 0;"><strong>Phone:</strong> ${phone}</p>
-            </div>
-        </div>
-        
-        <div style="margin-bottom: 1.5rem;">
-            <h4 style="color: #8a2927; margin: 0 0 1rem 0; font-size: 1.1rem;">📅 Event Details</h4>
-            <div style="background: #fafafa; padding: 1rem; border-radius: 8px;">
-                <p style="margin: 0.25rem 0;"><strong>Date:</strong> ${formattedDate}</p>
-                <p style="margin: 0.25rem 0;"><strong>Time:</strong> ${eventTime}</p>
-                <p style="margin: 0.25rem 0;"><strong>Location:</strong> ${eventLocation}</p>
-                <p style="margin: 0.25rem 0;"><strong>Type:</strong> ${eventType || 'Not specified'}</p>
-                <p style="margin: 0.25rem 0;"><strong>Guests:</strong> ${guestCount} pax</p>
-            </div>
-        </div>
-        
-        <div style="margin-bottom: 1.5rem;">
-            <h4 style="color: #8a2927; margin: 0 0 1rem 0; font-size: 1.1rem;">🍽️ Order Items</h4>
-            ${itemsHtml}
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: #8a2927; color: white; border-radius: 8px; margin-top: 0.5rem;">
-                <strong>Total:</strong>
-                <strong style="font-size: 1.25rem;">₱${total.toFixed(2)}</strong>
-                    </div>
-                </div>
-                
-                ${message ? `
-                <div style="margin-bottom: 1rem;">
-                    <h4 style="color: #8a2927; margin: 0 0 1rem 0; font-size: 1.1rem;">📝 Special Requests</h4>
-                    <div style="background: #fafafa; padding: 1rem; border-radius: 8px; color: #555;">
-                        ${message}
-                    </div>
-                </div>
-                ` : ''}
-            `;
-            
-            document.getElementById('summaryContent').innerHTML = summaryHtml;
-            
-            // Show modal
-            document.getElementById('orderSummaryOverlay').style.display = 'block';
-            document.getElementById('orderSummaryModal').style.display = 'block';
-            document.body.style.overflow = 'hidden';
-}
-
-
-function closeOrderSummary() {
-    document.getElementById('orderSummaryOverlay').style.display = 'none';
-    document.getElementById('orderSummaryModal').style.display = 'none';
-    document.body.style.overflow = '';
-}
-
-// Global variables for OTP flow
-let otpCountdownInterval = null;
-let currentFormData = null;
-
-function submitOrder() {
-    // Get form data first
-    const form = document.querySelector('form[data-validate]');
-    if (!form) {
-        showArcError('Form not found. Please refresh the page.');
-        return;
-    }
-    
-    // Validate form
-    const email = form.querySelector('[name="email"]')?.value;
-    if (!email || !email.includes('@')) {
-        showArcError('Please enter a valid email address.');
-        return;
-    }
-    
-    // Close order summary modal
-    closeOrderSummary();
-    
-    // Collect form data
-    currentFormData = new FormData(form);
-    
-    // Show OTP modal and send code
-    sendOtp();
-}
-
-function sendOtp() {
-    const form = document.querySelector('form[data-validate]');
-    const email = form.querySelector('[name="email"]')?.value;
-    
-    if (!email) {
-        showArcError('Email address is required.');
-        return;
-    }
-    
-    // Show loading
-    if (typeof showArcLoading === 'function') {
-        showArcLoading('Sending verification code...');
-    }
-    
-    // Prepare data for OTP request
-    const formData = new FormData();
-    formData.append('email', email);
-    formData.append('customer_name', form.querySelector('[name="full_name"]')?.value || '');
-    formData.append('customer_phone', form.querySelector('[name="phone"]')?.value || '');
-    formData.append('event_type', form.querySelector('[name="event_type"]')?.value || '');
-    formData.append('guest_count', form.querySelector('[name="guest_count"]')?.value || '');
-    formData.append('event_date', form.querySelector('[name="event_date"]')?.value || '');
-    formData.append('event_time', form.querySelector('[name="event_time"]')?.value || '');
-    formData.append('event_location', form.querySelector('[name="event_location"]')?.value || '');
-    formData.append('special_requests', form.querySelector('[name="message"]')?.value || '');
-    formData.append('total_amount', document.getElementById('cartTotal')?.textContent?.replace(/[₱,]/g, '') || '0');
-    
-    // Get cart items
-    const cartItems = [];
-    document.querySelectorAll('#orderSummaryList .order-item').forEach(item => {
-        const name = item.querySelector('strong')?.textContent || '';
-        const priceText = item.querySelector('.item-price')?.textContent || '0';
-        const price = parseFloat(priceText.replace(/[₱,]/g, ''));
-        cartItems.push({ name, price });
-    });
-    formData.append('items', JSON.stringify(cartItems));
-    
-    // Send OTP request with safe error handling
-    fetch('api/send-otp.php', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.text()) // Read as text first to handle raw PHP errors
-    .then(text => {
-        let data;
-        try {
-            data = JSON.parse(text);
-        } catch (e) {
-            console.error("Malformed JSON response:", text);
-            throw new Error("Server returned invalid response. Check console for details.");
-        }
-        
-        if (data.status === 'success') {
-            showOtpModal(email);
-            startOtpCountdown(data.cooldown || 60);
-        } else {
-            showArcError(data.message || 'Failed to send verification code.');
-        }
-    })
-    .catch(error => {
-        console.error('OTP Error:', error);
-        showArcError(error.message || 'Network error. Please try again.');
-    })
-    .finally(() => {
-        // CRITICAL: Always hide loader no matter what happens
-        if (typeof hideArcLoading === 'function') {
-            hideArcLoading();
-        }
-    });
-}
-
-function showOtpModal(email) {
-    // CRITICAL: Hide loading modal first to prevent overlay issues
-    if (typeof hideArcLoading === 'function') {
-        hideArcLoading();
-    }
-    
-    document.getElementById('otpEmailDisplay').textContent = email;
-    document.getElementById('otpInput').value = '';
-    document.getElementById('otpError').style.display = 'none';
-    document.getElementById('verifyOtpBtn').disabled = false;
-    document.getElementById('verifyOtpBtn').textContent = 'Verify Code';
-    
-    const modal = document.getElementById('otpModal');
-    modal.style.display = 'flex';
-    document.body.style.overflow = 'hidden';
-    
-    // Focus on input after modal is visible
-    setTimeout(() => {
-        const otpInput = document.getElementById('otpInput');
-        if (otpInput) otpInput.focus();
-    }, 200);
-}
-
-function closeOtpModal() {
-    const modal = document.getElementById('otpModal');
-    modal.style.display = 'none';
-    document.body.style.overflow = '';
-    
-    // Clear countdown
-    if (otpCountdownInterval) {
-        clearInterval(otpCountdownInterval);
-        otpCountdownInterval = null;
-    }
-}
-
-function startOtpCountdown(seconds) {
-    const btn = document.getElementById('resendOtpBtn');
-    const countdownEl = document.getElementById('otpCountdown');
-    let remaining = seconds;
-    
-    btn.disabled = true;
-    countdownEl.textContent = `(${remaining}s)`;
-    
-    otpCountdownInterval = setInterval(() => {
-        remaining--;
-        countdownEl.textContent = `(${remaining}s)`;
-        
-        if (remaining <= 0) {
-            clearInterval(otpCountdownInterval);
-            otpCountdownInterval = null;
-            btn.disabled = false;
-            countdownEl.textContent = '';
-            btn.innerHTML = 'Resend Code';
-        }
-    }, 1000);
-}
-
-function resendOtp() {
-    if (otpCountdownInterval) {
-        clearInterval(otpCountdownInterval);
-        otpCountdownInterval = null;
-    }
-    sendOtp();
-}
-
-function verifyOtp() {
-    const otpInput = document.getElementById('otpInput');
-    // CRITICAL: Remove ALL non-digit characters (spaces, dashes, etc.)
-    const otpCode = otpInput.value.replace(/\D/g, '');
-    const errorEl = document.getElementById('otpError');
-    const verifyBtn = document.getElementById('verifyOtpBtn');
-    
-    if (otpCode.length !== 6 || !/^\d{6}$/.test(otpCode)) {
-        errorEl.textContent = 'Please enter a valid 6-digit code (numbers only).';
-        errorEl.style.display = 'block';
-        verifyBtn.disabled = false;
-        return;
-    }
-    
-    // Disable button
-    verifyBtn.disabled = true;
-    verifyBtn.innerHTML = '<span class="arc-spinner-inline"></span> Verifying...';
-    
-    const form = document.querySelector('form[data-validate]');
-    const email = form.querySelector('[name="email"]')?.value;
-    
-    const formData = new FormData();
-    formData.append('otp_code', otpCode);
-    formData.append('email', email);
-    
-    fetch('api/verify-otp.php', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.text()) // Read as text first
-    .then(text => {
-        let data;
-        try {
-            data = JSON.parse(text);
-        } catch (e) {
-            console.error("Malformed JSON response:", text);
-            throw new Error("Server returned invalid response.");
-        }
-        
-        if (data.status === 'success') {
-            // OTP verified, submit the booking
-            submitVerifiedBooking();
-        } else {
-            errorEl.textContent = data.message || 'Invalid verification code.';
-            errorEl.style.display = 'block';
-            verifyBtn.disabled = false;
-            verifyBtn.textContent = 'Verify Code';
-            
-            if (data.remaining_attempts !== undefined && data.remaining_attempts <= 0) {
-                // Too many attempts, close modal
-                setTimeout(() => {
-                    closeOtpModal();
-                    showArcError('Too many failed attempts. Please try again.');
-                }, 2000);
-            }
-        }
-    })
-    .catch(error => {
-        console.error('Verification Error:', error);
-        errorEl.textContent = error.message || 'Network error. Please try again.';
-        errorEl.style.display = 'block';
-        verifyBtn.disabled = false;
-        verifyBtn.textContent = 'Verify Code';
-    });
-}
-
-function submitVerifiedBooking() {
-    closeOtpModal();
-    
-    if (typeof showArcLoading === 'function') {
-        showArcLoading('Finalizing your booking...');
-    }
-    
-    fetch('api/submit-booking.php', {
-        method: 'POST'
-    })
-    .then(response => response.text()) // Read as text first
-    .then(text => {
-        let data;
-        try {
-            data = JSON.parse(text);
-        } catch (e) {
-            console.error("Malformed JSON response:", text);
-            throw new Error("Server returned invalid response.");
-        }
-        
-        if (data.status === 'success') {
-            // Show success modal
-            showSuccessModal();
-            // Clear cart UI
-            document.getElementById('orderSummaryList').innerHTML = '';
-            document.getElementById('cartTotalDisplay').textContent = '₱0.00';
-            document.getElementById('cartTotal').textContent = '₱0.00';
-            // Reset form
-            document.querySelector('form[data-validate]').reset();
-        } else {
-            showArcError(data.message || 'Failed to submit booking. Please try again.');
-        }
-    })
-    .catch(error => {
-        console.error('Submission Error:', error);
-        showArcError(error.message || 'Network error. Please try again.');
-    })
-    .finally(() => {
-        // CRITICAL: Always hide loader
-        if (typeof hideArcLoading === 'function') {
-            hideArcLoading();
-        }
-    });
-}
-
-// Handle Enter key in OTP input
-document.getElementById('otpInput')?.addEventListener('keypress', function(e) {
-    if (e.key === 'Enter') {
-        e.preventDefault();
-        verifyOtp();
-    }
-});
-
-// Auto-format OTP input - remove non-digits as user types
-document.getElementById('otpInput')?.addEventListener('input', function(e) {
-    // Remove any non-digit characters immediately
-    this.value = this.value.replace(/\D/g, '');
-    // Limit to 6 digits
-    if (this.value.length > 6) {
-        this.value = this.value.slice(0, 6);
-    }
-});
-</script>
 
 <style>
 /* Order Summary Header */
@@ -1908,6 +1139,807 @@ document.getElementById('otpInput')?.addEventListener('input', function(e) {
     `;
     document.head.appendChild(spinnerStyle);
 })();
+</script>
+
+<script>
+// Override calendar component's selectDate
+function selectDate(dateStr) {
+    document.getElementById('selectedDate').value = dateStr;
+    document.getElementById('selectedDateValue').textContent = new Date(dateStr).toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+    });
+    const display = document.getElementById('selectedDateDisplay');
+    display.style.display = 'block';
+    display.classList.add('has-date');
+}
+
+// Initialize selected date if present
+window.addEventListener('DOMContentLoaded', function() {
+    const selectedDateInput = document.getElementById('selectedDate');
+    if (selectedDateInput && selectedDateInput.value) {
+        document.getElementById('selectedDateValue').textContent = selectedDateInput.value;
+        const display = document.getElementById('selectedDateDisplay');
+        display.style.display = 'block';
+        display.classList.add('has-date');
+    }
+});
+
+// Cart Management on Booking Page
+function updateCartItemQty(itemId, newQty) {
+    if (newQty < 1) return;
+
+    fetch('includes/sidebar.php?action=update_cart_item', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item_id: itemId, quantity: newQty })
+    })
+    .then(r => r.json())
+    .then(result => {
+        if (result.success) {
+            // Update UI without reload
+            updateCartUI(result.cart_items || [], result.cart_total || 0);
+            showToast('Quantity updated');
+        }
+    });
+}
+
+function removeCartItem(itemId) {
+    if (!confirm('Remove this item from your order?')) return;
+
+    fetch('includes/sidebar.php?action=remove_cart_item', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item_id: itemId })
+    })
+    .then(r => r.json())
+    .then(result => {
+        if (result.success) {
+            // Update UI without reload
+            updateCartUI(result.cart_items || [], result.cart_total || 0);
+            showToast('Item removed');
+        }
+    });
+}
+
+// Add Items Sidebar
+function openAddItemsSidebar() {
+    console.log('Opening sidebar...');
+    const sidebar = document.getElementById('addItemsSidebar');
+    const overlay = document.getElementById('addItemsOverlay');
+    console.log('Sidebar element:', sidebar);
+    console.log('Overlay element:', overlay);
+    if (sidebar && overlay) {
+        sidebar.classList.add('is-open');
+        overlay.classList.add('is-visible');
+        document.body.style.overflow = 'hidden';
+        console.log('Sidebar opened');
+    } else {
+        console.error('Sidebar elements not found!');
+    }
+}
+
+function closeAddItemsSidebar() {
+    const sidebar = document.getElementById('addItemsSidebar');
+    const overlay = document.getElementById('addItemsOverlay');
+    if (sidebar && overlay) {
+        sidebar.classList.remove('is-open');
+        overlay.classList.remove('is-visible');
+        document.body.style.overflow = '';
+    }
+}
+
+function quickAddToCart(id, type, name, price) {
+    const data = {
+        product_id: id,
+        product_name: name,
+        product_price: price,
+        quantity: 1,
+        type: type,
+        special_instructions: ''
+    };
+
+    fetch('includes/sidebar.php?action=add_to_cart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    })
+    .then(async r => {
+        const text = await r.text();
+        try {
+            // Try to find JSON in response (in case there's whitespace before/after)
+            const jsonMatch = text.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                return JSON.parse(jsonMatch[0]);
+            }
+            return JSON.parse(text);
+        } catch (e) {
+            console.error('JSON parse error:', e, 'Response:', text);
+            throw new Error('Invalid response from server');
+        }
+    })
+    .then(result => {
+        if (result.success) {
+            // Update UI without reload
+            updateCartUI(result.cart_items || [], result.cart_total || 0);
+            showToast(`Added ${name}`);
+        } else {
+            console.error('Server error:', result.message);
+            if (typeof showArcError === 'function') {
+                showArcError(result.message || 'Failed to add item');
+            } else {
+                alert(result.message || 'Failed to add item');
+            }
+        }
+    })
+    .catch(err => {
+        console.error('Error:', err);
+        if (typeof showArcError === 'function') {
+            showArcError('Failed to add item. Please try again.');
+        } else {
+            alert('Failed to add item. Please try again.');
+        }
+    });
+}
+
+// Package Picker Functions
+let allPackages = [];
+
+function openPackagePicker() {
+    console.log('Opening package picker...');
+    const modal = document.getElementById('packagePickerModal');
+    console.log('Modal element:', modal);
+    if (modal) {
+        modal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+        loadPackages();
+        console.log('Package picker opened');
+    } else {
+        console.error('Package picker modal not found!');
+    }
+}
+
+function closePackagePicker() {
+    const modal = document.getElementById('packagePickerModal');
+    modal.classList.remove('active');
+    document.body.style.overflow = '';
+}
+
+function loadPackages() {
+    const grid = document.getElementById('packagesGrid');
+    grid.innerHTML = '<div class="loading-text">Loading packages...</div>';
+
+    fetch('api/get-all-packages.php')
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                allPackages = data.items || [];
+                renderPackages(allPackages);
+            } else {
+                grid.innerHTML = '<div class="empty-state">Failed to load packages</div>';
+            }
+        })
+        .catch(err => {
+            console.error('Error loading packages:', err);
+            grid.innerHTML = '<div class="empty-state">Error loading packages</div>';
+        });
+}
+
+function renderPackages(packages) {
+    const grid = document.getElementById('packagesGrid');
+
+    if (packages.length === 0) {
+        grid.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-icon">📦</div>
+                <p>No packages available</p>
+            </div>
+        `;
+        return;
+    }
+
+    let html = '';
+    packages.forEach(pkg => {
+        html += `
+            <div class="package-card" onclick="addPackageToCart(${pkg.id}, '${escapeHtml(pkg.name)}', ${pkg.price})">
+                <h4>${escapeHtml(pkg.name)}</h4>
+                <div class="serves">${pkg.description ? escapeHtml(pkg.description.substring(0, 60)) + '...' : 'Package'}</div>
+                <div class="price">₱${parseFloat(pkg.price).toFixed(2)}</div>
+                <button class="add-btn">+ Add</button>
+            </div>
+        `;
+    });
+
+    grid.innerHTML = html;
+}
+
+function addPackageToCart(pkgId, pkgName, pkgPrice) {
+    const data = {
+        product_id: pkgId,
+        product_name: pkgName,
+        product_price: pkgPrice,
+        quantity: 1,
+        type: 'package',
+        special_instructions: ''
+    };
+
+    fetch('includes/sidebar.php?action=add_to_cart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    })
+    .then(async r => {
+        const text = await r.text();
+        try {
+            // Try to find JSON in response (in case there's whitespace before/after)
+            const jsonMatch = text.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                return JSON.parse(jsonMatch[0]);
+            }
+            return JSON.parse(text);
+        } catch (e) {
+            console.error('JSON parse error:', e, 'Response:', text);
+            throw new Error('Invalid response from server');
+        }
+    })
+    .then(result => {
+        if (result.success) {
+            // Update UI without reload
+            updateCartUI(result.cart_items || [], result.cart_total || 0);
+
+            showToast(`Added ${pkgName}`);
+            closePackagePicker();
+        } else {
+            console.error('Server error:', result.message);
+            if (typeof showArcError === 'function') {
+                showArcError(result.message || 'Failed to add package');
+            } else {
+                alert(result.message || 'Failed to add package');
+            }
+        }
+    })
+    .catch(err => {
+        console.error('Error:', err);
+        if (typeof showArcError === 'function') {
+            showArcError('Failed to add package. Please try again.');
+        } else {
+            alert('Failed to add package. Please try again.');
+        }
+    });
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Update cart UI dynamically without page reload
+function updateCartUI(cartItems, cartTotal) {
+    const container = document.getElementById('orderSummaryList');
+    const totalDisplay = document.getElementById('cartTotalDisplay');
+
+    // Check if elements exist (sidebar might not be loaded yet)
+    if (!container) {
+        console.warn('updateCartUI: orderSummaryList element not found');
+        return;
+    }
+
+    // Safely parse cart data if it's a string
+    let cartItemsArray = [];
+    try {
+        if (typeof cartItems === 'string') {
+            cartItemsArray = JSON.parse(cartItems);
+            if (typeof cartItemsArray === 'string') {
+                cartItemsArray = JSON.parse(cartItemsArray); // Parse a second time if double-serialized
+            }
+        } else {
+            cartItemsArray = cartItems;
+        }
+    } catch (e) {
+        console.error("Failed to parse cart items:", e);
+        cartItemsArray = [];
+    }
+
+    if (cartItemsArray.length === 0) {
+        container.innerHTML = `
+            <div class="empty-cart-message" style="text-align: center; padding: 2rem; color: #666;">
+                <p>Your cart is empty. Add items from the menu to get started.</p>
+                <a href="menu.php" class="button" style="margin-top: 1rem;">Browse Menu</a>
+            </div>
+        `;
+        if (totalDisplay) {
+            totalDisplay.textContent = '₱0.00';
+        }
+        return;
+    }
+
+    let html = '';
+    cartItemsArray.forEach(item => {
+        const isPackage = item.type === 'package';
+        const icon = isPackage ? '📦' : '🍽️';
+        const badge = isPackage ? '<span style="background: #8a2927; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.65rem; margin-left: 0.5rem;">PACKAGE</span>' : '';
+
+        html += `
+            <div class="order-item editable ${isPackage ? 'package-item' : ''}" data-item-id="${item.id}">
+                <div class="order-item-info">
+                    <div style="display: flex; align-items: center;">
+                        <span style="margin-right: 0.5rem;">${icon}</span>
+                        <strong>${escapeHtml(item.product_name)}</strong>
+                        ${badge}
+                    </div>
+                    ${item.notes ? `<small>${escapeHtml(item.notes)}</small>` : ''}
+                </div>
+                <div class="order-item-controls">
+                    <button type="button" class="qty-btn" onclick="updateCartItemQty(${item.id}, ${item.quantity - 1})" ${item.quantity <= 1 ? 'disabled' : ''}>−</button>
+                    <span class="qty-display">${item.quantity}</span>
+                    <button type="button" class="qty-btn" onclick="updateCartItemQty(${item.id}, ${item.quantity + 1})" ${item.quantity >= 99 ? 'disabled' : ''}>+</button>
+                </div>
+                <div class="order-item-price">₱${parseFloat(item.product_price * item.quantity).toFixed(2)}</div>
+                <button type="button" class="remove-btn-sm" onclick="removeCartItem(${item.id})" title="Remove">×</button>
+            </div>
+        `;
+    });
+    container.innerHTML = html;
+
+    // Update total
+    if (totalDisplay) {
+        totalDisplay.textContent = '₱' + parseFloat(cartTotal).toFixed(2);
+    }
+}
+
+// Escape HTML helper
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Toast notification
+function showToast(message) {
+    const existing = document.querySelector('.toast-notification');
+    if (existing) existing.remove();
+
+    const toast = document.createElement('div');
+    toast.className = 'toast-notification';
+    toast.innerHTML = `<span style="font-size: 1.1rem;">✓</span> ${escapeHtml(message)}`;
+    document.body.appendChild(toast);
+
+    setTimeout(() => toast.classList.add('fade-out'), 2000);
+    setTimeout(() => toast.remove(), 2300);
+}
+
+// Order Summary Modal Functions
+function showOrderSummary() {
+    // Get form values
+    const fullName = document.getElementById('full_name').value;
+    const email = document.getElementById('email').value;
+    const phone = document.getElementById('phone').value;
+    const eventType = document.getElementById('event_type').value;
+    const guestCount = document.getElementById('guest_count').value;
+    const eventDate = document.getElementById('selectedDate').value;
+    const message = document.getElementById('message').value;
+
+    const eventTime = document.getElementById('event_time').value;
+    const eventLocation = document.getElementById('event_location').value;
+
+    // Validate required fields
+    if (!fullName || !email || !phone || !eventDate || !eventTime || !eventLocation) {
+        if (typeof showArcError === 'function') {
+            showArcError('Please fill in all required fields: Full Name, Email, Phone, Event Date, Event Time, and Event Location.');
+        } else {
+            alert('Please fill in all required fields: Full Name, Email, Phone, Event Date, Event Time, and Event Location.');
+        }
+        return;
+    }
+
+    // Check for items in the DOM (Order Summary) instead of AJAX call
+    const orderItems = document.querySelectorAll('#orderSummaryList .order-item');
+    if (orderItems.length === 0) {
+        if (typeof showArcError === 'function') {
+            showArcError('Your cart is empty. Please add items before submitting.');
+        } else {
+            alert('Your cart is empty. Please add items before submitting.');
+        }
+        return;
+    }
+
+    // Build summary HTML from DOM items
+    let itemsHtml = '';
+    let total = 0;
+    orderItems.forEach(item => {
+        const nameEl = item.querySelector('.order-item-info strong');
+        const priceEl = item.querySelector('.order-item-price');
+        const qtyEl = item.querySelector('.qty-display');
+        const isPackage = item.classList.contains('package-item');
+
+        const name = nameEl ? nameEl.textContent : 'Unknown Item';
+        const priceText = priceEl ? priceEl.textContent : '₱0.00';
+        const qty = qtyEl ? parseInt(qtyEl.textContent) : 1;
+        const price = parseFloat(priceText.replace(/[^0-9.]/g, ''));
+        const subtotal = price;
+        total += subtotal;
+        const icon = isPackage ? '📦' : '🍽️';
+
+        itemsHtml += `
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: #f9f9f9; border-radius: 8px; margin-bottom: 0.5rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <span>${icon}</span>
+                    <div>
+                        <div style="font-weight: 600; color: #4a1414;">${name}</div>
+                        <small style="color: #666;">Qty: ${qty} × ₱${(price/qty).toFixed(2)}</small>
+                    </div>
+                </div>
+                <div style="font-weight: 600; color: #8a2927;">₱${subtotal.toFixed(2)}</div>
+            </div>
+        `;
+    });
+
+    // Format date
+    const formattedDate = eventDate ? new Date(eventDate).toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+    }) : 'Not selected';
+
+    // Build complete summary
+    const summaryHtml = `
+        <div style="margin-bottom: 1.5rem;">
+            <h4 style="color: #8a2927; margin: 0 0 1rem 0; font-size: 1.1rem;">📞 Customer Information</h4>
+            <div style="background: #fafafa; padding: 1rem; border-radius: 8px;">
+                <p style="margin: 0.25rem 0;"><strong>Name:</strong> ${fullName}</p>
+                <p style="margin: 0.25rem 0;"><strong>Email:</strong> ${email}</p>
+                <p style="margin: 0.25rem 0;"><strong>Phone:</strong> ${phone}</p>
+            </div>
+        </div>
+
+        <div style="margin-bottom: 1.5rem;">
+            <h4 style="color: #8a2927; margin: 0 0 1rem 0; font-size: 1.1rem;">📅 Event Details</h4>
+            <div style="background: #fafafa; padding: 1rem; border-radius: 8px;">
+                <p style="margin: 0.25rem 0;"><strong>Date:</strong> ${formattedDate}</p>
+                <p style="margin: 0.25rem 0;"><strong>Time:</strong> ${eventTime}</p>
+                <p style="margin: 0.25rem 0;"><strong>Location:</strong> ${eventLocation}</p>
+                <p style="margin: 0.25rem 0;"><strong>Type:</strong> ${eventType || 'Not specified'}</p>
+                <p style="margin: 0.25rem 0;"><strong>Guests:</strong> ${guestCount} pax</p>
+            </div>
+        </div>
+
+        <div style="margin-bottom: 1.5rem;">
+            <h4 style="color: #8a2927; margin: 0 0 1rem 0; font-size: 1.1rem;">🍽️ Order Items</h4>
+            ${itemsHtml}
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: #8a2927; color: white; border-radius: 8px; margin-top: 0.5rem;">
+                <strong>Total:</strong>
+                <strong style="font-size: 1.25rem;">₱${total.toFixed(2)}</strong>
+                    </div>
+                </div>
+
+                ${message ? `
+                <div style="margin-bottom: 1rem;">
+                    <h4 style="color: #8a2927; margin: 0 0 1rem 0; font-size: 1.1rem;">📝 Special Requests</h4>
+                    <div style="background: #fafafa; padding: 1rem; border-radius: 8px; color: #555;">
+                        ${message}
+                    </div>
+                </div>
+                ` : ''}
+            `;
+
+            document.getElementById('summaryContent').innerHTML = summaryHtml;
+
+            // Show modal
+            document.getElementById('orderSummaryOverlay').style.display = 'block';
+            document.getElementById('orderSummaryModal').style.display = 'block';
+            document.body.style.overflow = 'hidden';
+}
+
+
+function closeOrderSummary() {
+    document.getElementById('orderSummaryOverlay').style.display = 'none';
+    document.getElementById('orderSummaryModal').style.display = 'none';
+    document.body.style.overflow = '';
+}
+
+// Global variables for OTP flow
+let otpCountdownInterval = null;
+let currentFormData = null;
+
+function submitOrder() {
+    // Get form data first
+    const form = document.querySelector('form[data-validate]');
+    if (!form) {
+        showArcError('Form not found. Please refresh the page.');
+        return;
+    }
+
+    // Validate form
+    const email = form.querySelector('[name="email"]')?.value;
+    if (!email || !email.includes('@')) {
+        showArcError('Please enter a valid email address.');
+        return;
+    }
+
+    // Close order summary modal
+    closeOrderSummary();
+
+    // Collect form data
+    currentFormData = new FormData(form);
+
+    // Show OTP modal and send code
+    sendOtp();
+}
+
+function sendOtp() {
+    const form = document.querySelector('form[data-validate]');
+    const email = form.querySelector('[name="email"]')?.value;
+
+    if (!email) {
+        showArcError('Email address is required.');
+        return;
+    }
+
+    if (typeof showArcLoading === 'function') showArcLoading('Sending verification code...');
+
+    const formData = new FormData();
+    formData.append('email', email);
+    formData.append('customer_name', form.querySelector('[name="full_name"]')?.value || '');
+    formData.append('customer_phone', form.querySelector('[name="phone"]')?.value || '');
+    formData.append('event_type', form.querySelector('[name="event_type"]')?.value || '');
+    formData.append('guest_count', form.querySelector('[name="guest_count"]')?.value || '');
+    formData.append('event_date', form.querySelector('[name="event_date"]')?.value || '');
+    formData.append('event_time', form.querySelector('[name="event_time"]')?.value || '');
+    formData.append('event_location', form.querySelector('[name="event_location"]')?.value || '');
+    formData.append('special_requests', form.querySelector('[name="message"]')?.value || '');
+    formData.append('total_amount', document.getElementById('cartTotalDisplay')?.textContent?.replace(/[^\d.-]/g, '') || '0');
+
+    // FIX: Get cart items properly with the correct class names
+    const cartItems = [];
+    document.querySelectorAll('#orderSummaryList .order-item').forEach(item => {
+        const name = item.querySelector('.order-item-info strong')?.textContent || '';
+        const priceText = item.querySelector('.order-item-price')?.textContent || '0';
+        const qtyText = item.querySelector('.qty-display')?.textContent || '1';
+
+        // Clean price and calculate unit price
+        const totalPrice = parseFloat(priceText.replace(/[^\d.-]/g, '')) || 0;
+        const quantity = parseInt(qtyText) || 1;
+        const unitPrice = totalPrice / quantity;
+
+        cartItems.push({ name: name, price: unitPrice, quantity: quantity });
+    });
+    formData.append('items', JSON.stringify(cartItems));
+
+    fetch('api/send-otp.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.text())
+    .then(text => {
+        let data;
+        try {
+            data = JSON.parse(text);
+        } catch (e) {
+            console.error("Server crashed. Raw output:", text);
+            throw new Error("Server error. Check network console.");
+        }
+
+        if (data.status === 'success') {
+            showOtpModal(email);
+            startOtpCountdown(data.cooldown || 60);
+        } else {
+            showArcError(data.message || 'Failed to send verification code.');
+        }
+    })
+    .catch(error => {
+        console.error('OTP Error:', error);
+        showArcError(error.message || 'Network error.');
+    })
+    .finally(() => {
+        if (typeof hideArcLoading === 'function') hideArcLoading();
+    });
+}
+
+function showOtpModal(email) {
+    // CRITICAL: Hide loading modal first to prevent overlay issues
+    if (typeof hideArcLoading === 'function') {
+        hideArcLoading();
+    }
+
+    document.getElementById('otpEmailDisplay').textContent = email;
+    document.getElementById('otpInput').value = '';
+    document.getElementById('otpError').style.display = 'none';
+    document.getElementById('verifyOtpBtn').disabled = false;
+    document.getElementById('verifyOtpBtn').textContent = 'Verify Code';
+
+    const modal = document.getElementById('otpModal');
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+
+    // Focus on input after modal is visible
+    setTimeout(() => {
+        const otpInput = document.getElementById('otpInput');
+        if (otpInput) otpInput.focus();
+    }, 200);
+}
+
+function closeOtpModal() {
+    const modal = document.getElementById('otpModal');
+    modal.style.display = 'none';
+    document.body.style.overflow = '';
+
+    // Clear countdown
+    if (otpCountdownInterval) {
+        clearInterval(otpCountdownInterval);
+        otpCountdownInterval = null;
+    }
+}
+
+function startOtpCountdown(seconds) {
+    const btn = document.getElementById('resendOtpBtn');
+    let countdownEl = document.getElementById('otpCountdown');
+
+    // FIX: Guard clause to prevent UI crash
+    if (!btn) return;
+
+    // FIX: Recreate the countdown span if it was accidentally destroyed previously
+    if (!countdownEl) {
+        btn.innerHTML = 'Resend Code <span id="otpCountdown"></span>';
+        countdownEl = document.getElementById('otpCountdown');
+    }
+
+    let remaining = seconds;
+    btn.disabled = true;
+    countdownEl.textContent = `(${remaining}s)`;
+
+    otpCountdownInterval = setInterval(() => {
+        remaining--;
+        if (countdownEl) countdownEl.textContent = `(${remaining}s)`;
+
+        if (remaining <= 0) {
+            clearInterval(otpCountdownInterval);
+            otpCountdownInterval = null;
+            btn.disabled = false;
+            // FIX: Keep the span alive when resetting text!
+            btn.innerHTML = 'Resend Code <span id="otpCountdown"></span>';
+        }
+    }, 1000);
+}
+
+function resendOtp() {
+    if (otpCountdownInterval) {
+        clearInterval(otpCountdownInterval);
+        otpCountdownInterval = null;
+    }
+    sendOtp();
+}
+
+function verifyOtp() {
+    const otpInput = document.getElementById('otpInput');
+    // CRITICAL: Remove ALL non-digit characters (spaces, dashes, etc.)
+    const otpCode = otpInput.value.replace(/\D/g, '');
+    const errorEl = document.getElementById('otpError');
+    const verifyBtn = document.getElementById('verifyOtpBtn');
+
+    if (otpCode.length !== 6 || !/^\d{6}$/.test(otpCode)) {
+        errorEl.textContent = 'Please enter a valid 6-digit code (numbers only).';
+        errorEl.style.display = 'block';
+        verifyBtn.disabled = false;
+        return;
+    }
+
+    // Disable button
+    verifyBtn.disabled = true;
+    verifyBtn.innerHTML = '<span class="arc-spinner-inline"></span> Verifying...';
+
+    const form = document.querySelector('form[data-validate]');
+    const email = form.querySelector('[name="email"]')?.value;
+
+    const formData = new FormData();
+    formData.append('otp_code', otpCode);
+    formData.append('email', email);
+
+    fetch('api/verify-otp.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.text()) // Read as text first
+    .then(text => {
+        let data;
+        try {
+            data = JSON.parse(text);
+        } catch (e) {
+            console.error("Malformed JSON response:", text);
+            throw new Error("Server returned invalid response.");
+        }
+
+        if (data.status === 'success') {
+            // OTP verified, submit the booking
+            submitVerifiedBooking();
+        } else {
+            errorEl.textContent = data.message || 'Invalid verification code.';
+            errorEl.style.display = 'block';
+            verifyBtn.disabled = false;
+            verifyBtn.textContent = 'Verify Code';
+
+            if (data.remaining_attempts !== undefined && data.remaining_attempts <= 0) {
+                // Too many attempts, close modal
+                setTimeout(() => {
+                    closeOtpModal();
+                    showArcError('Too many failed attempts. Please try again.');
+                }, 2000);
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Verification Error:', error);
+        errorEl.textContent = error.message || 'Network error. Please try again.';
+        errorEl.style.display = 'block';
+        verifyBtn.disabled = false;
+        verifyBtn.textContent = 'Verify Code';
+    });
+}
+
+function submitVerifiedBooking() {
+    closeOtpModal();
+
+    if (typeof showArcLoading === 'function') {
+        showArcLoading('Finalizing your booking...');
+    }
+
+    fetch('api/submit-booking.php', {
+        method: 'POST'
+    })
+    .then(response => response.text()) // Read as text first
+    .then(text => {
+        let data;
+        try {
+            data = JSON.parse(text);
+        } catch (e) {
+            console.error("Malformed JSON response:", text);
+            throw new Error("Server returned invalid response.");
+        }
+
+        if (data.status === 'success') {
+            // Show success modal
+            showSuccessModal();
+            // Clear cart UI
+            document.getElementById('orderSummaryList').innerHTML = '';
+            document.getElementById('cartTotalDisplay').textContent = '₱0.00';
+            // Reset form
+            document.querySelector('form[data-validate]').reset();
+        } else {
+            showArcError(data.message || 'Failed to submit booking. Please try again.');
+        }
+    })
+    .catch(error => {
+        console.error('Submission Error:', error);
+        showArcError(error.message || 'Network error. Please try again.');
+    })
+    .finally(() => {
+        // CRITICAL: Always hide loader
+        if (typeof hideArcLoading === 'function') {
+            hideArcLoading();
+        }
+    });
+}
+
+// Handle Enter key in OTP input
+document.getElementById('otpInput')?.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        verifyOtp();
+    }
+});
+
+// Auto-format OTP input - remove non-digits as user types
+document.getElementById('otpInput')?.addEventListener('input', function(e) {
+    // Remove any non-digit characters immediately
+    this.value = this.value.replace(/\D/g, '');
+    // Limit to 6 digits
+    if (this.value.length > 6) {
+        this.value = this.value.slice(0, 6);
+    }
+});
 </script>
 
 <!-- Centered Success Modal Overlay -->
