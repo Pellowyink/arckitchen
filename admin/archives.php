@@ -15,12 +15,45 @@ $archived_bookings = array_filter($all_archived_bookings, function($booking) {
     return strtolower($booking['status']) !== 'completed';
 });
 
+// Calculate comprehensive sales stats from sales report
+$totalRevenue = 0;
+$totalDownPayments = 0;
+$totalFullPayments = 0;
+$totalBalance = 0;
+$totalCollected = 0;
+$fullyPaidCount = 0;
+$partialPaidCount = 0;
+$pendingPaymentCount = 0;
+
+foreach ($sales_report['bookings'] ?? [] as $booking) {
+    $total = (float)($booking['total_amount'] ?? 0);
+    $downPayment = (float)($booking['down_payment'] ?? 0);
+    $fullPayment = (float)($booking['full_payment'] ?? 0);
+    $paid = $downPayment + $fullPayment;
+    $balance = $total - $paid;
+    
+    $totalRevenue += $total;
+    $totalDownPayments += $downPayment;
+    $totalFullPayments += $fullPayment;
+    $totalBalance += max(0, $balance);
+    $totalCollected += $paid;
+    
+    $paymentStatus = $booking['payment_status'] ?? 'pending';
+    if ($paymentStatus === 'fully_paid') {
+        $fullyPaidCount++;
+    } elseif ($paymentStatus === 'partial') {
+        $partialPaidCount++;
+    } else {
+        $pendingPaymentCount++;
+    }
+}
+
 ?><!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Archives - ARC Kitchen Admin</title>
+    <title>Sales Report - ARC Kitchen Admin</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=League+Spartan:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -147,61 +180,119 @@ $archived_bookings = array_filter($all_archived_bookings, function($booking) {
         <!-- Main Content -->
         <main class="admin-main">
             <div class="admin-header">
-                <h1 class="admin-title">📁 Archives</h1>
+                <h1 class="admin-title">💰 Sales Report</h1>
             </div>
 
-            <!-- Sales Report Section -->
+            <!-- Sales Report Panel -->
             <div class="admin-card">
-                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 1rem;">
                     <h2>💰 Sales Report</h2>
-                    <button class="btn-admin btn-primary-admin no-print" onclick="printSalesReport()">
-                        🖨️ Print Report
-                    </button>
+                    <div class="no-print" style="display: flex; gap: 0.5rem;">
+                        <button class="btn-admin btn-primary-admin" onclick="printFullReport()">
+                            🖨️ Print Full Report
+                        </button>
+                    </div>
                 </div>
-                <div class="sales-summary">
-                    <h3>Completed Bookings Summary</h3>
-                    <div class="summary-stats">
-                        <div class="stat-box">
-                            <div class="number"><?php echo $sales_report['count'] ?? 0; ?></div>
-                            <div class="label">Total Events</div>
+
+                <!-- Comprehensive Sales Stats -->
+                <div class="stats-grid" style="margin-bottom: 2rem;">
+                    <div class="stat-card">
+                        <div class="stat-icon">💰</div>
+                        <div class="stat-label">Total Revenue</div>
+                        <div class="stat-value">₱<?php echo number_format($totalRevenue, 2); ?></div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">💵</div>
+                        <div class="stat-label">Total Collected</div>
+                        <div class="stat-value" style="color: #4CAF50;">₱<?php echo number_format($totalCollected, 2); ?></div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">⏳</div>
+                        <div class="stat-label">Pending Balance</div>
+                        <div class="stat-value" style="color: #f44336;">₱<?php echo number_format($totalBalance, 2); ?></div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">✅</div>
+                        <div class="stat-label">Fully Paid</div>
+                        <div class="stat-value" style="color: #4CAF50;"><?php echo $fullyPaidCount; ?></div>
+                    </div>
+                </div>
+
+                <!-- Payment Breakdown -->
+                <div style="background: #f9f7f4; padding: 1.5rem; border-radius: 12px; margin-bottom: 2rem;">
+                    <h3 style="margin-top: 0; color: #4a1414; margin-bottom: 1rem;">💳 Payment Breakdown</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
+                        <div style="text-align: center; background: white; padding: 1rem; border-radius: 8px;">
+                            <div style="color: #888; font-size: 0.85rem; margin-bottom: 0.5rem;">Down Payments</div>
+                            <div style="font-size: 1.2rem; font-weight: 700; color: #4a1414;">₱<?php echo number_format($totalDownPayments, 2); ?></div>
                         </div>
-                        <div class="stat-box">
-                            <div class="number">₱<?php echo number_format($sales_report['total_sales'] ?? 0, 2); ?></div>
-                            <div class="label">Total Sales</div>
+                        <div style="text-align: center; background: white; padding: 1rem; border-radius: 8px;">
+                            <div style="color: #888; font-size: 0.85rem; margin-bottom: 0.5rem;">Full Payments</div>
+                            <div style="font-size: 1.2rem; font-weight: 700; color: #4a1414;">₱<?php echo number_format($totalFullPayments, 2); ?></div>
                         </div>
-                        <div class="stat-box">
-                            <div class="number"><?php echo count($archived_bookings); ?></div>
-                            <div class="label">Archived Bookings</div>
+                        <div style="text-align: center; background: white; padding: 1rem; border-radius: 8px;">
+                            <div style="color: #888; font-size: 0.85rem; margin-bottom: 0.5rem;">Partially Paid</div>
+                            <div style="font-size: 1.2rem; font-weight: 700; color: #FF9800;"><?php echo $partialPaidCount; ?> bookings</div>
+                        </div>
+                        <div style="text-align: center; background: white; padding: 1rem; border-radius: 8px;">
+                            <div style="color: #888; font-size: 0.85rem; margin-bottom: 0.5rem;">Payment Pending</div>
+                            <div style="font-size: 1.2rem; font-weight: 700; color: #9e9e9e;"><?php echo $pendingPaymentCount; ?> bookings</div>
                         </div>
                     </div>
                 </div>
+
+                <!-- Sales Table -->
+                <h3 style="color: #4a1414; margin-bottom: 1rem;">📋 Completed Bookings (Sales)</h3>
                 <?php if (!empty($sales_report['bookings'])): ?>
-                    <table class="admin-table" id="salesTable">
-                        <thead>
-                            <tr>
-                                <th>Customer</th>
-                                <th>Email</th>
-                                <th>Event Date</th>
-                                <th>Amount</th>
-                                <th>Archived Date</th>
-                                <th class="no-print">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($sales_report['bookings'] as $booking): ?>
-                            <tr id="booking-<?php echo $booking['id']; ?>">
-                                <td><strong><?php echo escape($booking['customer_name']); ?></strong></td>
-                                <td><?php echo escape($booking['customer_email']); ?></td>
-                                <td><?php echo date('M d, Y', strtotime($booking['event_date'])); ?></td>
-                                <td><strong>₱<?php echo number_format((float)$booking['total_amount'], 2); ?></strong></td>
-                                <td><?php echo date('M d, Y', strtotime($booking['archived_at'])); ?></td>
-                                <td class="no-print action-buttons">
-                                    <button class="btn-admin btn-secondary-admin btn-small" onclick="showReceipt('booking', <?php echo (int)$booking['id']; ?>)">🧾 Receipt</button>
-                                </td>
-                            </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
+                    <div class="table-responsive" id="salesTableContainer">
+                        <table class="admin-table" id="salesTable">
+                            <thead>
+                                <tr>
+                                    <th>Customer</th>
+                                    <th>Event Date</th>
+                                    <th>Total Cost</th>
+                                    <th>Down Payment</th>
+                                    <th>Full Payment</th>
+                                    <th>Balance</th>
+                                    <th>Payment Status</th>
+                                    <th class="no-print">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($sales_report['bookings'] as $booking): 
+                                    $total = (float)($booking['total_amount'] ?? 0);
+                                    $downPayment = (float)($booking['down_payment'] ?? 0);
+                                    $fullPayment = (float)($booking['full_payment'] ?? 0);
+                                    $paid = $downPayment + $fullPayment;
+                                    $balance = max(0, $total - $paid);
+                                    $paymentStatus = $booking['payment_status'] ?? 'pending';
+                                ?>
+                                <tr id="sales-booking-<?php echo $booking['id']; ?>">
+                                    <td><strong><?php echo escape($booking['customer_name']); ?></strong></td>
+                                    <td><?php echo date('M d, Y', strtotime($booking['event_date'])); ?></td>
+                                    <td>₱<?php echo number_format($total, 2); ?></td>
+                                    <td style="color: <?php echo $downPayment > 0 ? "#4CAF50" : "#999"; ?>"><?php echo $downPayment > 0 ? '₱' . number_format($downPayment, 2) : '-'; ?></td>
+                                    <td style="color: <?php echo $fullPayment > 0 ? "#4CAF50" : "#999"; ?>"><?php echo $fullPayment > 0 ? '₱' . number_format($fullPayment, 2) : '-'; ?></td>
+                                    <td style="color: <?php echo $balance > 0 ? "#f44336" : "#4CAF50"; ?>; font-weight: <?php echo $balance > 0 ? "600" : "400"; ?>">
+                                        <?php echo $balance > 0 ? '₱' . number_format($balance, 2) : 'PAID'; ?>
+                                    </td>
+                                    <td>
+                                        <?php if ($paymentStatus === 'fully_paid'): ?>
+                                            <span class="badge" style="background: #d4edda; color: #155724;">✅ Fully Paid</span>
+                                        <?php elseif ($paymentStatus === 'partial'): ?>
+                                            <span class="badge" style="background: #fff3cd; color: #856404;">💳 Partial</span>
+                                        <?php else: ?>
+                                            <span class="badge" style="background: #f8d7da; color: #721c24;">⏳ Pending</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td class="no-print action-buttons">
+                                        <button class="btn-admin btn-secondary-admin btn-small" onclick="showReceipt('booking', <?php echo (int)$booking['id']; ?>)" title="View Receipt">🧾</button>
+                                    </td>
+                                </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
                 <?php else: ?>
                     <div class="empty-state">
                         <p>No completed bookings in archives yet.</p>
@@ -456,6 +547,53 @@ $archived_bookings = array_filter($all_archived_bookings, function($booking) {
                     <p>Generated: ${new Date().toLocaleString()}</p>
                     <hr>
                     ${section.innerHTML}
+                </body>
+                </html>
+            `);
+            printWindow.document.close();
+            printWindow.print();
+        }
+
+        function printFullReport() {
+            const printWindow = window.open('', '_blank');
+            const salesSection = document.getElementById('salesTableContainer');
+            const archivedBookings = document.getElementById('archivedBookings');
+            const archivedInquiries = document.getElementById('archivedInquiries');
+            
+            let content = `<h2>💰 Sales Report</h2>`;
+            content += salesSection ? salesSection.innerHTML : '<p>No sales data available</p>';
+            
+            content += `<br><hr><h2>📦 Archived Bookings</h2>`;
+            content += archivedBookings ? archivedBookings.innerHTML : '<p>No archived bookings</p>';
+            
+            content += `<br><hr><h2>📨 Archived Inquiries</h2>`;
+            content += archivedInquiries ? archivedInquiries.innerHTML : '<p>No archived inquiries</p>';
+            
+            printWindow.document.write(`
+                <html>
+                <head>
+                    <title>Sales Report - ARC Kitchen</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; margin: 20px; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+                        th { background: #f5f5f5; font-weight: bold; }
+                        h1 { color: #4a1414; }
+                        h2 { color: #8a2927; margin-top: 2rem; }
+                        hr { border: 1px solid #ddd; margin: 2rem 0; }
+                        .badge { padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; }
+                        .badge-completed { background: #d4edda; color: #155724; }
+                        .badge-cancelled { background: #f8d7da; color: #721c24; }
+                        .badge-rejected { background: #f8d7da; color: #721c24; }
+                        .no-print { display: none !important; }
+                        .action-buttons { display: none !important; }
+                    </style>
+                </head>
+                <body>
+                    <h1>📁 ARC Kitchen - Sales Report</h1>
+                    <p>Generated: ${new Date().toLocaleString()}</p>
+                    <hr>
+                    ${content}
                 </body>
                 </html>
             `);

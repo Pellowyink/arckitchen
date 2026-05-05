@@ -114,6 +114,7 @@ $recent_messages = getContactMessages();
                                 <tr>
                                     <th>Customer</th>
                                     <th>Email</th>
+                                    <th>Phone</th>
                                     <th>Event Date</th>
                                     <th>Guests</th>
                                     <th>Submitted</th>
@@ -125,13 +126,13 @@ $recent_messages = getContactMessages();
                                 <tr>
                                     <td><strong><?php echo escape($inquiry['full_name']); ?></strong></td>
                                     <td><?php echo escape($inquiry['email']); ?></td>
+                                    <td><?php echo escape($inquiry['phone']); ?></td>
                                     <td><?php echo date('M d, Y', strtotime($inquiry['event_date'])); ?></td>
                                     <td><?php echo (int)$inquiry['guest_count']; ?> pax</td>
                                     <td><?php echo date('M d', strtotime($inquiry['created_at'])); ?></td>
                                     <td>
                                         <div class="action-buttons">
                                             <a href="inquiries.php#inquiry-<?php echo (int)$inquiry['id']; ?>" class="btn-admin btn-secondary-admin btn-small">View</a>
-                                            <a href="inquiries.php?action=approve&id=<?php echo (int)$inquiry['id']; ?>" class="btn-admin btn-primary-admin btn-small">Approve</a>
                                         </div>
                                     </td>
                                 </tr>
