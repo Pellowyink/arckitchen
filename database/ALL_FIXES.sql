@@ -113,3 +113,29 @@ FROM bookings
 WHERE payment_status = 'fully_paid' 
 ORDER BY id DESC 
 LIMIT 5;
+
+-- ============================================================================
+-- PART 5: SCHEMA FAIL-SAFE FIXES (Prevent "Field doesn't have a default value" errors)
+-- ============================================================================
+
+-- Step 5.1: Make bookings table columns nullable with safe defaults
+-- This prevents database crashes when PHP doesn't send all values
+ALTER TABLE `bookings` 
+MODIFY COLUMN `event_date` DATE NULL DEFAULT NULL,
+MODIFY COLUMN `event_time` VARCHAR(50) NULL DEFAULT NULL,
+MODIFY COLUMN `venue_location` TEXT NULL DEFAULT NULL,
+MODIFY COLUMN `event_location` TEXT NULL DEFAULT NULL,
+MODIFY COLUMN `total_amount` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+MODIFY COLUMN `down_payment` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+MODIFY COLUMN `full_payment` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+MODIFY COLUMN `amount_paid` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+MODIFY COLUMN `balance` DECIMAL(10,2) NOT NULL DEFAULT 0.00;
+
+-- Step 5.2: Make inquiries table columns nullable with safe defaults
+ALTER TABLE `inquiries` 
+MODIFY COLUMN `event_date` DATE NULL DEFAULT NULL,
+MODIFY COLUMN `event_time` TIME NULL DEFAULT NULL,
+MODIFY COLUMN `event_location` TEXT NULL DEFAULT NULL,
+MODIFY COLUMN `guest_count` INT NULL DEFAULT 0,
+MODIFY COLUMN `package_interest` TEXT NULL DEFAULT NULL,
+MODIFY COLUMN `message` TEXT NULL DEFAULT NULL;

@@ -390,6 +390,64 @@ require_once __DIR__ . '/includes/sidebar.php';
     </div>
 </section>
 
+<!-- OTP Verification Modal -->
+<div id="otpModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 11000; justify-content: center; align-items: center;">
+    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index: 11001;" onclick="closeOtpModal()"></div>
+    <div style="position: relative; background: #ffffff; border-radius: 25px; max-width: 450px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(74, 20, 20, 0.3); z-index: 11002;">
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #4a1414 0%, #6c1d12 100%); padding: 1.5rem; text-align: center; border-radius: 25px 25px 0 0;">
+            <h3 style="color: white; margin: 0; font-family: 'League Spartan', sans-serif; font-size: 1.5rem;">
+                <span style="margin-right: 0.5rem;">🔐</span> Email Verification
+            </h3>
+        </div>
+        
+        <!-- Body -->
+        <div style="padding: 2rem; text-align: center;">
+            <p style="color: #5c4a42; font-size: 1rem; margin-bottom: 1.5rem; line-height: 1.6;">
+                We've sent a 6-digit verification code to<br>
+                <strong id="otpEmailDisplay" style="color: #4a1414;"></strong>
+            </p>
+            
+            <!-- OTP Input -->
+            <div style="margin: 2rem 0;">
+                <input type="text" id="otpInput" maxlength="6" placeholder="000000" 
+                    style="width: 100%; padding: 1rem; font-size: 2rem; text-align: center; letter-spacing: 0.5rem; 
+                           border: 2px solid #ddd; border-radius: 15px; font-family: 'League Spartan', sans-serif;
+                           color: #4a1414; font-weight: 700; outline: none; transition: border-color 0.3s;"
+                    onfocus="this.style.borderColor='#8a2927'" 
+                    onblur="this.style.borderColor='#ddd'"
+                    oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+            </div>
+            
+            <!-- Error Message -->
+            <div id="otpError" style="display: none; color: #f44336; font-size: 0.9rem; margin-bottom: 1rem; padding: 0.75rem; background: #ffebee; border-radius: 8px;"></div>
+            
+            <!-- Verify Button -->
+            <button type="button" id="verifyOtpBtn" onclick="verifyOtp()" 
+                style="width: 100%; padding: 1rem; background: linear-gradient(135deg, #8a2927 0%, #6c1d12 100%); 
+                       color: white; border: none; border-radius: 10px; font-size: 1.1rem; font-weight: 600; 
+                       cursor: pointer; transition: all 0.3s; font-family: 'League Spartan', sans-serif;">
+                Verify Code
+            </button>
+            
+            <!-- Resend Code -->
+            <div style="margin-top: 1.5rem;">
+                <button type="button" id="resendOtpBtn" onclick="resendOtp()" 
+                    style="background: none; border: none; color: #8a2927; font-size: 0.9rem; cursor: pointer; 
+                           text-decoration: underline; font-weight: 500;" disabled>
+                    Resend Code <span id="otpCountdown">(60s)</span>
+                </button>
+            </div>
+            
+            <!-- Cancel -->
+            <button type="button" onclick="closeOtpModal()" 
+                style="margin-top: 1rem; background: none; border: none; color: #666; font-size: 0.9rem; cursor: pointer;">
+                ← Go Back
+            </button>
+        </div>
+    </div>
+</div>
+
 <!-- Add Items Sidebar (Slide-out panel with menu) -->
 <div class="add-items-overlay" id="addItemsOverlay" onclick="closeAddItemsSidebar()"></div>
 <aside class="add-items-sidebar" id="addItemsSidebar">
@@ -1072,25 +1130,299 @@ function closeOrderSummary() {
     document.body.style.overflow = '';
 }
 
+// Global variables for OTP flow
+let otpCountdownInterval = null;
+let currentFormData = null;
+
 function submitOrder() {
-    // Show loading animation
-    if (typeof showArcLoading === 'function') {
-        showArcLoading('Sending your order to ARC Kitchen...');
+    // Get form data first
+    const form = document.querySelector('form[data-validate]');
+    if (!form) {
+        showArcError('Form not found. Please refresh the page.');
+        return;
     }
     
-    // Disable the submit button to prevent double submission
-    const submitBtn = document.querySelector('#orderSummaryModal button[onclick="submitOrder()"]');
-    if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<span class="arc-spinner-inline"></span> Sending...';
-        submitBtn.style.opacity = '0.7';
+    // Validate form
+    const email = form.querySelector('[name="email"]')?.value;
+    if (!email || !email.includes('@')) {
+        showArcError('Please enter a valid email address.');
+        return;
     }
     
-    // Small delay to show loading animation before form submission
-    setTimeout(() => {
-        document.querySelector('form[data-validate]').submit();
-    }, 300);
+    // Close order summary modal
+    closeOrderSummary();
+    
+    // Collect form data
+    currentFormData = new FormData(form);
+    
+    // Show OTP modal and send code
+    sendOtp();
 }
+
+function sendOtp() {
+    const form = document.querySelector('form[data-validate]');
+    const email = form.querySelector('[name="email"]')?.value;
+    
+    if (!email) {
+        showArcError('Email address is required.');
+        return;
+    }
+    
+    // Show loading
+    if (typeof showArcLoading === 'function') {
+        showArcLoading('Sending verification code...');
+    }
+    
+    // Prepare data for OTP request
+    const formData = new FormData();
+    formData.append('email', email);
+    formData.append('customer_name', form.querySelector('[name="full_name"]')?.value || '');
+    formData.append('customer_phone', form.querySelector('[name="phone"]')?.value || '');
+    formData.append('event_type', form.querySelector('[name="event_type"]')?.value || '');
+    formData.append('guest_count', form.querySelector('[name="guest_count"]')?.value || '');
+    formData.append('event_date', form.querySelector('[name="event_date"]')?.value || '');
+    formData.append('event_time', form.querySelector('[name="event_time"]')?.value || '');
+    formData.append('event_location', form.querySelector('[name="event_location"]')?.value || '');
+    formData.append('special_requests', form.querySelector('[name="message"]')?.value || '');
+    formData.append('total_amount', document.getElementById('cartTotal')?.textContent?.replace(/[₱,]/g, '') || '0');
+    
+    // Get cart items
+    const cartItems = [];
+    document.querySelectorAll('#orderSummaryList .order-item').forEach(item => {
+        const name = item.querySelector('strong')?.textContent || '';
+        const priceText = item.querySelector('.item-price')?.textContent || '0';
+        const price = parseFloat(priceText.replace(/[₱,]/g, ''));
+        cartItems.push({ name, price });
+    });
+    formData.append('items', JSON.stringify(cartItems));
+    
+    // Send OTP request with safe error handling
+    fetch('api/send-otp.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.text()) // Read as text first to handle raw PHP errors
+    .then(text => {
+        let data;
+        try {
+            data = JSON.parse(text);
+        } catch (e) {
+            console.error("Malformed JSON response:", text);
+            throw new Error("Server returned invalid response. Check console for details.");
+        }
+        
+        if (data.status === 'success') {
+            showOtpModal(email);
+            startOtpCountdown(data.cooldown || 60);
+        } else {
+            showArcError(data.message || 'Failed to send verification code.');
+        }
+    })
+    .catch(error => {
+        console.error('OTP Error:', error);
+        showArcError(error.message || 'Network error. Please try again.');
+    })
+    .finally(() => {
+        // CRITICAL: Always hide loader no matter what happens
+        if (typeof hideArcLoading === 'function') {
+            hideArcLoading();
+        }
+    });
+}
+
+function showOtpModal(email) {
+    // CRITICAL: Hide loading modal first to prevent overlay issues
+    if (typeof hideArcLoading === 'function') {
+        hideArcLoading();
+    }
+    
+    document.getElementById('otpEmailDisplay').textContent = email;
+    document.getElementById('otpInput').value = '';
+    document.getElementById('otpError').style.display = 'none';
+    document.getElementById('verifyOtpBtn').disabled = false;
+    document.getElementById('verifyOtpBtn').textContent = 'Verify Code';
+    
+    const modal = document.getElementById('otpModal');
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    
+    // Focus on input after modal is visible
+    setTimeout(() => {
+        const otpInput = document.getElementById('otpInput');
+        if (otpInput) otpInput.focus();
+    }, 200);
+}
+
+function closeOtpModal() {
+    const modal = document.getElementById('otpModal');
+    modal.style.display = 'none';
+    document.body.style.overflow = '';
+    
+    // Clear countdown
+    if (otpCountdownInterval) {
+        clearInterval(otpCountdownInterval);
+        otpCountdownInterval = null;
+    }
+}
+
+function startOtpCountdown(seconds) {
+    const btn = document.getElementById('resendOtpBtn');
+    const countdownEl = document.getElementById('otpCountdown');
+    let remaining = seconds;
+    
+    btn.disabled = true;
+    countdownEl.textContent = `(${remaining}s)`;
+    
+    otpCountdownInterval = setInterval(() => {
+        remaining--;
+        countdownEl.textContent = `(${remaining}s)`;
+        
+        if (remaining <= 0) {
+            clearInterval(otpCountdownInterval);
+            otpCountdownInterval = null;
+            btn.disabled = false;
+            countdownEl.textContent = '';
+            btn.innerHTML = 'Resend Code';
+        }
+    }, 1000);
+}
+
+function resendOtp() {
+    if (otpCountdownInterval) {
+        clearInterval(otpCountdownInterval);
+        otpCountdownInterval = null;
+    }
+    sendOtp();
+}
+
+function verifyOtp() {
+    const otpInput = document.getElementById('otpInput');
+    // CRITICAL: Remove ALL non-digit characters (spaces, dashes, etc.)
+    const otpCode = otpInput.value.replace(/\D/g, '');
+    const errorEl = document.getElementById('otpError');
+    const verifyBtn = document.getElementById('verifyOtpBtn');
+    
+    if (otpCode.length !== 6 || !/^\d{6}$/.test(otpCode)) {
+        errorEl.textContent = 'Please enter a valid 6-digit code (numbers only).';
+        errorEl.style.display = 'block';
+        verifyBtn.disabled = false;
+        return;
+    }
+    
+    // Disable button
+    verifyBtn.disabled = true;
+    verifyBtn.innerHTML = '<span class="arc-spinner-inline"></span> Verifying...';
+    
+    const form = document.querySelector('form[data-validate]');
+    const email = form.querySelector('[name="email"]')?.value;
+    
+    const formData = new FormData();
+    formData.append('otp_code', otpCode);
+    formData.append('email', email);
+    
+    fetch('api/verify-otp.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.text()) // Read as text first
+    .then(text => {
+        let data;
+        try {
+            data = JSON.parse(text);
+        } catch (e) {
+            console.error("Malformed JSON response:", text);
+            throw new Error("Server returned invalid response.");
+        }
+        
+        if (data.status === 'success') {
+            // OTP verified, submit the booking
+            submitVerifiedBooking();
+        } else {
+            errorEl.textContent = data.message || 'Invalid verification code.';
+            errorEl.style.display = 'block';
+            verifyBtn.disabled = false;
+            verifyBtn.textContent = 'Verify Code';
+            
+            if (data.remaining_attempts !== undefined && data.remaining_attempts <= 0) {
+                // Too many attempts, close modal
+                setTimeout(() => {
+                    closeOtpModal();
+                    showArcError('Too many failed attempts. Please try again.');
+                }, 2000);
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Verification Error:', error);
+        errorEl.textContent = error.message || 'Network error. Please try again.';
+        errorEl.style.display = 'block';
+        verifyBtn.disabled = false;
+        verifyBtn.textContent = 'Verify Code';
+    });
+}
+
+function submitVerifiedBooking() {
+    closeOtpModal();
+    
+    if (typeof showArcLoading === 'function') {
+        showArcLoading('Finalizing your booking...');
+    }
+    
+    fetch('api/submit-booking.php', {
+        method: 'POST'
+    })
+    .then(response => response.text()) // Read as text first
+    .then(text => {
+        let data;
+        try {
+            data = JSON.parse(text);
+        } catch (e) {
+            console.error("Malformed JSON response:", text);
+            throw new Error("Server returned invalid response.");
+        }
+        
+        if (data.status === 'success') {
+            // Show success modal
+            showSuccessModal();
+            // Clear cart UI
+            document.getElementById('orderSummaryList').innerHTML = '';
+            document.getElementById('cartTotalDisplay').textContent = '₱0.00';
+            document.getElementById('cartTotal').textContent = '₱0.00';
+            // Reset form
+            document.querySelector('form[data-validate]').reset();
+        } else {
+            showArcError(data.message || 'Failed to submit booking. Please try again.');
+        }
+    })
+    .catch(error => {
+        console.error('Submission Error:', error);
+        showArcError(error.message || 'Network error. Please try again.');
+    })
+    .finally(() => {
+        // CRITICAL: Always hide loader
+        if (typeof hideArcLoading === 'function') {
+            hideArcLoading();
+        }
+    });
+}
+
+// Handle Enter key in OTP input
+document.getElementById('otpInput')?.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        verifyOtp();
+    }
+});
+
+// Auto-format OTP input - remove non-digits as user types
+document.getElementById('otpInput')?.addEventListener('input', function(e) {
+    // Remove any non-digit characters immediately
+    this.value = this.value.replace(/\D/g, '');
+    // Limit to 6 digits
+    if (this.value.length > 6) {
+        this.value = this.value.slice(0, 6);
+    }
+});
 </script>
 
 <style>
@@ -1491,13 +1823,15 @@ function submitOrder() {
         return originalQuickAdd(id, type, name, price);
     };
     
-    // Protect form submission
+    // Protect form submission - BLOCK default submission, use OTP flow instead
     const bookingForm = document.querySelector('form[action="inquiry.php"]');
     if (bookingForm) {
         bookingForm.addEventListener('submit', function(e) {
+            // ALWAYS prevent default form submission - we use OTP AJAX flow
+            e.preventDefault();
+            
             // Check system ready
             if (!systemReady) {
-                e.preventDefault();
                 if (typeof showArcWait === 'function') {
                     showArcWait('System initializing, please wait...');
                 } else {
@@ -1508,14 +1842,12 @@ function submitOrder() {
             
             // Check if already submitting (double-click protection)
             if (formSubmitting) {
-                e.preventDefault();
                 return false;
             }
             
             // Validate cart has items
             const cartItems = document.querySelectorAll('.order-item');
             if (cartItems.length === 0) {
-                e.preventDefault();
                 if (typeof showArcError === 'function') {
                     showArcError('Please add at least one item to your order before submitting.');
                 } else {
@@ -1524,22 +1856,9 @@ function submitOrder() {
                 return false;
             }
             
-            // Set submitting state
-            formSubmitting = true;
-            const submitBtn = bookingForm.querySelector('button[type="submit"]');
-            if (submitBtn) {
-                submitBtn.disabled = true;
-                submitBtn.innerHTML = '<span class="arc-spinner-inline"></span> Processing...';
-                submitBtn.style.opacity = '0.7';
-            }
-            
-            // Show loading modal
-            if (typeof showArcLoading === 'function') {
-                showArcLoading('Sending your order to ARC Kitchen...');
-            }
-            
-            // Allow form to submit
-            return true;
+            // The OTP flow is triggered by submitOrder() which is called from the Order Summary modal
+            // This handler just prevents the default form submission
+            return false;
         });
     }
     

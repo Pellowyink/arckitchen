@@ -1925,7 +1925,19 @@ function generateFinalReceiptEmail(array $data): string {
     $eventLocation = escape($data['event_location'] ?? 'N/A');
     $totalAmount = number_format((float)($data['total_amount'] ?? 0), 2);
     $totalPaid = number_format((float)($data['total_paid'] ?? 0), 2);
+    // Handle items data - could be array or JSON string
     $items = $data['items'] ?? [];
+    if (is_string($items)) {
+        $decoded = json_decode($items, true);
+        if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+            $items = $decoded;
+        } else {
+            $items = [];
+        }
+    }
+    if (!is_array($items)) {
+        $items = [];
+    }
     
     // Generate items table
     $itemsHtml = '';

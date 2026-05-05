@@ -9,6 +9,12 @@
  * 3. Or install via Composer: composer require phpmailer/phpmailer
  */
 
+// DEV MODE: Set to true to bypass SMTP on localhost and log OTP to file instead
+// This prevents email hanging during local development
+if (!defined('OTP_LOCALHOST_BYPASS')) {
+    define('OTP_LOCALHOST_BYPASS', false); // Set to TRUE for testing without SMTP
+}
+
 // Option 1: Using Composer (vendor/autoload.php)
 // require_once __DIR__ . '/../vendor/autoload.php';
 
@@ -56,6 +62,10 @@ function initializeArcMailer(): ?PHPMailer {
         $mail->Password   = 'ljza eclt mypn uthk';  // Change to your app password
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port       = 587;
+        
+        // CRITICAL: Set timeout to prevent hanging (default is 5 minutes!)
+        $mail->Timeout    = 10;  // 10 seconds connection timeout
+        $mail->SMTPKeepAlive = false;
         
         // Sender information - MUST match authenticated Gmail address
         $mail->setFrom('dailyjunkie173@gmail.com', 'Arc Kitchen');
