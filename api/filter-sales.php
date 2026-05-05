@@ -41,19 +41,27 @@ switch ($filter) {
         $dateCondition = "";
 }
 
-// Get filtered bookings
+// Get filtered bookings from bookings table (NOT inquiries!)
 $conn = getDbConnection();
-$sql = "SELECT * FROM inquiries 
-        WHERE (status = 'completed' OR archived_at IS NOT NULL) 
+$sql = "SELECT * FROM bookings 
+        WHERE status = 'completed' 
         $dateCondition 
         ORDER BY event_date DESC";
 
 $stmt = $conn->prepare($sql);
+if (!$stmt) {
+    error_log("filter-sales: Prepare failed: " . $conn->error);
+    error_log("filter-sales: SQL: $sql");
+}
 if (!empty($params)) {
     $stmt->bind_param($types, ...$params);
 }
-$stmt->execute();
+$executeResult = $stmt->execute();
+if (!$executeResult) {
+    error_log("filter-sales: Execute failed: " . $stmt->error);
+}
 $result = $stmt->get_result();
+error_log("filter-sales: Query executed, row count: " . ($result ? $result->num_rows : 0));
 
 $bookings = [];
 $totalRevenue = 0;
@@ -103,8 +111,8 @@ $growthPercent = 0;
 if ($filter === 'monthly') {
     $prevSql = "SELECT SUM(total_amount) as prev_revenue, 
                 SUM(COALESCE(down_payment, 0) + COALESCE(full_payment, 0)) as prev_collected
-                FROM inquiries 
-                WHERE (status = 'completed' OR archived_at IS NOT NULL) 
+                FROM bookings 
+                WHERE status = 'completed'
                 AND MONTH(event_date) = MONTH(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH))
                 AND YEAR(event_date) = YEAR(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH))";
     $prevResult = $conn->query($prevSql);

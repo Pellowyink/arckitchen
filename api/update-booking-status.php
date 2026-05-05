@@ -42,6 +42,9 @@ $down_payment = isset($data['down_payment']) ? (float)$data['down_payment'] : nu
 $full_payment = isset($data['full_payment']) ? (float)$data['full_payment'] : null;
 $total_amount = isset($data['total_amount']) ? (float)$data['total_amount'] : null;
 
+// Debug logging
+error_log("update-booking-status: booking_id=$booking_id, status=$status, down_payment=$down_payment, full_payment=$full_payment, total_amount=$total_amount");
+
 // Handle in-progress with ETA
 if ($status === 'in-progress') {
     $conn = getDbConnection();
@@ -100,22 +103,30 @@ if ($status === 'in-progress') {
 // Function to auto-archive completed bookings
 function autoArchiveCompleted($booking_id) {
     $conn = getDbConnection();
-    if (!$conn) return false;
-    
-    // Check if archived_at column exists
-    $checkColumn = $conn->query("SHOW COLUMNS FROM inquiries LIKE 'archived_at'");
-    if ($checkColumn->num_rows === 0) {
-        $conn->query("ALTER TABLE inquiries ADD COLUMN archived_at DATETIME DEFAULT NULL AFTER updated_at");
+    if (!$conn) {
+        error_log("autoArchiveCompleted: No database connection");
+        return false;
     }
     
-    // Archive the booking
-    $sql = "UPDATE inquiries SET archived_at = NOW() WHERE id = ? AND archived_at IS NULL";
+    // Check if archived_at column exists in bookings table
+    $checkColumn = $conn->query("SHOW COLUMNS FROM bookings LIKE 'archived_at'");
+    if ($checkColumn && $checkColumn->num_rows === 0) {
+        error_log("autoArchiveCompleted: Adding archived_at column to bookings table");
+        $conn->query("ALTER TABLE bookings ADD COLUMN archived_at DATETIME DEFAULT NULL AFTER updated_at");
+    }
+    
+    // Archive the booking in the bookings table
+    $sql = "UPDATE bookings SET archived_at = NOW() WHERE id = ? AND archived_at IS NULL";
     $stmt = $conn->prepare($sql);
     if ($stmt) {
         $stmt->bind_param("i", $booking_id);
-        $stmt->execute();
+        $result = $stmt->execute();
+        $affectedRows = $stmt->affected_rows;
+        error_log("autoArchiveCompleted: booking_id=$booking_id, result=$result, affected_rows=$affectedRows");
         $stmt->close();
-        return true;
+        return $result && $affectedRows > 0;
+    } else {
+        error_log("autoArchiveCompleted: Prepare failed: " . $conn->error);
     }
     return false;
 }

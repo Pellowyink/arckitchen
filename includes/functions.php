@@ -518,13 +518,45 @@ function getBookings(array $filters = []): array
     $connection = getDbConnection();
     if (!$connection) return [];
     
-    // Auto-add archived_at column if it doesn't exist (for fresh database imports)
+    // Auto-add missing columns if they don't exist (for fresh database imports)
     static $bookingColumnChecked = false;
     if (!$bookingColumnChecked) {
+        // Check and add archived_at
         $checkColumn = $connection->query("SHOW COLUMNS FROM bookings LIKE 'archived_at'");
         if ($checkColumn && $checkColumn->num_rows === 0) {
             $connection->query("ALTER TABLE bookings ADD COLUMN archived_at DATETIME NULL AFTER status");
         }
+        
+        // Check and add down_payment
+        $checkDownPayment = $connection->query("SHOW COLUMNS FROM bookings LIKE 'down_payment'");
+        if ($checkDownPayment && $checkDownPayment->num_rows === 0) {
+            $connection->query("ALTER TABLE bookings ADD COLUMN down_payment DECIMAL(10,2) NULL DEFAULT 0 AFTER total_amount");
+        }
+        
+        // Check and add full_payment
+        $checkFullPayment = $connection->query("SHOW COLUMNS FROM bookings LIKE 'full_payment'");
+        if ($checkFullPayment && $checkFullPayment->num_rows === 0) {
+            $connection->query("ALTER TABLE bookings ADD COLUMN full_payment DECIMAL(10,2) NULL DEFAULT 0 AFTER down_payment");
+        }
+        
+        // Check and add payment_status
+        $checkPaymentStatus = $connection->query("SHOW COLUMNS FROM bookings LIKE 'payment_status'");
+        if ($checkPaymentStatus && $checkPaymentStatus->num_rows === 0) {
+            $connection->query("ALTER TABLE bookings ADD COLUMN payment_status VARCHAR(20) NULL DEFAULT 'pending' AFTER full_payment");
+        }
+        
+        // Check and add event_time
+        $checkEventTime = $connection->query("SHOW COLUMNS FROM bookings LIKE 'event_time'");
+        if ($checkEventTime && $checkEventTime->num_rows === 0) {
+            $connection->query("ALTER TABLE bookings ADD COLUMN event_time TIME NULL AFTER event_date");
+        }
+        
+        // Check and add event_location
+        $checkEventLocation = $connection->query("SHOW COLUMNS FROM bookings LIKE 'event_location'");
+        if ($checkEventLocation && $checkEventLocation->num_rows === 0) {
+            $connection->query("ALTER TABLE bookings ADD COLUMN event_location TEXT NULL AFTER event_time");
+        }
+        
         $bookingColumnChecked = true;
     }
     
@@ -737,15 +769,29 @@ function approveInquiry(int $inquiry_id): bool
     $stmt->bind_param('i', $inquiry_id);
     $stmt->execute();
     $result = $stmt->get_result();
-    $inquiry = $result->fetch_assoc();
-    $stmt->close();
-    
+    // Get inquiry for booking creation
+    $inquiry = getInquiryById($inquiry_id);
     if (!$inquiry) return false;
     
-    // Update inquiry status to 'approved'
-    $update_stmt = $connection->prepare("UPDATE inquiries SET status = 'approved' WHERE id = ?");
-    if (!$update_stmt) return false;
+    // Auto-add event_time and event_location columns if they don't exist
+    static $eventColumnsChecked2 = false;
+    if (!$eventColumnsChecked2) {
+        $checkTimeColumn = $connection->query("SHOW COLUMNS FROM bookings LIKE 'event_time'");
+        if ($checkTimeColumn && $checkTimeColumn->num_rows === 0) {
+            $connection->query("ALTER TABLE bookings ADD COLUMN event_time TIME NULL AFTER event_date");
+            error_log("approveInquiry: Added event_time column to bookings table");
+        }
+        $checkLocationColumn = $connection->query("SHOW COLUMNS FROM bookings LIKE 'event_location'");
+        if ($checkLocationColumn && $checkLocationColumn->num_rows === 0) {
+            $connection->query("ALTER TABLE bookings ADD COLUMN event_location TEXT NULL AFTER event_time");
+            error_log("approveInquiry: Added event_location column to bookings table");
+        }
+        $eventColumnsChecked2 = true;
+    }
     
+    // Update inquiry status to approved
+    $update_stmt = $connection->prepare("UPDATE inquiries SET status = 'approved' WHERE id = ? AND status = 'pending'");
+    if (!$update_stmt) return false;
     $update_stmt->bind_param('i', $inquiry_id);
     if (!$update_stmt->execute()) {
         $update_stmt->close();
@@ -870,11 +916,11 @@ function getInquiriesFiltered(array $filters = []): array
 }
 
 /**
- * Get archived bookings
+ * Get archived bookings (only cancelled ones for the cancelled section)
  */
 function getArchivedBookings(): array
 {
-    return getBookings(['archived' => true]);
+    return getBookings(['archived' => true, 'status' => 'cancelled']);
 }
 
 /**
@@ -883,6 +929,14 @@ function getArchivedBookings(): array
 function getArchivedInquiries(): array
 {
     return getInquiriesFiltered(['archived' => true]);
+}
+
+/**
+ * Get archived completed bookings (for Sales Report)
+ */
+function getArchivedCompletedBookings(): array
+{
+    return getBookings(['archived' => true, 'status' => 'completed']);
 }
 
 /**
@@ -896,11 +950,28 @@ function getSalesReport(string $dateFrom = '', string $dateTo = ''): array
     $connection = getDbConnection();
     if (!$connection) return [];
     
+    // Auto-add archived_at column if it doesn't exist
+    static $salesColumnChecked = false;
+    if (!$salesColumnChecked) {
+        $checkColumn = $connection->query("SHOW COLUMNS FROM bookings LIKE 'archived_at'");
+        if ($checkColumn && $checkColumn->num_rows === 0) {
+            $connection->query("ALTER TABLE bookings ADD COLUMN archived_at DATETIME DEFAULT NULL AFTER status");
+            error_log("getSalesReport: Added archived_at column to bookings table");
+        }
+        $salesColumnChecked = true;
+    }
+    
+    // Also fix any completed bookings that aren't archived
+    $connection->query("UPDATE bookings SET archived_at = NOW() WHERE status = 'completed' AND archived_at IS NULL");
+    
     $sql = "SELECT 
                 id,
                 customer_name,
                 customer_email,
                 total_amount,
+                down_payment,
+                full_payment,
+                payment_status,
                 event_date,
                 archived_at,
                 status
@@ -1373,12 +1444,28 @@ function calculateOrderTotal(array $items): float
 /**
  * Approve inquiry with payment data and create booking
  */
-function approveInquiryWithPayment(int $inquiryId, float $downPayment, float $fullPayment, float $totalAmount): bool
+function approveInquiryWithPayment(int $inquiryId, float $downPayment, float $fullPayment, float $totalAmount): bool|string
 {
     $connection = getDbConnection();
     if (!$connection) {
         error_log("approveInquiryWithPayment: No database connection");
         return false;
+    }
+    
+    // Auto-add event_time and event_location columns if they don't exist
+    static $eventColumnsChecked = false;
+    if (!$eventColumnsChecked) {
+        $checkTimeColumn = $connection->query("SHOW COLUMNS FROM bookings LIKE 'event_time'");
+        if ($checkTimeColumn && $checkTimeColumn->num_rows === 0) {
+            $connection->query("ALTER TABLE bookings ADD COLUMN event_time TIME NULL AFTER event_date");
+            error_log("approveInquiryWithPayment: Added event_time column to bookings table");
+        }
+        $checkLocationColumn = $connection->query("SHOW COLUMNS FROM bookings LIKE 'event_location'");
+        if ($checkLocationColumn && $checkLocationColumn->num_rows === 0) {
+            $connection->query("ALTER TABLE bookings ADD COLUMN event_location TEXT NULL AFTER event_time");
+            error_log("approveInquiryWithPayment: Added event_location column to bookings table");
+        }
+        $eventColumnsChecked = true;
     }
     
     // Start transaction
@@ -1455,7 +1542,7 @@ function approveInquiryWithPayment(int $inquiryId, float $downPayment, float $fu
         if (!$bookingStmt) {
             error_log("approveInquiryWithPayment: Prepare failed for booking INSERT: " . $connection->error);
             $connection->rollback();
-            return false;
+            return 'Database error: ' . $connection->error;
         }
         
         $bookingStmt->bind_param(
@@ -1481,7 +1568,7 @@ function approveInquiryWithPayment(int $inquiryId, float $downPayment, float $fu
             error_log("approveInquiryWithPayment: Booking INSERT execute failed: " . $bookingStmt->error);
             $bookingStmt->close();
             $connection->rollback();
-            return false;
+            return 'Failed to create booking: ' . $bookingStmt->error;
         }
         
         error_log("approveInquiryWithPayment: Successfully created booking for inquiry $inquiryId");
@@ -1503,6 +1590,24 @@ function updateBookingStatusWithPayment(int $bookingId, string $status, ?float $
 {
     $connection = getDbConnection();
     if (!$connection) return false;
+    
+    // Auto-add payment columns if they don't exist
+    static $paymentColumnsChecked = false;
+    if (!$paymentColumnsChecked) {
+        $cols = [
+            'down_payment' => "ALTER TABLE bookings ADD COLUMN down_payment DECIMAL(10,2) NULL DEFAULT 0 AFTER total_amount",
+            'full_payment' => "ALTER TABLE bookings ADD COLUMN full_payment DECIMAL(10,2) NULL DEFAULT 0 AFTER down_payment",
+            'payment_status' => "ALTER TABLE bookings ADD COLUMN payment_status VARCHAR(20) NULL DEFAULT 'pending' AFTER full_payment"
+        ];
+        foreach ($cols as $col => $sql) {
+            $check = $connection->query("SHOW COLUMNS FROM bookings LIKE '$col'");
+            if ($check && $check->num_rows === 0) {
+                $connection->query($sql);
+                error_log("updateBookingStatusWithPayment: Added $col column to bookings table");
+            }
+        }
+        $paymentColumnsChecked = true;
+    }
     
     // Build query based on what payment data is provided
     $updates = ["status = ?"];
@@ -1546,11 +1651,23 @@ function updateBookingStatusWithPayment(int $bookingId, string $status, ?float $
     $types .= 'i';
     $params[] = $bookingId;
     
+    error_log("updateBookingStatusWithPayment: SQL=$sql, types=$types, booking=$bookingId, dp=$downPayment, fp=$fullPayment");
+    
     $stmt = $connection->prepare($sql);
-    if (!$stmt) return false;
+    if (!$stmt) {
+        error_log("updateBookingStatusWithPayment: Prepare failed: " . $connection->error);
+        return false;
+    }
     
     $stmt->bind_param($types, ...$params);
     $result = $stmt->execute();
+    
+    if (!$result) {
+        error_log("updateBookingStatusWithPayment: Execute failed: " . $stmt->error);
+    } else {
+        error_log("updateBookingStatusWithPayment: Success - affected rows: " . $stmt->affected_rows);
+    }
+    
     $stmt->close();
     
     return $result;
