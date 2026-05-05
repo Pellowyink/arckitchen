@@ -7,8 +7,13 @@
 require_once __DIR__ . '/../includes/functions.php';
 requireAdminCheck();
 
+// Enable error reporting for debugging
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 $errors = [];
 $success = '';
+$dbDebug = '';
 
 // Handle form submissions
 if (isPostRequest()) {
@@ -18,9 +23,29 @@ if (isPostRequest()) {
         $date = $_POST['date'] ?? '';
         $reason = $_POST['reason'] ?? '';
         $status = $_POST['status'] ?? 'blocked';
+        $capacity_note = $_POST['capacity_note'] ?? '';
         
         if ($date && strtotime($date) >= strtotime(date('Y-m-d'))) {
-            if (blockDate($date, $reason, $status)) {
+            // DEBUG: Show what we're trying to save
+            $dbDebug .= "<div style='background:#f5f5f5;padding:10px;margin:10px 0;border-radius:5px;'>";
+            $dbDebug .= "<strong>Debug:</strong> Saving date=$date, status=$status, note=$capacity_note<br>";
+            
+            $result = blockDateWithNote($date, $reason, $status, $capacity_note);
+            $dbDebug .= "Result: " . ($result ? "SUCCESS" : "FAILED") . "<br>";
+            
+            // Check what was actually saved
+            $conn = getDbConnection();
+            if ($conn) {
+                $check = $conn->query("SELECT * FROM unavailable_dates WHERE date = '$date'");
+                if ($check && $row = $check->fetch_assoc()) {
+                    $dbDebug .= "In database: status=" . ($row['status'] ?: 'EMPTY') . ", note=" . ($row['capacity_note'] ?: 'EMPTY') . "<br>";
+                } else {
+                    $dbDebug .= "Not found in database!<br>";
+                }
+            }
+            $dbDebug .= "</div>";
+            
+            if ($result) {
                 $success = 'Date blocked successfully.';
             } else {
                 $errors[] = 'Failed to block date.';
@@ -132,6 +157,15 @@ foreach ($bookedDates as $b) {
             border-color: #d5a437;
             border-width: 3px;
         }
+        .calendar-day.limited {
+            background: linear-gradient(135deg, #FFC107 0%, #FFB300 100%);
+            color: #4a1414;
+            border: 2px solid #FF8F00;
+        }
+        .calendar-day.limited:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(255, 193, 7, 0.4);
+        }
         .date-status-badge {
             font-size: 0.6rem;
             margin-top: 2px;
@@ -189,6 +223,10 @@ foreach ($bookedDates as $b) {
                 </div>
             <?php endif; ?>
             
+            <?php if ($dbDebug): ?>
+                <?php echo $dbDebug; ?>
+            <?php endif; ?>
+            
             <div class="admin-card">
                 <h2>Block a Date</h2>
                 <form method="post" class="form-grid">
@@ -206,14 +244,50 @@ foreach ($bookedDates as $b) {
                     
                     <div class="field">
                         <label>Status</label>
-                        <select name="status">
+                        <select name="status" id="statusSelect" onchange="toggleCapacityNote()">
                             <option value="blocked">Blocked (Admin)</option>
                             <option value="fully_booked">Fully Booked</option>
+                            <option value="limited">Limited Availability</option>
                         </select>
+                    </div>
+                    
+                    <div class="field" id="capacityNoteField" style="display: none;">
+                        <label>Capacity Message <small>(e.g., "Only taking 1 more order")</small></label>
+                        <input type="text" name="capacity_note" id="capacityNoteInput" placeholder="Enter capacity message for customers">
                     </div>
                     
                     <div class="field" style="display: flex; align-items: flex-end;">
                         <button type="submit" class="btn-admin btn-primary-admin">Block Date</button>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- Separate Limited Availability Section -->
+            <div class="admin-card" style="margin-top: 1.5rem; background: linear-gradient(135deg, #fff9e6 0%, #fff3cd 100%); border: 2px solid #FFC107;">
+                <h3 style="margin-bottom: 0.75rem; color: #4a1414;">⚡ Limited Availability</h3>
+                <p style="font-size: 0.85rem; color: #666; margin-bottom: 1rem;">Mark dates as "Limited Slots" with custom messages for customers. These dates remain selectable for "one last order".</p>
+                
+                <form method="post" class="form-grid">
+                    <input type="hidden" name="action" value="block_date">
+                    <input type="hidden" name="status" value="limited">
+                    
+                    <div class="field">
+                        <label>Date <small style="color: #8a2927;">(will show honey-gold on calendar)</small></label>
+                        <input type="date" name="date" required min="<?php echo date('Y-m-d'); ?>" style="border-color: #FFC107;">
+                    </div>
+                    
+                    <div class="field">
+                        <label>Capacity Message <small>(shown to customers on hover)</small></label>
+                        <input type="text" name="capacity_note" placeholder="e.g., Only taking 1 more order, 2 slots remaining" required>
+                    </div>
+                    
+                    <div class="field">
+                        <label>Reason <small>(optional, admin only)</small></label>
+                        <input type="text" name="reason" placeholder="e.g., Staff limited, Equipment maintenance">
+                    </div>
+                    
+                    <div class="field">
+                        <button type="submit" class="btn-admin" style="width: 100%; background: linear-gradient(135deg, #FFC107 0%, #FFB300 100%); color: #4a1414; border: none; font-weight: 600;">Set Limited Availability</button>
                     </div>
                 </form>
             </div>
@@ -236,6 +310,10 @@ foreach ($bookedDates as $b) {
                     <div class="legend-item">
                         <div class="legend-color" style="background: #ff9800;"></div>
                         <span>Has Bookings</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: linear-gradient(135deg, #FFC107 0%, #FFB300 100%);"></div>
+                        <span>Limited Slots Available</span>
                     </div>
                     <div class="legend-item">
                         <div class="legend-color" style="background: #f44336;"></div>
@@ -284,6 +362,8 @@ foreach ($bookedDates as $b) {
                                 $statusText = 'Blocked';
                             } elseif ($status === 'fully_booked') {
                                 $statusText = 'Full';
+                            } elseif ($status === 'limited') {
+                                $statusText = 'Limited';
                             }
                         }
                         
@@ -325,5 +405,28 @@ foreach ($bookedDates as $b) {
             <?php endif; ?>
         </main>
     </div>
+    
+    <script>
+        /**
+         * Toggle capacity note field visibility based on status selection
+         */
+        function toggleCapacityNote() {
+            const statusSelect = document.getElementById('statusSelect');
+            const capacityNoteField = document.getElementById('capacityNoteField');
+            
+            if (statusSelect.value === 'limited') {
+                capacityNoteField.style.display = 'block';
+                document.getElementById('capacityNoteInput').focus();
+            } else {
+                capacityNoteField.style.display = 'none';
+                document.getElementById('capacityNoteInput').value = '';
+            }
+        }
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            toggleCapacityNote();
+        });
+    </script>
 </body>
 </html>

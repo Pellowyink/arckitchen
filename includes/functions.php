@@ -1115,7 +1115,7 @@ function getUnavailableDates(string $month, string $year): array
     $startDate = "$year-$month-01";
     $endDate = date('Y-m-t', strtotime($startDate));
     
-    $sql = "SELECT date, reason, status FROM unavailable_dates 
+    $sql = "SELECT date, reason, status, capacity_note FROM unavailable_dates 
             WHERE date BETWEEN ? AND ?
             ORDER BY date";
     $statement = $connection->prepare($sql);
@@ -1199,6 +1199,65 @@ function blockDate(string $date, string $reason = '', string $status = 'blocked'
     $statement->close();
     
     return $saved;
+}
+
+/**
+ * Mark date as unavailable with capacity note (admin function)
+ * Supports limited availability status with custom message
+ */
+function blockDateWithNote(string $date, string $reason = '', string $status = 'blocked', string $capacity_note = ''): bool
+{
+    $connection = getDbConnection();
+    if (!$connection) return false;
+    
+    // Check if capacity_note column exists
+    $checkColumn = $connection->query("SHOW COLUMNS FROM unavailable_dates LIKE 'capacity_note'");
+    if ($checkColumn->num_rows === 0) {
+        $connection->query("ALTER TABLE unavailable_dates ADD COLUMN capacity_note TEXT NULL AFTER status");
+    }
+    
+    // Check if date already exists
+    $check = $connection->prepare("SELECT id FROM unavailable_dates WHERE date = ?");
+    $check->bind_param('s', $date);
+    $check->execute();
+    $result = $check->get_result();
+    $exists = $result->num_rows > 0;
+    $check->close();
+    
+    if ($exists) {
+        // UPDATE existing row
+        $stmt = $connection->prepare("UPDATE unavailable_dates SET reason = ?, status = ?, capacity_note = ? WHERE date = ?");
+        $stmt->bind_param('ssss', $reason, $status, $capacity_note, $date);
+    } else {
+        // INSERT new row
+        $stmt = $connection->prepare("INSERT INTO unavailable_dates (date, reason, status, capacity_note) VALUES (?, ?, ?, ?)");
+        $stmt->bind_param('ssss', $date, $reason, $status, $capacity_note);
+    }
+    
+    $saved = $stmt->execute();
+    $stmt->close();
+    
+    return $saved;
+}
+
+/**
+ * Get capacity note for a specific date
+ */
+function getCapacityNote(string $date): ?string
+{
+    $connection = getDbConnection();
+    if (!$connection) return null;
+    
+    $statement = $connection->prepare("SELECT capacity_note FROM unavailable_dates WHERE date = ? AND capacity_note IS NOT NULL");
+    if (!$statement) return null;
+    
+    $statement->bind_param('s', $date);
+    $statement->execute();
+    $result = $statement->get_result();
+    $row = $result->fetch_assoc();
+    $statement->close();
+    
+    return $row['capacity_note'] ?? null;
 }
 
 /**

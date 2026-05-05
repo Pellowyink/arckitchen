@@ -25,6 +25,12 @@ function getDbConnection(): ?mysqli
 
     $connection->set_charset('utf8mb4');
 
+    // Auto-setup: Add capacity_note column if it doesn't exist
+    $checkCol = $connection->query("SHOW COLUMNS FROM unavailable_dates LIKE 'capacity_note'");
+    if ($checkCol->num_rows === 0) {
+        $connection->query("ALTER TABLE unavailable_dates ADD COLUMN capacity_note TEXT NULL AFTER status");
+    }
+
     return $connection;
 }
 

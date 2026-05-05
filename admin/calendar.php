@@ -21,9 +21,10 @@ if (isPostRequest()) {
         $date = $_POST['date'] ?? '';
         $reason = $_POST['reason'] ?? '';
         $status = $_POST['status'] ?? 'blocked';
+        $capacity_note = $_POST['capacity_note'] ?? '';
         
         if ($date && strtotime($date) >= strtotime(date('Y-m-d'))) {
-            if (blockDate($date, $reason, $status)) {
+            if (blockDateWithNote($date, $reason, $status, $capacity_note)) {
                 $success = 'Date blocked successfully.';
             } else {
                 $errors[] = 'Failed to block date.';
@@ -144,6 +145,126 @@ $bookings = getInquiries();
             border-color: #d5a437;
             border-width: 2px;
         }
+        .calendar-day.limited {
+            background: linear-gradient(135deg, #FFC107 0%, #FFB300 100%);
+            color: #4a1414;
+            border: 2px solid #FF8F00;
+            cursor: pointer;
+        }
+        .calendar-day.limited:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(255, 193, 7, 0.4);
+        }
+        .calendar-day.booked {
+            cursor: pointer;
+        }
+        .calendar-day.booked:hover {
+            transform: scale(1.02);
+            box-shadow: 0 2px 8px rgba(255, 152, 0, 0.3);
+        }
+        /* Receipt Modal Styles */
+        .order-receipt-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .order-receipt-modal.active {
+            display: flex;
+        }
+        .receipt-container {
+            background: white;
+            border-radius: 25px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        .receipt-header {
+            background: #4a1414;
+            color: white;
+            padding: 1.5rem;
+            border-radius: 25px 25px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .receipt-header h2 {
+            margin: 0;
+            font-size: 1.25rem;
+        }
+        .receipt-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+        .receipt-body {
+            padding: 1.5rem;
+        }
+        .receipt-section {
+            margin-bottom: 1.5rem;
+        }
+        .receipt-section h3 {
+            color: #4a1414;
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.75rem;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 0.5rem;
+        }
+        .receipt-info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #f5f5f5;
+        }
+        .receipt-info-row:last-child {
+            border-bottom: none;
+        }
+        .receipt-label {
+            color: #666;
+            font-size: 0.9rem;
+        }
+        .receipt-value {
+            font-weight: 600;
+            color: #333;
+            font-size: 0.9rem;
+        }
+        .receipt-items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 0.5rem;
+        }
+        .receipt-items-table th,
+        .receipt-items-table td {
+            padding: 0.5rem;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+            font-size: 0.85rem;
+        }
+        .receipt-items-table th {
+            font-weight: 600;
+            color: #4a1414;
+            background: #faf9f7;
+        }
+        .receipt-footer-actions {
+            padding: 1rem 1.5rem;
+            background: #faf9f7;
+            border-radius: 0 0 25px 25px;
+            display: flex;
+            gap: 0.5rem;
+            justify-content: flex-end;
+        }
         .date-status-badge {
             font-size: 0.5rem;
             margin-top: 1px;
@@ -233,16 +354,20 @@ $bookings = getInquiries();
                     
                     <div class="legend">
                         <div class="legend-item">
-                            <div class="legend-color" style="background: #fff; border: 1px solid rgba(138, 41, 39, 0.1);"></div>
-                            <span>Free</span>
+                            <div class="legend-color" style="background: #fff; border: 2px solid rgba(138, 41, 39, 0.15);"></div>
+                            <span>Available</span>
                         </div>
                         <div class="legend-item">
                             <div class="legend-color" style="background: #ff9800;"></div>
-                            <span>Booked</span>
+                            <span>Has Bookings</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: linear-gradient(135deg, #FFC107 0%, #FFB300 100%);"></div>
+                            <span>Limited Slots Available</span>
                         </div>
                         <div class="legend-item">
                             <div class="legend-color" style="background: #f44336;"></div>
-                            <span>Full</span>
+                            <span>Fully Booked</span>
                         </div>
                         <div class="legend-item">
                             <div class="legend-color" style="background: #9e9e9e;"></div>
@@ -277,6 +402,9 @@ $bookings = getInquiries();
                                 $class = 'available';
                                 $statusText = '';
                                 
+                                $isClickable = false;
+                                $clickHandler = '';
+                                
                                 if ($isPast) {
                                     $class = 'past';
                                 } elseif (isset($dateStatuses[$dateStr])) {
@@ -284,16 +412,21 @@ $bookings = getInquiries();
                                     $class = $status;
                                     if ($status === 'booked') {
                                         $statusText = $dateStatuses[$dateStr]['count'];
+                                        $isClickable = true;
                                     } elseif ($status === 'blocked') {
                                         $statusText = 'X';
                                     } elseif ($status === 'fully_booked') {
                                         $statusText = 'F';
+                                    } elseif ($status === 'limited') {
+                                        $statusText = 'L';
+                                        $isClickable = true;
                                     }
                                 }
                                 
                                 if ($isToday) $class .= ' today';
+                                if ($isClickable) $clickHandler = " onclick='showOrderReceipt(\"$dateStr\")'";
                                 
-                                echo "<div class='calendar-day $class'>";
+                                echo "<div class='calendar-day $class'$clickHandler>";
                                 echo "<span>$day</span>";
                                 if ($statusText) {
                                     echo "<span class='date-status-badge'>$statusText</span>";
@@ -319,10 +452,16 @@ $bookings = getInquiries();
                             
                             <div class="field" style="margin-bottom: 0;">
                                 <label style="font-size: 0.85rem;">Status</label>
-                                <select name="status" style="padding: 0.5rem;">
+                                <select name="status" id="statusSelect" onchange="toggleCapacityNote()" style="padding: 0.5rem;">
                                     <option value="blocked">Blocked</option>
                                     <option value="fully_booked">Fully Booked</option>
+                                    <option value="limited">Limited Availability</option>
                                 </select>
+                            </div>
+                            
+                            <div class="field" id="capacityNoteField" style="grid-column: 1 / -1; display: none; margin-bottom: 0;">
+                                <label style="font-size: 0.85rem;">Capacity Message <small>(e.g., "Only taking 1 more order")</small></label>
+                                <input type="text" name="capacity_note" placeholder="Enter capacity message for customers" style="padding: 0.5rem;">
                             </div>
                             
                             <div class="field" style="grid-column: 1 / -1; margin-bottom: 0;">
@@ -356,6 +495,36 @@ $bookings = getInquiries();
                         <?php endforeach; ?>
                     </div>
                     <?php endif; ?>
+                    
+                    <!-- Separate Limited Availability Section -->
+                    <div class="admin-card" style="margin-top: 1rem; background: linear-gradient(135deg, #fff9e6 0%, #fff3cd 100%); border: 2px solid #FFC107;">
+                        <h3 style="margin-bottom: 0.75rem; color: #4a1414;">⚡ Limited Availability</h3>
+                        <p style="font-size: 0.85rem; color: #666; margin-bottom: 1rem;">Mark dates as "Limited Slots" with custom messages for customers. These dates remain selectable for "one last order".</p>
+                        
+                        <form method="post" class="form-grid" style="grid-template-columns: 1fr; gap: 0.75rem;">
+                            <input type="hidden" name="action" value="block_date">
+                            <input type="hidden" name="status" value="limited">
+                            
+                            <div class="field" style="margin-bottom: 0;">
+                                <label style="font-size: 0.85rem;">Date <small style="color: #8a2927;">(will show honey-gold on calendar)</small></label>
+                                <input type="date" name="date" required min="<?php echo date('Y-m-d'); ?>" style="padding: 0.5rem; border-color: #FFC107;">
+                            </div>
+                            
+                            <div class="field" style="margin-bottom: 0;">
+                                <label style="font-size: 0.85rem;">Capacity Message <small>(shown to customers on hover)</small></label>
+                                <input type="text" name="capacity_note" placeholder="e.g., Only taking 1 more order, 2 slots remaining" style="padding: 0.5rem;" required>
+                            </div>
+                            
+                            <div class="field" style="margin-bottom: 0;">
+                                <label style="font-size: 0.85rem;">Reason <small>(optional, admin only)</small></label>
+                                <input type="text" name="reason" placeholder="e.g., Staff limited, Equipment maintenance" style="padding: 0.5rem;">
+                            </div>
+                            
+                            <div class="field" style="margin-bottom: 0;">
+                                <button type="submit" class="btn-admin btn-small" style="width: 100%; background: linear-gradient(135deg, #FFC107 0%, #FFB300 100%); color: #4a1414; border: none; font-weight: 600;">Set Limited Availability</button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
             </div>
             
@@ -399,5 +568,265 @@ $bookings = getInquiries();
             </div>
         </main>
     </div>
+    
+    <!-- Order Receipt Modal -->
+    <div id="orderReceiptModal" class="order-receipt-modal">
+        <div class="receipt-container">
+            <div class="receipt-header">
+                <h2>📋 Order Receipt</h2>
+                <button class="receipt-close" onclick="closeOrderReceipt()">&times;</button>
+            </div>
+            <div class="receipt-body" id="receiptBody">
+                <!-- Content loaded via AJAX -->
+                <p style="text-align: center; padding: 2rem;">Loading order details...</p>
+            </div>
+            <div class="receipt-footer-actions">
+                <button class="btn-admin btn-primary-admin" onclick="printCurrentReceipt()">🖨️ Print Receipt</button>
+                <button class="btn-admin btn-secondary-admin" onclick="closeOrderReceipt()">Close</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let currentReceiptData = null;
+        
+        /**
+         * Show order receipt modal for a specific date
+         */
+        function showOrderReceipt(dateStr) {
+            const modal = document.getElementById('orderReceiptModal');
+            const body = document.getElementById('receiptBody');
+            
+            modal.classList.add('active');
+            body.innerHTML = '<p style="text-align: center; padding: 2rem;">Loading order details...</p>';
+            
+            fetch(`../api/get-order-details.php?date=${dateStr}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.bookings.length > 0) {
+                        currentReceiptData = data;
+                        renderReceipt(data, dateStr);
+                    } else if (data.capacity_note) {
+                        // Show capacity note for limited dates without bookings
+                        body.innerHTML = `
+                            <div class="receipt-section">
+                                <h3>📅 ${new Date(dateStr).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h3>
+                                <div style="padding: 1.5rem; background: #fff3cd; border-radius: 12px; margin: 1rem 0;">
+                                    <p style="margin: 0; color: #856404; font-weight: 600;">
+                                        ⚠️ ${data.capacity_note}
+                                    </p>
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        body.innerHTML = '<p style="text-align: center; padding: 2rem;">No orders found for this date.</p>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching order details:', error);
+                    body.innerHTML = '<p style="text-align: center; padding: 2rem; color: #f44336;">Failed to load order details.</p>';
+                });
+        }
+        
+        /**
+         * Render receipt content
+         */
+        function renderReceipt(data, dateStr) {
+            const body = document.getElementById('receiptBody');
+            const booking = data.bookings[0]; // Show first booking, or loop for multiple
+            
+            let itemsHtml = '';
+            if (booking.order_items && booking.order_items.length > 0 && !booking.order_items[0].placeholder) {
+                itemsHtml = `
+                    <table class="receipt-items-table">
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th>Qty</th>
+                                <th>Price</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${booking.order_items.map(item => `
+                                <tr>
+                                    <td>${item.item_name}</td>
+                                    <td>${item.quantity}</td>
+                                    <td>₱${parseFloat(item.total_price).toFixed(2)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            } else {
+                itemsHtml = '<p style="color: #888; font-style: italic;">Full catering package details available upon request.</p>';
+            }
+            
+            const balance = parseFloat(booking.calculated_balance || 0);
+            const paid = parseFloat(booking.calculated_paid || 0);
+            const total = parseFloat(booking.total_amount || 0);
+            
+            body.innerHTML = `
+                <div class="receipt-section">
+                    <h3>📅 ${new Date(dateStr).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h3>
+                    ${data.capacity_note ? `
+                    <div style="padding: 0.75rem 1rem; background: #fff3cd; border-radius: 8px; margin-bottom: 1rem;">
+                        <p style="margin: 0; color: #856404; font-size: 0.9rem;">⚠️ ${data.capacity_note}</p>
+                    </div>
+                    ` : ''}
+                </div>
+                
+                <div class="receipt-section">
+                    <h3>👤 Customer Information</h3>
+                    <div class="receipt-info-row">
+                        <span class="receipt-label">Name:</span>
+                        <span class="receipt-value">${booking.customer_name || 'N/A'}</span>
+                    </div>
+                    <div class="receipt-info-row">
+                        <span class="receipt-label">Email:</span>
+                        <span class="receipt-value">${booking.customer_email || 'N/A'}</span>
+                    </div>
+                    <div class="receipt-info-row">
+                        <span class="receipt-label">Phone:</span>
+                        <span class="receipt-value">${booking.customer_phone || 'N/A'}</span>
+                    </div>
+                </div>
+                
+                <div class="receipt-section">
+                    <h3>🎉 Event Details</h3>
+                    <div class="receipt-info-row">
+                        <span class="receipt-label">Event Type:</span>
+                        <span class="receipt-value">${booking.event_type || 'Standard Event'}</span>
+                    </div>
+                    <div class="receipt-info-row">
+                        <span class="receipt-label">Guests:</span>
+                        <span class="receipt-value">${booking.guest_count || 0} pax</span>
+                    </div>
+                    ${booking.special_requests ? `
+                    <div class="receipt-info-row">
+                        <span class="receipt-label">Special Requests:</span>
+                        <span class="receipt-value">${booking.special_requests}</span>
+                    </div>
+                    ` : ''}
+                </div>
+                
+                <div class="receipt-section">
+                    <h3>🍽️ Order Summary</h3>
+                    ${itemsHtml}
+                </div>
+                
+                <div class="receipt-section">
+                    <h3>💰 Payment Details</h3>
+                    <div class="receipt-info-row">
+                        <span class="receipt-label">Total Amount:</span>
+                        <span class="receipt-value">₱${total.toFixed(2)}</span>
+                    </div>
+                    <div class="receipt-info-row">
+                        <span class="receipt-label">Amount Paid:</span>
+                        <span class="receipt-value" style="color: #4CAF50;">₱${paid.toFixed(2)}</span>
+                    </div>
+                    <div class="receipt-info-row">
+                        <span class="receipt-label">Balance:</span>
+                        <span class="receipt-value" style="color: ${balance > 0 ? '#f44336' : '#4CAF50'};">
+                            ${balance > 0 ? '₱' + balance.toFixed(2) : 'PAID ✓'}
+                        </span>
+                    </div>
+                    <div class="receipt-info-row">
+                        <span class="receipt-label">Payment Status:</span>
+                        <span class="receipt-value" style="color: ${booking.payment_status_display?.color || '#888'};">
+                            ${booking.payment_status_display?.label || 'Pending'}
+                        </span>
+                    </div>
+                </div>
+                
+                ${data.bookings.length > 1 ? `
+                <div class="receipt-section">
+                    <p style="color: #888; font-size: 0.85rem;">📊 ${data.bookings.length} total bookings on this date</p>
+                </div>
+                ` : ''}
+            `;
+        }
+        
+        /**
+         * Close order receipt modal
+         */
+        function closeOrderReceipt() {
+            document.getElementById('orderReceiptModal').classList.remove('active');
+            currentReceiptData = null;
+        }
+        
+        /**
+         * Print current receipt
+         */
+        function printCurrentReceipt() {
+            if (!currentReceiptData) return;
+            
+            const printWindow = window.open('', '_blank');
+            const receiptContent = document.getElementById('receiptBody').innerHTML;
+            
+            printWindow.document.write(`
+                <html>
+                <head>
+                    <title>Order Receipt - ARC Kitchen</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
+                        h2 { color: #4a1414; border-bottom: 2px solid #4a1414; padding-bottom: 10px; }
+                        h3 { color: #4a1414; font-size: 0.9rem; text-transform: uppercase; margin-top: 20px; }
+                        .receipt-info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+                        .receipt-label { color: #666; }
+                        .receipt-value { font-weight: 600; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+                        th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
+                        th { background: #f5f5f5; }
+                    </style>
+                </head>
+                <body>
+                    <h2>🍽️ ARC Kitchen - Order Receipt</h2>
+                    ${receiptContent}
+                    <p style="text-align: center; margin-top: 30px; color: #888; font-size: 0.85rem;">
+                        Thank you for choosing ARC Kitchen!
+                    </p>
+                </body>
+                </html>
+            `);
+            
+            printWindow.document.close();
+            printWindow.print();
+        }
+        
+        // Close modal when clicking outside
+        document.getElementById('orderReceiptModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeOrderReceipt();
+            }
+        });
+        
+        // Close modal on Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeOrderReceipt();
+            }
+        });
+        
+        /**
+         * Toggle capacity note field visibility based on status selection
+         */
+        function toggleCapacityNote() {
+            const statusSelect = document.getElementById('statusSelect');
+            const capacityNoteField = document.getElementById('capacityNoteField');
+            
+            if (statusSelect && capacityNoteField) {
+                if (statusSelect.value === 'limited') {
+                    capacityNoteField.style.display = 'block';
+                } else {
+                    capacityNoteField.style.display = 'none';
+                }
+            }
+        }
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            toggleCapacityNote();
+        });
+    </script>
 </body>
 </html>

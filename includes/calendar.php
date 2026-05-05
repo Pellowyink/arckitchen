@@ -57,6 +57,7 @@ $monthName = date('F Y', $firstDay);
     <div class="calendar-legend">
         <span class="legend-item"><span class="legend-dot available"></span> Available</span>
         <span class="legend-item"><span class="legend-dot booked"></span> Booked</span>
+        <span class="legend-item"><span class="legend-dot limited"></span> Limited Slots</span>
         <span class="legend-item"><span class="legend-dot blocked"></span> Unavailable</span>
     </div>
     
@@ -93,6 +94,7 @@ $monthName = date('F Y', $firstDay);
                         $class = 'available';
                         $canSelect = true;
                         
+                        $capacityNote = null;
                         if ($isPast) {
                             $class = 'past';
                             $canSelect = false;
@@ -104,6 +106,10 @@ $monthName = date('F Y', $firstDay);
                             } elseif ($status === 'fully_booked' || $status === 'booked') {
                                 $class = 'booked';
                                 $canSelect = false;
+                            } elseif ($status === 'limited') {
+                                $class = 'limited';
+                                $capacityNote = getCapacityNote($dateStr);
+                                // Limited dates remain clickable for "one last order"
                             }
                         }
                         
@@ -111,9 +117,10 @@ $monthName = date('F Y', $firstDay);
                 ?>
                 <td class="<?php echo $class; ?>" 
                     data-date="<?php echo $dateStr; ?>"
-                    <?php if ($canSelect): ?>onclick="selectDate('<?php echo $dateStr; ?>')"<?php endif; ?>>
+                    <?php if ($canSelect): ?>onclick="selectDate('<?php echo $dateStr; ?>')"<?php endif; ?>
+                    <?php if ($capacityNote): ?>title="<?php echo escape($capacityNote); ?>" data-tooltip="<?php echo escape($capacityNote); ?>"<?php endif; ?>>
                     <?php echo $cellDay; ?>
-                    <?php if (isset($dateStatus[$dateStr]) && $dateStatus[$dateStr] === 'booked'): ?>
+                    <?php if (isset($dateStatus[$dateStr]) && ($dateStatus[$dateStr] === 'booked' || $dateStatus[$dateStr] === 'limited')): ?>
                     <span class="booking-indicator">●</span>
                     <?php endif; ?>
                 </td>
@@ -122,6 +129,8 @@ $monthName = date('F Y', $firstDay);
             <?php endfor; ?>
         </tbody>
     </table>
+    
+    <!-- Debug: Show detected limited dates (remove in production) -->
     
     <div class="calendar-selected" id="selectedDateDisplay" style="display: none;">
         <p>Selected Date: <strong id="selectedDateText"></strong></p>
@@ -190,6 +199,7 @@ $monthName = date('F Y', $firstDay);
 .legend-dot.available { background: #4CAF50; }
 .legend-dot.booked { background: #f44336; }
 .legend-dot.blocked { background: #9e9e9e; }
+.legend-dot.limited { background: linear-gradient(135deg, #FFC107 0%, #FFB300 100%); }
 
 .calendar-table {
     width: 100%;
@@ -240,6 +250,43 @@ $monthName = date('F Y', $firstDay);
     background: rgba(158, 158, 158, 0.15);
     color: #999;
     cursor: not-allowed;
+}
+
+.calendar-table td.limited {
+    background: linear-gradient(135deg, #FFC107 0%, #FFB300 100%);
+    color: #4a1414;
+    border: 2px solid #FF8F00;
+    cursor: pointer;
+    position: relative;
+}
+
+.calendar-table td.limited:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(255, 193, 7, 0.4);
+}
+
+.calendar-table td.limited::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #4a1414;
+    color: white;
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s;
+    z-index: 100;
+    margin-bottom: 5px;
+}
+
+.calendar-table td.limited:hover::after {
+    opacity: 1;
+    visibility: visible;
 }
 
 .calendar-table td.today {

@@ -257,8 +257,9 @@ require_once __DIR__ . '/includes/sidebar.php';
                     
                     <?php require_once __DIR__ . '/includes/calendar.php'; ?>
                     
-                    <div class="calendar-legend" style="margin-top: 1rem; display: flex; gap: 1rem; justify-content: center; font-size: 0.8rem;">
+                    <div class="calendar-legend" style="margin-top: 1rem; display: flex; gap: 1rem; justify-content: center; font-size: 0.8rem; flex-wrap: wrap;">
                         <span><span style="display: inline-block; width: 12px; height: 12px; background: #f44336; border-radius: 2px; margin-right: 4px;"></span>Booked</span>
+                        <span><span style="display: inline-block; width: 12px; height: 12px; background: linear-gradient(135deg, #FFC107 0%, #FFB300 100%); border-radius: 2px; margin-right: 4px;"></span>Limited Slots</span>
                         <span><span style="display: inline-block; width: 12px; height: 12px; background: #9e9e9e; border-radius: 2px; margin-right: 4px;"></span>Blocked</span>
                         <span><span style="display: inline-block; width: 12px; height: 12px; background: #d5a437; border-radius: 2px; margin-right: 4px;"></span>Selected</span>
                     </div>
