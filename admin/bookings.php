@@ -10,9 +10,22 @@ $active_bookings = getBookings(['status' => 'confirmed', 'archived' => false]);
 $pending_bookings = getBookings(['status' => 'pending', 'archived' => false]);
 $active_bookings = array_merge($pending_bookings, $active_bookings);
 
-// Get completed and cancelled separately - exclude archived
-$completed_bookings = getBookings(['status' => 'completed', 'archived' => false]);
-$cancelled_bookings = getBookings(['status' => 'cancelled', 'archived' => false]);
+// Get all cancelled bookings (both active and archived - unified view)
+$cancelled_bookings = getBookings(['status' => 'cancelled']);
+$archived_cancelled_bookings = getArchivedBookings();
+// Merge archived cancelled with active cancelled
+$all_cancelled_bookings = array_merge($cancelled_bookings, $archived_cancelled_bookings);
+// Remove duplicates by ID
+$seen_ids = [];
+$all_cancelled_bookings = array_filter($all_cancelled_bookings, function($b) use (&$seen_ids) {
+    if (in_array($b['id'], $seen_ids)) return false;
+    $seen_ids[] = $b['id'];
+    return true;
+});
+// Sort by event date descending
+usort($all_cancelled_bookings, function($a, $b) {
+    return strtotime($b['event_date']) - strtotime($a['event_date']);
+});
 
 ?><!DOCTYPE html>
 <html lang="en">
@@ -112,108 +125,62 @@ $cancelled_bookings = getBookings(['status' => 'cancelled', 'archived' => false]
             </div>
 
             <!-- ========================================
-                 COMPLETED BOOKINGS
+                 CANCELLED & BLOCKED BOOKINGS (Unified View)
                  ======================================== -->
-            <div class="admin-card" style="margin-top: 30px;">
-                <div class="card-header">
-                    <h2 class="card-title">✅ Completed Bookings (<?php echo count($completed_bookings); ?>)</h2>
-                    <span class="card-subtitle">Successfully finished events</span>
+            <div class="admin-card" style="margin-top: 30px; background: #faf9f7; border: 1px solid #f0e6e0;">
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <h2 class="card-title" style="color: #4a1414;">❌ Cancelled & Blocked Bookings (<?php echo count($all_cancelled_bookings); ?>)</h2>
+                        <span class="card-subtitle">All cancelled or blocked events</span>
+                    </div>
+                    <div class="no-print" style="display: flex; gap: 0.5rem;">
+                        <button class="btn-admin btn-secondary-admin btn-small" onclick="printAllCancelled()">🖨️ Print All</button>
+                    </div>
                 </div>
-                <div class="table-responsive">
-                    <table class="admin-table">
-                        <thead>
-                            <tr>
-                                <th>Customer</th>
-                                <th>Email</th>
-                                <th>Guests</th>
-                                <th>Total Amount</th>
-                                <th>Event Date</th>
-                                <th>Notes</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="completed-bookings-body">
-                            <?php if (!empty($completed_bookings)): ?>
-                                <?php foreach ($completed_bookings as $booking): ?>
-                                <tr id="booking-<?php echo (int)$booking['id']; ?>" class="booking-row" data-booking-id="<?php echo (int)$booking['id']; ?>">
-                                    <td><strong><?php echo escape($booking['customer_name']); ?></strong></td>
-                                    <td><?php echo escape($booking['customer_email']); ?></td>
-                                    <td><?php echo (int)$booking['guest_count']; ?> pax</td>
-                                    <td><strong>₱<?php echo number_format((float)$booking['total_amount'], 2); ?></strong></td>
-                                    <td><?php echo date('M d, Y', strtotime($booking['event_date'])); ?></td>
-                                    <td><?php echo escape(substr($booking['special_requests'] ?? '—', 0, 30)); ?></td>
-                                    <td>
-                                        <span class="badge badge-completed"><?php echo escape($booking['status']); ?></span>
-                                    </td>
-                                    <td>
-                                        <div class="action-buttons">
-                                            <button class="btn-admin btn-secondary-admin btn-small" onclick="archiveItem(<?php echo (int)$booking['id']; ?>, 'booking')">📦 Archive</button>
-                                            <span class="badge badge-success">✓ Done</span>
-                                        </div>
-                                    </td>
-                                </tr>
-                                <?php endforeach; ?>
-                            <?php else: ?>
-                                <tr>
-                                    <td colspan="8" class="empty-cell">No completed bookings yet.</td>
-                                </tr>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- ========================================
-                 CANCELLED BOOKINGS
-                 ======================================== -->
-            <div class="admin-card" style="margin-top: 30px; opacity: 0.85;">
-                <div class="card-header">
-                    <h2 class="card-title">❌ Cancelled Bookings (<?php echo count($cancelled_bookings); ?>)</h2>
-                    <span class="card-subtitle">Cancelled or blocked events</span>
-                </div>
-                <div class="table-responsive">
-                    <table class="admin-table">
-                        <thead>
-                            <tr>
-                                <th>Customer</th>
-                                <th>Email</th>
-                                <th>Guests</th>
-                                <th>Total Amount</th>
-                                <th>Event Date</th>
-                                <th>Notes</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="cancelled-bookings-body">
-                            <?php if (!empty($cancelled_bookings)): ?>
-                                <?php foreach ($cancelled_bookings as $booking): ?>
-                                <tr id="booking-<?php echo (int)$booking['id']; ?>" class="booking-row" data-booking-id="<?php echo (int)$booking['id']; ?>">
-                                    <td><strong><?php echo escape($booking['customer_name']); ?></strong></td>
-                                    <td><?php echo escape($booking['customer_email']); ?></td>
-                                    <td><?php echo (int)$booking['guest_count']; ?> pax</td>
-                                    <td><strong>₱<?php echo number_format((float)$booking['total_amount'], 2); ?></strong></td>
-                                    <td><?php echo date('M d, Y', strtotime($booking['event_date'])); ?></td>
-                                    <td><?php echo escape(substr($booking['special_requests'] ?? '—', 0, 30)); ?></td>
-                                    <td>
-                                        <span class="badge badge-cancelled"><?php echo escape($booking['status']); ?></span>
-                                    </td>
-                                    <td>
-                                        <div class="action-buttons">
-                                            <button class="btn-admin btn-secondary-admin btn-small" onclick="archiveItem(<?php echo (int)$booking['id']; ?>, 'booking')">📦 Archive</button>
-                                            <span class="badge badge-danger">Cancelled</span>
-                                        </div>
-                                    </td>
-                                </tr>
-                                <?php endforeach; ?>
-                            <?php else: ?>
-                                <tr>
-                                    <td colspan="8" class="empty-cell">No cancelled bookings.</td>
-                                </tr>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
+                <div id="cancelledBookingsTable">
+                    <?php if (!empty($all_cancelled_bookings)): ?>
+                        <div class="table-responsive">
+                            <table class="admin-table">
+                                <thead>
+                                    <tr>
+                                        <th>Customer</th>
+                                        <th>Email</th>
+                                        <th>Guests</th>
+                                        <th>Total Amount</th>
+                                        <th>Event Date</th>
+                                        <th>Notes</th>
+                                        <th>Status</th>
+                                        <th class="no-print">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($all_cancelled_bookings as $booking): ?>
+                                    <tr id="cancelled-booking-<?php echo $booking['id']; ?>" data-booking-id="<?php echo (int)$booking['id']; ?>">
+                                        <td><strong><?php echo escape($booking['customer_name']); ?></strong></td>
+                                        <td><?php echo escape($booking['customer_email']); ?></td>
+                                        <td><?php echo (int)$booking['guest_count']; ?> pax</td>
+                                        <td><strong>₱<?php echo number_format((float)$booking['total_amount'], 2); ?></strong></td>
+                                        <td><?php echo date('M d, Y', strtotime($booking['event_date'])); ?></td>
+                                        <td><?php echo escape(substr($booking['special_requests'] ?? '—', 0, 30)); ?></td>
+                                        <td>
+                                            <span class="badge" style="background: #f8d7da; color: #721c24; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.8rem; font-weight: 600;">CANCELLED</span>
+                                        </td>
+                                        <td class="no-print action-buttons" style="display: flex; gap: 0.5rem;">
+                                            <button class="btn-admin btn-secondary-admin btn-small" onclick="printBookingReceipt(<?php echo (int)$booking['id']; ?>)">🧾 Receipt</button>
+                                            <button class="btn-admin btn-danger-admin btn-small" style="background: #8a2927;" onclick="deleteBookingRecord(<?php echo (int)$booking['id']; ?>, '<?php echo escape($booking['customer_name']); ?>')">🗑️ Delete</button>
+                                        </td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    <?php else: ?>
+                        <div class="empty-state" style="padding: 3rem 2rem; text-align: center; background: #fff; border-radius: 20px; margin: 1rem;">
+                            <div style="font-size: 3rem; margin-bottom: 1rem;">📭</div>
+                            <h3 style="color: #4a1414; margin-bottom: 0.5rem;">No cancelled bookings found</h3>
+                            <p style="color: #888;">All bookings are active or completed</p>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
         </main>
@@ -423,6 +390,155 @@ $cancelled_bookings = getBookings(['status' => 'cancelled', 'archived' => false]
                     showArcError('Failed to archive item. Please try again.');
                 } else {
                     alert('Failed to archive item. Please try again.');
+                }
+            });
+        }
+        
+        /**
+         * Print all cancelled bookings section
+         */
+        function printAllCancelled() {
+            const content = document.getElementById('cancelledBookingsTable').innerHTML;
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(`
+                <html>
+                <head>
+                    <title>Cancelled Bookings - ARC Kitchen</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; margin: 20px; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+                        th { background: #f5f5f5; font-weight: bold; }
+                        h1 { color: #4a1414; }
+                        .no-print, .action-buttons { display: none !important; }
+                    </style>
+                </head>
+                <body>
+                    <h1>📦 Cancelled Bookings</h1>
+                    <p>Generated: ${new Date().toLocaleString()}</p>
+                    <hr>
+                    ${content}
+                </body>
+                </html>
+            `);
+            printWindow.document.close();
+            printWindow.print();
+        }
+        
+        /**
+         * Print receipt for a specific booking
+         */
+        function printBookingReceipt(bookingId) {
+            // Find booking data from the table
+            const row = document.getElementById('cancelled-booking-' + bookingId);
+            if (!row) {
+                alert('Booking not found');
+                return;
+            }
+            
+            const cells = row.getElementsByTagName('td');
+            const customer = cells[0].textContent.trim();
+            const email = cells[1].textContent.trim();
+            const guests = cells[2].textContent.trim();
+            const total = cells[3].textContent.trim();
+            const eventDate = cells[4].textContent.trim();
+            const status = cells[5].textContent.trim();
+            const archived = cells[6].textContent.trim();
+            
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(`
+                <html>
+                <head>
+                    <title>Booking Receipt - ARC Kitchen</title>
+                    <style>
+                        body { font-family: 'Courier New', monospace; max-width: 400px; margin: 0 auto; padding: 20px; }
+                        .receipt-header { text-align: center; border-bottom: 2px dashed #333; padding-bottom: 15px; margin-bottom: 20px; }
+                        .receipt-row { display: flex; justify-content: space-between; padding: 8px 0; }
+                        .receipt-footer { text-align: center; border-top: 2px dashed #333; padding-top: 15px; margin-top: 20px; font-size: 0.85rem; }
+                        h2 { margin: 0; color: #4a1414; }
+                    </style>
+                </head>
+                <body>
+                    <div class="receipt-header">
+                        <h2>ARC KITCHEN</h2>
+                        <p>Booking Receipt</p>
+                        <p>${new Date().toLocaleDateString()}</p>
+                    </div>
+                    <div class="receipt-row"><span>Receipt #:</span><span>ARC-${bookingId.toString().padStart(4, '0')}</span></div>
+                    <div class="receipt-row"><span>Customer:</span><span>${customer}</span></div>
+                    <div class="receipt-row"><span>Email:</span><span>${email}</span></div>
+                    <div class="receipt-row"><span>Event Date:</span><span>${eventDate}</span></div>
+                    <div class="receipt-row"><span>Guests:</span><span>${guests}</span></div>
+                    <div class="receipt-row"><span>Status:</span><span>${status}</span></div>
+                    <div class="receipt-row" style="border-top: 1px dashed #ccc; margin-top: 10px; padding-top: 10px; font-weight: bold;">
+                        <span>Total:</span><span>${total}</span>
+                    </div>
+                    <div class="receipt-footer">
+                        <p>Thank you for choosing ARC Kitchen!</p>
+                    </div>
+                </body>
+                </html>
+            `);
+            printWindow.document.close();
+            printWindow.print();
+        }
+        
+        /**
+         * Delete a booking record permanently
+         */
+        function deleteBookingRecord(bookingId, customerName) {
+            const message = customerName 
+                ? `Warning: This will permanently remove ${customerName}'s record from the database. Continue?`
+                : 'Warning: This will permanently remove this record from the database. Continue?';
+                
+            if (typeof showArcConfirm === 'function') {
+                showArcConfirm(message, function(confirmed) {
+                    if (confirmed) {
+                        doDeleteBookingRecord(bookingId);
+                    }
+                });
+            } else {
+                if (!confirm(message)) {
+                    return;
+                }
+                doDeleteBookingRecord(bookingId);
+            }
+        }
+        
+        function doDeleteBookingRecord(bookingId) {
+            fetch('../api/delete-archived-booking.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: bookingId })
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    const row = document.getElementById('cancelled-booking-' + bookingId);
+                    if (row) {
+                        row.style.transition = 'opacity 0.3s';
+                        row.style.opacity = '0';
+                        setTimeout(() => row.remove(), 300);
+                    }
+                    if (typeof showArcSuccess === 'function') {
+                        showArcSuccess('Record successfully removed from system');
+                    } else {
+                        alert('Record successfully removed from system');
+                    }
+                } else {
+                    if (typeof showArcError === 'function') {
+                        showArcError(result.message || 'Failed to delete booking');
+                    } else {
+                        alert('Error: ' + (result.message || 'Failed to delete booking'));
+                    }
+                }
+            })
+            .catch(err => {
+                console.error('Delete error:', err);
+                if (typeof showArcError === 'function') {
+                    showArcError('Failed to delete booking. Please try again.');
+                } else {
+                    alert('Failed to delete booking. Please try again.');
                 }
             });
         }

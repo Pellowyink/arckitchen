@@ -194,47 +194,6 @@ $recent_messages = getContactMessages();
                 <?php endif; ?>
             </div>
 
-            <!-- ========================================
-                 RECENT CONTACT MESSAGES
-                 ======================================== -->
-            <div class="admin-card">
-                <div class="card-header">
-                    <h2>💬 Recent Contact Messages</h2>
-                </div>
-                
-                <?php if (!empty($recent_messages)): ?>
-                    <div class="table-responsive">
-                        <table class="admin-table">
-                            <thead>
-                                <tr>
-                                    <th>Name</th>
-                                    <th>Email</th>
-                                    <th>Subject</th>
-                                    <th>Date</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach (array_slice($recent_messages, 0, 5) as $message): ?>
-                                <tr>
-                                    <td><strong><?php echo escape($message['full_name']); ?></strong></td>
-                                    <td><?php echo escape($message['email']); ?></td>
-                                    <td><?php echo escape($message['subject']); ?></td>
-                                    <td><?php echo date('M d, Y', strtotime($message['created_at'])); ?></td>
-                                    <td>
-                                        <button class="btn-admin btn-secondary-admin btn-small" onclick="viewMessage(<?php echo (int)$message['id']; ?>)">View</button>
-                                    </td>
-                                </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                <?php else: ?>
-                    <div class="empty-state">
-                        <p>No contact messages yet.</p>
-                    </div>
-                <?php endif; ?>
-            </div>
         </main>
     </div>
 

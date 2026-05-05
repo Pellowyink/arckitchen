@@ -97,22 +97,48 @@ if ($status === 'in-progress') {
     exit;
 }
 
+// Function to auto-archive completed bookings
+function autoArchiveCompleted($booking_id) {
+    $conn = getDbConnection();
+    if (!$conn) return false;
+    
+    // Check if archived_at column exists
+    $checkColumn = $conn->query("SHOW COLUMNS FROM inquiries LIKE 'archived_at'");
+    if ($checkColumn->num_rows === 0) {
+        $conn->query("ALTER TABLE inquiries ADD COLUMN archived_at DATETIME DEFAULT NULL AFTER updated_at");
+    }
+    
+    // Archive the booking
+    $sql = "UPDATE inquiries SET archived_at = NOW() WHERE id = ? AND archived_at IS NULL";
+    $stmt = $conn->prepare($sql);
+    if ($stmt) {
+        $stmt->bind_param("i", $booking_id);
+        $stmt->execute();
+        $stmt->close();
+        return true;
+    }
+    return false;
+}
+
 // If confirming or completing with payment data
 if (($status === 'confirmed' || $status === 'completed') && ($down_payment !== null || $full_payment !== null)) {
     if (updateBookingStatusWithPayment($booking_id, $status, $down_payment, $full_payment, $total_amount)) {
-        // Send email for completed status
+        // Auto-archive if completed
         if ($status === 'completed') {
+            autoArchiveCompleted($booking_id);
+            
             $emailResult = sendCustomerNotification('completed', $booking_id);
             if (!$emailResult['success']) {
                 error_log("Failed to send completion email for booking #$booking_id: " . $emailResult['message']);
             }
         }
         
-        $message = $status === 'completed' ? 'Booking completed with payment recorded' : 'Booking confirmed with payment recorded';
+        $message = $status === 'completed' ? 'Booking completed and archived to Sales Report' : 'Booking confirmed with payment recorded';
         echo json_encode([
             'success' => true,
             'message' => $message,
             'new_status' => $status,
+            'auto_archived' => $status === 'completed'
         ]);
     } else {
         http_response_code(500);
@@ -121,18 +147,22 @@ if (($status === 'confirmed' || $status === 'completed') && ($down_payment !== n
 } else {
     // Simple status update
     if (updateBookingStatus($booking_id, $status)) {
-        // Send completion email
+        // Auto-archive if completed
         if ($status === 'completed') {
+            autoArchiveCompleted($booking_id);
+            
             $emailResult = sendCustomerNotification('completed', $booking_id);
             if (!$emailResult['success']) {
                 error_log("Failed to send completion email for booking #$booking_id: " . $emailResult['message']);
             }
         }
         
+        $message = $status === 'completed' ? 'Booking completed and archived to Sales Report' : 'Booking status updated to ' . $status;
         echo json_encode([
             'success' => true,
-            'message' => 'Booking status updated to ' . $status,
+            'message' => $message,
             'new_status' => $status,
+            'auto_archived' => $status === 'completed'
         ]);
     } else {
         http_response_code(500);

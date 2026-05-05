@@ -24,7 +24,7 @@ $admin_nav = [
     ],
     'REPORTS' => [
         ['page' => 'calendar.php', 'label' => 'Calendar', 'icon' => '📆'],
-        ['page' => 'archives.php', 'label' => 'Sales Report', 'icon' => '💰'],
+        ['page' => 'sales.php', 'label' => 'Sales Report', 'icon' => '💰'],
     ],
     'SYSTEM' => [
         ['page' => 'setup_admin.php', 'label' => 'Admin Setup', 'icon' => '⚙️'],

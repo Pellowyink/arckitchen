@@ -19,7 +19,7 @@
             </div>
 
             <div class="footer-action">
-                <a href="<?php echo $basePrefix; ?>booking.php" class="button">More Information</a>
+                <a href="<?php echo $basePrefix; ?>contact.php" class="button">More Information</a>
             </div>
         </div>
     </footer>
