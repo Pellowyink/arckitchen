@@ -371,18 +371,48 @@ require_once __DIR__ . '/includes/sidebar.php';
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
                             <div>
                                 <label for="city">City/Municipality *</label>
-                                <input id="city" name="city" type="text" required placeholder="e.g., Makati, Quezon City..." value="<?php echo escape($_POST['city'] ?? ''); ?>" style="background: #fff; border: 2px solid #e5d5c5; border-radius: 25px; padding: 0.75rem 1rem; color: #4a1414; width: 100%;">
+                                <select id="city" name="city" required style="background: #fff; border: 2px solid #e5d5c5; border-radius: 25px; padding: 0.75rem 1rem; color: #4a1414; width: 100%;">
+                                    <option value="">Select City/Municipality</option>
+                                    <option value="Angeles City" <?php echo ($_POST['city'] ?? '') === 'Angeles City' ? 'selected' : ''; ?>>Angeles City</option>
+                                    <option value="Apalit" <?php echo ($_POST['city'] ?? '') === 'Apalit' ? 'selected' : ''; ?>>Apalit</option>
+                                    <option value="Arayat" <?php echo ($_POST['city'] ?? '') === 'Arayat' ? 'selected' : ''; ?>>Arayat</option>
+                                    <option value="Bacolor" <?php echo ($_POST['city'] ?? '') === 'Bacolor' ? 'selected' : ''; ?>>Bacolor</option>
+                                    <option value="Balibago" <?php echo ($_POST['city'] ?? '') === 'Balibago' ? 'selected' : ''; ?>>Balibago</option>
+                                    <option value="Basa Air Base" <?php echo ($_POST['city'] ?? '') === 'Basa Air Base' ? 'selected' : ''; ?>>Basa Air Base</option>
+                                    <option value="Candaba" <?php echo ($_POST['city'] ?? '') === 'Candaba' ? 'selected' : ''; ?>>Candaba</option>
+                                    <option value="Clark" <?php echo ($_POST['city'] ?? '') === 'Clark' ? 'selected' : ''; ?>>Clark</option>
+                                    <option value="Dau, Mabalacat" <?php echo ($_POST['city'] ?? '') === 'Dau, Mabalacat' ? 'selected' : ''; ?>>Dau, Mabalacat</option>
+                                    <option value="Floridablanca" <?php echo ($_POST['city'] ?? '') === 'Floridablanca' ? 'selected' : ''; ?>>Floridablanca</option>
+                                    <option value="Guagua" <?php echo ($_POST['city'] ?? '') === 'Guagua' ? 'selected' : ''; ?>>Guagua</option>
+                                    <option value="Lubao" <?php echo ($_POST['city'] ?? '') === 'Lubao' ? 'selected' : ''; ?>>Lubao</option>
+                                    <option value="Mabalacat" <?php echo ($_POST['city'] ?? '') === 'Mabalacat' ? 'selected' : ''; ?>>Mabalacat</option>
+                                    <option value="Macabebe" <?php echo ($_POST['city'] ?? '') === 'Macabebe' ? 'selected' : ''; ?>>Macabebe</option>
+                                    <option value="Magalang" <?php echo ($_POST['city'] ?? '') === 'Magalang' ? 'selected' : ''; ?>>Magalang</option>
+                                    <option value="Masantol" <?php echo ($_POST['city'] ?? '') === 'Masantol' ? 'selected' : ''; ?>>Masantol</option>
+                                    <option value="Mexico" <?php echo ($_POST['city'] ?? '') === 'Mexico' ? 'selected' : ''; ?>>Mexico</option>
+                                    <option value="Minalin" <?php echo ($_POST['city'] ?? '') === 'Minalin' ? 'selected' : ''; ?>>Minalin</option>
+                                    <option value="Porac" <?php echo ($_POST['city'] ?? '') === 'Porac' ? 'selected' : ''; ?>>Porac</option>
+                                    <option value="San Fernando" <?php echo ($_POST['city'] ?? '') === 'San Fernando' ? 'selected' : ''; ?>>San Fernando</option>
+                                    <option value="San Luis" <?php echo ($_POST['city'] ?? '') === 'San Luis' ? 'selected' : ''; ?>>San Luis</option>
+                                    <option value="San Simon" <?php echo ($_POST['city'] ?? '') === 'San Simon' ? 'selected' : ''; ?>>San Simon</option>
+                                    <option value="Santa Ana" <?php echo ($_POST['city'] ?? '') === 'Santa Ana' ? 'selected' : ''; ?>>Santa Ana</option>
+                                    <option value="Santa Cruz, Lubao" <?php echo ($_POST['city'] ?? '') === 'Santa Cruz, Lubao' ? 'selected' : ''; ?>>Santa Cruz, Lubao</option>
+                                    <option value="Santa Rita" <?php echo ($_POST['city'] ?? '') === 'Santa Rita' ? 'selected' : ''; ?>>Santa Rita</option>
+                                    <option value="Santo Tomas" <?php echo ($_POST['city'] ?? '') === 'Santo Tomas' ? 'selected' : ''; ?>>Santo Tomas</option>
+                                    <option value="Sasmuan" <?php echo ($_POST['city'] ?? '') === 'Sasmuan' ? 'selected' : ''; ?>>Sasmuan</option>
+                                </select>
                             </div>
                             <div>
                                 <label for="province">Province *</label>
-                                <input id="province" name="province" type="text" required placeholder="e.g., Metro Manila, Cavite..." value="<?php echo escape($_POST['province'] ?? ''); ?>" style="background: #fff; border: 2px solid #e5d5c5; border-radius: 25px; padding: 0.75rem 1rem; color: #4a1414; width: 100%;">
+                                <input id="province" name="province" type="text" readonly value="Pampanga" style="background: #f9f9f9; border: 2px solid #e5d5c5; border-radius: 25px; padding: 0.75rem 1rem; color: #666; width: 100;">
                             </div>
                         </div>
                         
                         <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 0.75rem;">
                             <div>
                                 <label for="zip_code">ZIP Code *</label>
-                                <input id="zip_code" name="zip_code" type="text" required placeholder="1200" maxlength="10" value="<?php echo escape($_POST['zip_code'] ?? ''); ?>" style="background: #fff; border: 2px solid #e5d5c5; border-radius: 25px; padding: 0.75rem 1rem; color: #4a1414; width: 100%;">
+                                <input id="zip_code" name="zip_code" type="text" readonly placeholder="Auto-filled" maxlength="10" value="<?php echo escape($_POST['zip_code'] ?? ''); ?>" style="background: #f9f9f9; border: 2px solid #e5d5c5; border-radius: 25px; padding: 0.75rem 1rem; color: #666; width: 100;">
+                                <small style="color: #666; display: block; margin-top: 0.25rem; font-size: 0.8rem;">Auto-filled based on city selection</small>
                             </div>
                             <div>
                                 <label for="landmarks">Nearby Landmarks</label>
@@ -1069,10 +1099,64 @@ require_once __DIR__ . '/includes/sidebar.php';
 
 <script src="assets/js/notifications.js"></script>
 <script>
-// ARC Booking Form Protection System
+// Pampanga City to ZIP Code mapping
+const pampangaZipCodes = {
+    'Angeles City': '2009',
+    'Apalit': '2016',
+    'Arayat': '2012',
+    'Bacolor': '2001',
+    'Balibago': '2024',
+    'Basa Air Base': '2007',
+    'Candaba': '2013',
+    'Clark': '2023',
+    'Dau, Mabalacat': '2026',
+    'Floridablanca': '2006',
+    'Guagua': '2003',
+    'Lubao': '2005',
+    'Mabalacat': '2010',
+    'Macabebe': '2018',
+    'Magalang': '2011',
+    'Masantol': '2017',
+    'Mexico': '2021',
+    'Minalin': '2019',
+    'Porac': '2008',
+    'San Fernando': '2000',
+    'San Luis': '2014',
+    'San Simon': '2015',
+    'Santa Ana': '2022',
+    'Santa Cruz, Lubao': '2025',
+    'Santa Rita': '2002',
+    'Santo Tomas': '2020',
+    'Sasmuan': '2004'
+};
+
+// Auto-populate ZIP code when city is selected
+document.getElementById('city').addEventListener('change', function() {
+    const selectedCity = this.value;
+    const zipCodeField = document.getElementById('zip_code');
+
+    if (selectedCity && pampangaZipCodes[selectedCity]) {
+        zipCodeField.value = pampangaZipCodes[selectedCity];
+    } else {
+        zipCodeField.value = '';
+    }
+});
+
+// Initialize ZIP code on page load if city is pre-selected
+document.addEventListener('DOMContentLoaded', function() {
+    const citySelect = document.getElementById('city');
+    const zipCodeField = document.getElementById('zip_code');
+
+    if (citySelect.value && pampangaZipCodes[citySelect.value]) {
+        zipCodeField.value = pampangaZipCodes[citySelect.value];
+    }
+});
+</script>
+
+<script>
 (function() {
     'use strict';
-    
+
     // System initialization state
     let systemReady = false;
     let formSubmitting = false;

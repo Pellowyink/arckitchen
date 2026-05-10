@@ -56,10 +56,14 @@
                     <label for="down-payment-input">Down Payment Received</label>
                     <div class="input-with-prefix">
                         <span class="prefix">₱</span>
-                        <input type="number" id="down-payment-input" class="form-input payment-input" 
+                        <input type="number" id="down-payment-input" class="form-input payment-input"
                                min="0" step="0.01" placeholder="0.00" oninput="calculatePayments()">
                     </div>
                     <small class="input-hint">Amount paid during inquiry/approval</small>
+                    <div id="downpayment-requirement" class="requirement-notice" style="display: none;">
+                        <span class="requirement-icon">⚠️</span>
+                        <span class="requirement-text">Minimum 50% downpayment required: <strong id="required-downpayment">₱0.00</strong></span>
+                    </div>
                 </div>
 
                 <!-- Full Payment Input -->
@@ -451,6 +455,28 @@
     }
 }
 
+/* Downpayment Requirement Notice */
+.requirement-notice {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+    padding: 0.75rem;
+    background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+    border: 1px solid #d4a574;
+    border-radius: 8px;
+    color: #856404;
+    font-size: 0.9rem;
+}
+
+.requirement-notice .requirement-icon {
+    font-size: 1.1rem;
+}
+
+.requirement-notice .requirement-text strong {
+    color: #4a1414;
+}
+
 /* Mobile */
 @media (max-width: 768px) {
     .payment-content {
@@ -569,6 +595,18 @@ function populatePaymentCalculator(data, type) {
     // Total cost
     document.getElementById('payment-total-cost').textContent = '₱' + currentTotal.toFixed(2);
     document.getElementById('calc-total-cost').textContent = '₱' + currentTotal.toFixed(2);
+
+    // Show downpayment requirement for inquiries
+    const requirementDiv = document.getElementById('downpayment-requirement');
+    const requiredAmountEl = document.getElementById('required-downpayment');
+
+    if (type === 'inquiry') {
+        const requiredDownpayment = currentTotal * 0.5;
+        requiredAmountEl.textContent = '₱' + requiredDownpayment.toFixed(2);
+        requirementDiv.style.display = 'flex';
+    } else {
+        requirementDiv.style.display = 'none';
+    }
     
     // Pre-fill existing payments if any
     if (record.down_payment > 0) {
@@ -638,9 +676,22 @@ function calculatePayments() {
  */
 function confirmWithPayment() {
     if (!currentPaymentId || !currentPaymentType) return;
-    
+
     const downPayment = parseFloat(document.getElementById('down-payment-input').value) || 0;
     const fullPayment = parseFloat(document.getElementById('full-payment-input').value) || 0;
+
+    // For inquiry approval, require 50% downpayment
+    if (currentPaymentType === 'inquiry') {
+        const requiredDownpayment = currentTotal * 0.5;
+        if (downPayment < requiredDownpayment) {
+            if (typeof showArcError === 'function') {
+                showArcError(`A minimum downpayment of ₱${requiredDownpayment.toFixed(2)} (50%) is required to confirm this inquiry.`);
+            } else {
+                alert(`A minimum downpayment of ₱${requiredDownpayment.toFixed(2)} (50%) is required to confirm this inquiry.`);
+            }
+            return;
+        }
+    }
     
     // Determine action based on type and stored action
     let action;

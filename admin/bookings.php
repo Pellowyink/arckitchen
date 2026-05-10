@@ -38,6 +38,8 @@ usort($all_cancelled_bookings, function($a, $b) {
     <link href="https://fonts.googleapis.com/css2?family=League+Spartan:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../assets/css/style.css">
     <link rel="stylesheet" href="../assets/css/admin.css">
+    <!-- Suppress favicon 404 error -->
+    <link rel="icon" href="data:;base64,iVBORw0KGgo=">
 </head>
 <body>
     <div class="admin-shell">
@@ -122,23 +124,10 @@ usort($all_cancelled_bookings, function($a, $b) {
                                         </span>
                                     </td>
                                     <td>
-                                        <div class="action-buttons">
-                                            <button class="btn-admin btn-secondary-admin btn-small" onclick="openEditModal(<?php echo (int)$booking['id']; ?>, 'booking')">View Order</button>
-                                            <?php if ($status === 'pending'): ?>
-                                                <button class="btn-admin btn-primary-admin btn-small" onclick="changeBookingStatus(<?php echo (int)$booking['id']; ?>, 'confirmed')">Confirm</button>
-                                                <button class="btn-admin btn-danger-admin btn-small" onclick="changeBookingStatus(<?php echo (int)$booking['id']; ?>, 'cancelled')">Cancel</button>
-                                            <?php elseif ($status === 'confirmed'): ?>
-                                                <button class="btn-admin btn-warning-admin btn-small" onclick="event.stopPropagation(); showETAModal(<?php echo (int)$booking['id']; ?>); return false;">👨‍🍳 In-Progress</button>
-                                                <button class="btn-admin btn-success-admin btn-small" onclick="changeBookingStatus(<?php echo (int)$booking['id']; ?>, 'completed')">Complete & Pay</button>
-                                                <button class="btn-admin btn-danger-admin btn-small" onclick="changeBookingStatus(<?php echo (int)$booking['id']; ?>, 'cancelled')">Cancel</button>
-                                                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #ddd;">
-                                                    <small style="color: #666; display: block; margin-bottom: 4px;">📢 Customer Alerts:</small>
-                                                    <button id="pickupBtn-<?php echo (int)$booking['id']; ?>" class="btn-admin btn-secondary-admin btn-small" onclick="sendQuickNotification(<?php echo (int)$booking['id']; ?>, 'ready_pickup')" style="background: #8a2927; color: white; margin-right: 4px;">📦 Ready</button>
-                                                    <button id="onwayBtn-<?php echo (int)$booking['id']; ?>" class="btn-admin btn-secondary-admin btn-small" onclick="sendQuickNotification(<?php echo (int)$booking['id']; ?>, 'on_the_way')" style="background: #8a2927; color: white;">🚚 On The Way</button>
-                                                </div>
-                                            <?php endif; ?>
-                                            <button class="btn-admin btn-danger-admin btn-small" onclick="deleteBookingWithReason(<?php echo (int)$booking['id']; ?>, '<?php echo escape($booking['customer_name']); ?>')" title="Delete">
-                                                🗑️ Delete
+                                        <div class="actions-cell">
+                                            <button class="btn-admin btn-secondary-admin btn-small" onclick="openEditModal(<?php echo (int)$booking['id']; ?>, 'booking')" style="margin-right: 8px;">View Order</button>
+                                            <button class="btn-manage" onclick="openManageModal(<?php echo (int)$booking['id']; ?>, 'booking', '<?php echo escape($booking['customer_name']); ?>', '<?php echo $status; ?>')">
+                                                ⚙️ Manage
                                             </button>
                                         </div>
                                     </td>
@@ -1111,6 +1100,147 @@ usort($all_cancelled_bookings, function($a, $b) {
             if (e.target === this) closeAdminErrorModal();
         });
     </script>
+
+    <!-- Manage Actions Modal JavaScript -->
+    <script>
+        let currentManageRecord = null;
+
+        // Open Manage Actions Modal
+        function openManageModal(recordId, recordType, recordName, status = null) {
+            currentManageRecord = { id: recordId, type: recordType, name: recordName, status: status };
+
+            // Update modal title
+            const titleEl = document.getElementById('manageModalTitle');
+            titleEl.textContent = `Manage ${recordType === 'inquiry' ? 'Inquiry' : 'Booking'}: ${recordName}`;
+
+            // Populate modal body with actions
+            const bodyEl = document.getElementById('manageModalBody');
+            bodyEl.innerHTML = generateManageActions(recordType, recordId, recordName, status);
+
+            // Show modal
+            const modal = document.getElementById('manageActionsModal');
+            modal.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+        }
+
+        // Close Manage Actions Modal
+        function closeManageModal() {
+            const modal = document.getElementById('manageActionsModal');
+            modal.style.display = 'none';
+            document.body.style.overflow = '';
+            currentManageRecord = null;
+        }
+
+        // Generate action buttons HTML based on record type and status
+        function generateManageActions(recordType, recordId, recordName, status) {
+            if (recordType === 'inquiry') {
+                return `
+                    <div class="manage-actions-grid">
+                        <button class="manage-action-btn action-approve" onclick="approveInquiry(${recordId}); closeManageModal();">
+                            <div class="action-icon">✅</div>
+                            <div class="action-label">Approve</div>
+                        </button>
+                        <button class="manage-action-btn action-reject" onclick="rejectInquiry(${recordId}); closeManageModal();">
+                            <div class="action-icon">❌</div>
+                            <div class="action-label">Reject</div>
+                        </button>
+                        <button class="manage-action-btn action-edit" onclick="openEditModal(${recordId}, 'inquiry'); closeManageModal();">
+                            <div class="action-icon">📝</div>
+                            <div class="action-label">Edit Order</div>
+                        </button>
+                        <button class="manage-action-btn action-delete" onclick="deleteInquiryWithReason(${recordId}, '${recordName.replace(/'/g, "\\'")}'); closeManageModal();">
+                            <div class="action-icon">🗑️</div>
+                            <div class="action-label">Delete</div>
+                        </button>
+                    </div>
+                `;
+            } else if (recordType === 'booking') {
+                let actionsHtml = '<div class="manage-actions-grid">';
+
+                if (status === 'pending') {
+                    actionsHtml += `
+                        <button class="manage-action-btn action-confirm" onclick="changeBookingStatus(${recordId}, 'confirmed'); closeManageModal();">
+                            <div class="action-icon">✅</div>
+                            <div class="action-label">Confirm</div>
+                        </button>
+                        <button class="manage-action-btn action-cancel" onclick="changeBookingStatus(${recordId}, 'cancelled'); closeManageModal();">
+                            <div class="action-icon">❌</div>
+                            <div class="action-label">Cancel</div>
+                        </button>
+                    `;
+                } else if (status === 'confirmed') {
+                    actionsHtml += `
+                        <button class="manage-action-btn action-progress" onclick="showETAModal(${recordId}); closeManageModal();">
+                            <div class="action-icon">👨‍🍳</div>
+                            <div class="action-label">In-Progress</div>
+                        </button>
+                        <button class="manage-action-btn action-complete" onclick="changeBookingStatus(${recordId}, 'completed'); closeManageModal();">
+                            <div class="action-icon">💰</div>
+                            <div class="action-label">Complete & Pay</div>
+                        </button>
+                        <button class="manage-action-btn action-cancel" onclick="changeBookingStatus(${recordId}, 'cancelled'); closeManageModal();">
+                            <div class="action-icon">❌</div>
+                            <div class="action-label">Cancel</div>
+                        </button>
+                        <button class="manage-action-btn action-ready" onclick="sendQuickNotification(${recordId}, 'ready_pickup'); closeManageModal();">
+                            <div class="action-icon">📦</div>
+                            <div class="action-label">Ready</div>
+                        </button>
+                        <button class="manage-action-btn action-onway" onclick="sendQuickNotification(${recordId}, 'on_the_way'); closeManageModal();">
+                            <div class="action-icon">🚚</div>
+                            <div class="action-label">On The Way</div>
+                        </button>
+                    `;
+                }
+
+                actionsHtml += `
+                    <button class="manage-action-btn action-edit" onclick="openEditModal(${recordId}, 'booking'); closeManageModal();">
+                        <div class="action-icon">📝</div>
+                        <div class="action-label">Edit Order</div>
+                    </button>
+                    <button class="manage-action-btn action-delete" onclick="deleteBookingWithReason(${recordId}, '${recordName.replace(/'/g, "\\'")}'); closeManageModal();">
+                        <div class="action-icon">🗑️</div>
+                        <div class="action-label">Delete</div>
+                    </button>
+                </div>`;
+
+                return actionsHtml;
+            }
+
+            return '<p>No actions available</p>';
+        }
+
+        // Close modal when clicking overlay
+        document.addEventListener('click', function(event) {
+            const modal = document.getElementById('manageActionsModal');
+            if (event.target === modal) {
+                closeManageModal();
+            }
+        });
+
+        // Close modal on Escape key
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                const modal = document.getElementById('manageActionsModal');
+                if (modal.style.display !== 'none') {
+                    closeManageModal();
+                }
+            }
+        });
+    </script>
+
+    <!-- Manage Actions Modal -->
+    <div id="manageActionsModal" class="manage-modal-overlay" style="display: none;">
+        <div class="manage-modal-content">
+            <div class="manage-modal-header">
+                <h3 id="manageModalTitle">Manage Order</h3>
+                <button class="manage-modal-close" onclick="closeManageModal()">×</button>
+            </div>
+            <div class="manage-modal-body" id="manageModalBody">
+                <!-- Actions will be populated here by JavaScript -->
+            </div>
+        </div>
+    </div>
 
     <script src="../assets/js/notifications.js"></script>
     <script src="../assets/js/main.js"></script>

@@ -78,10 +78,39 @@ if ($action === 'approve') {
             $inquiryStmt->close();
             
             if ($inquiryData) {
+                // Get inquiry details including payment information
+                $conn = getDbConnection();
+                $detailStmt = $conn->prepare("
+                    SELECT i.*, GROUP_CONCAT(
+                        CONCAT(
+                            '{\"name\":\"', REPLACE(mi.name, '\"', '\\\\\"'), '\",\"quantity\":', ii.quantity, ',\"unit_price\":', ii.unit_price, ',\"subtotal\":', ii.subtotal, ',\"is_package\":', IF(ii.is_package=1, 'true', 'false'), '}'
+                        ) SEPARATOR ','
+                    ) as items_json
+                    FROM inquiries i
+                    LEFT JOIN inquiry_items ii ON i.id = ii.inquiry_id
+                    LEFT JOIN menu_items mi ON ii.menu_item_id = mi.id
+                    WHERE i.id = ?
+                    GROUP BY i.id
+                ");
+                $detailStmt->bind_param('i', $inquiry_id);
+                $detailStmt->execute();
+                $detailData = $detailStmt->get_result()->fetch_assoc();
+                $detailStmt->close();
+
+                $items = [];
+                if ($detailData && $detailData['items_json']) {
+                    $itemsJson = '[' . $detailData['items_json'] . ']';
+                    $items = json_decode($itemsJson, true) ?: [];
+                }
+
                 $emailData = [
                     'customer_name' => $inquiryData['full_name'],
                     'booking_id' => $inquiry_id,
-                    'event_date' => $inquiryData['event_date']
+                    'event_date' => $inquiryData['event_date'],
+                    'total_amount' => $total_amount,
+                    'down_payment' => $down_payment,
+                    'full_payment' => $full_payment,
+                    'items' => $items
                 ];
                 
                 $emailResult = sendArcEmail(

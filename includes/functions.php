@@ -472,6 +472,14 @@ function permanentlyDeleteInquiry(int $id): bool
         return false;
     }
 
+    // First delete any associated payment records
+    $paymentStmt = $connection->prepare("DELETE FROM payments WHERE inquiry_id = ?");
+    if ($paymentStmt) {
+        $paymentStmt->bind_param('i', $id);
+        $paymentStmt->execute();
+        $paymentStmt->close();
+    }
+
     $statement = $connection->prepare("DELETE FROM inquiries WHERE id = ? AND deleted_at IS NOT NULL");
 
     if (!$statement) {
@@ -1617,6 +1625,92 @@ function calculateOrderTotal(array $items): float
 }
 
 /**
+ * Calculate required downpayment (50% of total amount)
+ */
+function calculateRequiredDownpayment(float $totalAmount): float
+{
+    return round($totalAmount * 0.5, 2);
+}
+
+/**
+ * Generate payment summary HTML for emails
+ */
+function generatePaymentSummaryHTML(float $totalAmount, float $downPayment, float $fullPayment): string
+{
+    $totalPaid = $downPayment + $fullPayment;
+    $remainingBalance = max(0, $totalAmount - $totalPaid);
+
+    $html = '<div class="payment-summary">';
+
+    if ($totalPaid >= $totalAmount) {
+        // Full payment
+        $html .= <<<HTML
+        <div class="payment-box full-payment">
+            <h3>💰 Payment Summary</h3>
+            <div class="payment-details">
+                <div class="payment-row">
+                    <span>Total Amount:</span>
+                    <span>₱{$totalAmount}</span>
+                </div>
+                <div class="payment-row">
+                    <span>Paid in Full:</span>
+                    <span>₱{$totalPaid}</span>
+                </div>
+                <div class="payment-row balance-zero">
+                    <span>Remaining Balance:</span>
+                    <span>₱0.00</span>
+                </div>
+            </div>
+        </div>
+        HTML;
+    } elseif ($downPayment > 0) {
+        // Downpayment made
+        $html .= <<<HTML
+        <div class="payment-box downpayment">
+            <h3>💰 Payment Summary</h3>
+            <div class="payment-details">
+                <div class="payment-row">
+                    <span>Total Amount:</span>
+                    <span>₱{$totalAmount}</span>
+                </div>
+                <div class="payment-row">
+                    <span>Downpayment Paid:</span>
+                    <span>₱{$downPayment}</span>
+                </div>
+                <div class="payment-row remaining-balance">
+                    <span>Remaining Balance:</span>
+                    <span>₱{$remainingBalance}</span>
+                </div>
+            </div>
+            <p class="payment-note">Please settle the remaining balance before your event date.</p>
+        </div>
+        HTML;
+    } else {
+        // No payment yet
+        $requiredDownpayment = calculateRequiredDownpayment($totalAmount);
+        $html .= <<<HTML
+        <div class="payment-box pending-payment">
+            <h3>💰 Payment Required</h3>
+            <div class="payment-details">
+                <div class="payment-row">
+                    <span>Total Amount:</span>
+                    <span>₱{$totalAmount}</span>
+                </div>
+                <div class="payment-row">
+                    <span>Required Downpayment (50%):</span>
+                    <span>₱{$requiredDownpayment}</span>
+                </div>
+            </div>
+            <p class="payment-note">A 50% downpayment is required to confirm your booking.</p>
+        </div>
+        HTML;
+    }
+
+    $html .= '</div>';
+    return $html;
+}
+
+/**
  * Approve inquiry with payment data and create booking
  */
 function approveInquiryWithPayment(int $inquiryId, float $downPayment, float $fullPayment, float $totalAmount): bool|string
@@ -1985,6 +2079,14 @@ function permanentlyDeleteBooking(int $id): bool
         return false;
     }
 
+    // First delete any associated payment records
+    $paymentStmt = $connection->prepare("DELETE FROM payments WHERE booking_id = ?");
+    if ($paymentStmt) {
+        $paymentStmt->bind_param('i', $id);
+        $paymentStmt->execute();
+        $paymentStmt->close();
+    }
+
     $statement = $connection->prepare("DELETE FROM bookings WHERE id = ? AND deleted_at IS NOT NULL");
 
     if (!$statement) {
@@ -2121,7 +2223,13 @@ HTML;
     if (!empty($data['items']) && is_array($data['items'])) {
         $html .= generateOrderItemsTable($data['items']);
     }
-    
+
+    // Add payment summary
+    $totalAmount = (float)($data['total_amount'] ?? 0);
+    $downPayment = (float)($data['down_payment'] ?? 0);
+    $fullPayment = (float)($data['full_payment'] ?? 0);
+    $html .= generatePaymentSummaryHTML($totalAmount, $downPayment, $fullPayment);
+
     if ($message) {
         $html .= <<<HTML
 <div class="info-box">
@@ -2152,8 +2260,9 @@ function generateInquiryConfirmedEmail(array $data): string {
     $customerEmail = escape($data['email'] ?? '');
     $customerPhone = escape($data['phone'] ?? '');
     $venue = escape($data['venue'] ?? 'Not specified');
-    
-    return <<<HTML
+
+    // Build HTML with order items and payment summary
+    $html = <<<HTML
 <h2>Your Order is Confirmed! ✅</h2>
 <p>Dear {$name},</p>
 <p>Great news! Your inquiry has been officially confirmed and upgraded to a booking.</p>
@@ -2166,12 +2275,28 @@ function generateInquiryConfirmedEmail(array $data): string {
         <strong>Status:</strong> <span class="status-badge status-confirmed">Confirmed</span>
     </p>
 </div>
+HTML;
+
+    // Add order items if available
+    if (!empty($data['items']) && is_array($data['items'])) {
+        $html .= generateOrderItemsTable($data['items']);
+    }
+
+    // Add payment summary
+    $totalAmount = (float)($data['total_amount'] ?? 0);
+    $downPayment = (float)($data['down_payment'] ?? 0);
+    $fullPayment = (float)($data['full_payment'] ?? 0);
+    $html .= generatePaymentSummaryHTML($totalAmount, $downPayment, $fullPayment);
+
+    $html .= <<<HTML
 
 <p>Your event is now locked in our calendar. Our team will begin preparing for your special occasion.</p>
 
 <div class="divider"></div>
 <p>If you need to make any changes to your booking, please contact us as soon as possible.</p>
 HTML;
+
+    return $html;
 }
 
 /**

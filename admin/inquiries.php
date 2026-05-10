@@ -36,6 +36,8 @@ usort($all_rejected_inquiries, function($a, $b) {
     <link href="https://fonts.googleapis.com/css2?family=League+Spartan:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../assets/css/style.css">
     <link rel="stylesheet" href="../assets/css/admin.css">
+    <!-- Suppress favicon 404 error -->
+    <link rel="icon" href="data:;base64,iVBORw0KGgo=">
 </head>
 <body>
     <div class="admin-shell">
@@ -118,13 +120,9 @@ usort($all_rejected_inquiries, function($a, $b) {
                                         <span class="badge badge-pending"><?php echo escape($inquiry['status']); ?></span>
                                     </td>
                                     <td>
-                                        <div class="action-buttons">
-                                            <button class="btn-admin btn-secondary-admin btn-small" onclick="openEditModal(<?php echo (int)$inquiry['id']; ?>, 'inquiry')">View Order</button>
-                                            <button class="btn-admin btn-primary-admin btn-small" onclick="approveInquiry(<?php echo (int)$inquiry['id']; ?>)">Approve</button>
-                                            <button class="btn-admin btn-danger-admin btn-small" onclick="rejectInquiry(<?php echo (int)$inquiry['id']; ?>)">Reject</button>
-                                            <button class="btn-admin btn-danger-admin btn-small" onclick="deleteInquiryWithReason(<?php echo (int)$inquiry['id']; ?>, '<?php echo escape($inquiry['full_name']); ?>')" title="Delete">
-                                                🗑️ Delete
-                                            </button>
+                                        <div class="actions-cell">
+                                            <button class="btn-admin btn-secondary-admin btn-small" onclick="openEditModal(<?php echo (int)$inquiry['id']; ?>, 'inquiry')" style="margin-right: 8px;">View Order</button>
+                                            <button class="btn-manage" onclick="openManageModal(<?php echo (int)$inquiry['id']; ?>, 'inquiry', '<?php echo escape($inquiry['full_name']); ?>', 'pending')">⚙️ Manage</button>
                                         </div>
                                     </td>
                                 </tr>
@@ -398,7 +396,7 @@ usort($all_rejected_inquiries, function($a, $b) {
                         th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
                         th { background: #f5f5f5; font-weight: bold; }
                         h1 { color: #4a1414; }
-                        .no-print, .action-buttons { display: none !important; }
+                        .no-print, .action-buttons, .btn-manage { display: none !important; }
                     </style>
                 </head>
                 <body>
@@ -734,6 +732,152 @@ usort($all_rejected_inquiries, function($a, $b) {
             });
         }
     </script>
+
+    <!-- Manage Actions Modal JavaScript -->
+    <script>
+        let currentManageRecord = null;
+
+        // Open Manage Actions Modal
+        function openManageModal(recordId, recordType, recordName, status = null) {
+            currentManageRecord = { id: recordId, type: recordType, name: recordName, status: status };
+
+            // Update modal title
+            const titleEl = document.getElementById('manageModalTitle');
+            titleEl.textContent = `Manage ${recordType === 'inquiry' ? 'Inquiry' : 'Booking'}: ${recordName}`;
+
+            // Populate modal body with actions
+            const bodyEl = document.getElementById('manageModalBody');
+            bodyEl.innerHTML = generateManageActions(recordType, recordId, recordName, status);
+
+            // Show modal
+            const modal = document.getElementById('manageActionsModal');
+            modal.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+        }
+
+        // Close Manage Actions Modal
+        function closeManageModal() {
+            const modal = document.getElementById('manageActionsModal');
+            const bodyEl = document.getElementById('manageModalBody');
+            modal.style.display = 'none';
+            document.body.style.overflow = '';
+            // Clear modal content to prevent data ghosting
+            if (bodyEl) {
+                bodyEl.innerHTML = '';
+            }
+            currentManageRecord = null;
+        }
+
+        // Generate action buttons HTML based on record type and status
+        function generateManageActions(recordType, recordId, recordName, status) {
+            if (recordType === 'inquiry') {
+                return `
+                    <div class="manage-actions-grid">
+                        <button class="manage-action-btn action-approve" onclick="approveInquiry(${recordId}); closeManageModal();">
+                            <div class="action-icon">✅</div>
+                            <div class="action-label">Approve</div>
+                        </button>
+                        <button class="manage-action-btn action-reject" onclick="rejectInquiry(${recordId}); closeManageModal();">
+                            <div class="action-icon">❌</div>
+                            <div class="action-label">Reject</div>
+                        </button>
+                        <button class="manage-action-btn action-edit" onclick="openEditModal(${recordId}, 'inquiry'); closeManageModal();">
+                            <div class="action-icon">📝</div>
+                            <div class="action-label">Edit Order</div>
+                        </button>
+                        <button class="manage-action-btn action-delete" onclick="deleteInquiryWithReason(${recordId}, '${recordName.replace(/'/g, "\\'")}'); closeManageModal();">
+                            <div class="action-icon">🗑️</div>
+                            <div class="action-label">Delete</div>
+                        </button>
+                    </div>
+                `;
+            } else if (recordType === 'booking') {
+                let actionsHtml = '<div class="manage-actions-grid">';
+
+                if (status === 'pending') {
+                    actionsHtml += `
+                        <button class="manage-action-btn action-confirm" onclick="changeBookingStatus(${recordId}, 'confirmed'); closeManageModal();">
+                            <div class="action-icon">✅</div>
+                            <div class="action-label">Confirm</div>
+                        </button>
+                        <button class="manage-action-btn action-cancel" onclick="changeBookingStatus(${recordId}, 'cancelled'); closeManageModal();">
+                            <div class="action-icon">❌</div>
+                            <div class="action-label">Cancel</div>
+                        </button>
+                    `;
+                } else if (status === 'confirmed') {
+                    actionsHtml += `
+                        <button class="manage-action-btn action-progress" onclick="showETAModal(${recordId}); closeManageModal();">
+                            <div class="action-icon">👨‍🍳</div>
+                            <div class="action-label">In-Progress</div>
+                        </button>
+                        <button class="manage-action-btn action-complete" onclick="changeBookingStatus(${recordId}, 'completed'); closeManageModal();">
+                            <div class="action-icon">💰</div>
+                            <div class="action-label">Complete & Pay</div>
+                        </button>
+                        <button class="manage-action-btn action-cancel" onclick="changeBookingStatus(${recordId}, 'cancelled'); closeManageModal();">
+                            <div class="action-icon">❌</div>
+                            <div class="action-label">Cancel</div>
+                        </button>
+                        <button class="manage-action-btn action-ready" onclick="sendQuickNotification(${recordId}, 'ready_pickup'); closeManageModal();">
+                            <div class="action-icon">📦</div>
+                            <div class="action-label">Ready</div>
+                        </button>
+                        <button class="manage-action-btn action-onway" onclick="sendQuickNotification(${recordId}, 'on_the_way'); closeManageModal();">
+                            <div class="action-icon">🚚</div>
+                            <div class="action-label">On The Way</div>
+                        </button>
+                    `;
+                }
+
+                actionsHtml += `
+                    <button class="manage-action-btn action-edit" onclick="openEditModal(${recordId}, 'booking'); closeManageModal();">
+                        <div class="action-icon">📝</div>
+                        <div class="action-label">Edit Order</div>
+                    </button>
+                    <button class="manage-action-btn action-delete" onclick="deleteBookingWithReason(${recordId}, '${recordName.replace(/'/g, "\\'")}'); closeManageModal();">
+                        <div class="action-icon">🗑️</div>
+                        <div class="action-label">Delete</div>
+                    </button>
+                </div>`;
+
+                return actionsHtml;
+            }
+
+            return '<p>No actions available</p>';
+        }
+
+        // Close modal when clicking overlay
+        document.addEventListener('click', function(event) {
+            const modal = document.getElementById('manageActionsModal');
+            if (event.target === modal) {
+                closeManageModal();
+            }
+        });
+
+        // Close modal on Escape key
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                const modal = document.getElementById('manageActionsModal');
+                if (modal.style.display !== 'none') {
+                    closeManageModal();
+                }
+            }
+        });
+    </script>
+
+    <!-- Manage Actions Modal -->
+    <div id="manageActionsModal" class="manage-modal-overlay" style="display: none;">
+        <div class="manage-modal-content">
+            <div class="manage-modal-header">
+                <h3 id="manageModalTitle">Manage Order</h3>
+                <button class="manage-modal-close" onclick="closeManageModal()">×</button>
+            </div>
+            <div class="manage-modal-body" id="manageModalBody">
+                <!-- Actions will be populated here by JavaScript -->
+            </div>
+        </div>
+    </div>
 
     <script src="../assets/js/notifications.js"></script>
     <script src="../assets/js/main.js"></script>

@@ -315,7 +315,80 @@ function getArcEmailTemplate(string $title, string $content): string {
             background: linear-gradient(to right, transparent, #e0d5cc, transparent);
             margin: 30px 0;
         }
-        
+
+        /* Payment Summary Styles */
+        .payment-summary {
+            margin: 24px 0;
+        }
+
+        .payment-box {
+            background: #fff8f0;
+            border: 2px solid #d5a437;
+            border-radius: 15px;
+            padding: 24px;
+            margin: 16px 0;
+        }
+
+        .payment-box.full-payment {
+            border-color: #4caf50;
+            background: #f0f8f0;
+        }
+
+        .payment-box.downpayment {
+            border-color: #ff9800;
+            background: #fff8e1;
+        }
+
+        .payment-box.pending-payment {
+            border-color: #f44336;
+            background: #ffebee;
+        }
+
+        .payment-box h3 {
+            margin: 0 0 16px 0;
+            color: #4a1414;
+            font-family: 'League Spartan', sans-serif;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .payment-details {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .payment-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0e6dc;
+        }
+
+        .payment-row:last-child {
+            border-bottom: none;
+            font-weight: 700;
+            font-size: 16px;
+            color: #4a1414;
+        }
+
+        .payment-row.remaining-balance {
+            color: #f44336;
+        }
+
+        .payment-row.balance-zero {
+            color: #4caf50;
+        }
+
+        .payment-note {
+            margin: 16px 0 0 0;
+            font-size: 14px;
+            color: #8a6d5b;
+            font-style: italic;
+            text-align: center;
+        }
+
         @media (max-width: 600px) {
             .email-wrapper {
                 margin: 0;
