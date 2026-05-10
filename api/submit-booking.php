@@ -4,14 +4,24 @@
  * Saves booking to database only after email verification
  */
 
+// Set timezone to prevent time calculation issues
+date_default_timezone_set('Asia/Manila'); // Philippine Time
+
+// Production: Suppress error display, log to file only
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ini_set('display_startup_errors', 0);
+ini_set('log_errors', 1);
+
 session_start();
 
 // Clear any accidental output/warnings before sending JSON
 ob_start();
 header('Content-Type: application/json');
 
-require_once __DIR__ . '/../includes/config.php';
-require_once __DIR__ . '/../includes/functions.php';
+try {
+    require_once __DIR__ . '/../includes/config.php';
+    require_once __DIR__ . '/../includes/functions.php';
 
 // Strict Verification Check
 if (!isset($_SESSION['email_verified']) || $_SESSION['email_verified'] !== true) {
@@ -192,10 +202,17 @@ if ($stmt->execute()) {
     }
     
 } else {
-    error_log("Booking insert failed: " . $stmt->error);
-    $stmt->close();
+        error_log("Booking insert failed: " . $stmt->error);
+        $stmt->close();
+        ob_clean();
+        echo json_encode(['status' => 'error', 'message' => 'Failed to save booking. Please try again.']);
+    }
+
+} catch (Exception $e) {
+    error_log("Booking submission exception: " . $e->getMessage());
     ob_clean();
-    echo json_encode(['status' => 'error', 'message' => 'Failed to save booking. Please try again.']);
+    http_response_code(500);
+    echo json_encode(['status' => 'error', 'message' => 'An unexpected error occurred. Please try again.']);
 }
 
 ob_end_flush();

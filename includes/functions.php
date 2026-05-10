@@ -329,7 +329,10 @@ function updateInquiryStatus(int $id, string $status): bool
     return $saved;
 }
 
-function deleteInquiry(int $id): bool
+/**
+ * Soft delete an inquiry with reason tracking
+ */
+function softDeleteInquiry(int $id, int $deletedBy, ?string $reason = null): bool
 {
     $connection = getDbConnection();
 
@@ -337,7 +340,139 @@ function deleteInquiry(int $id): bool
         return false;
     }
 
-    $statement = $connection->prepare("DELETE FROM inquiries WHERE id = ?");
+    // First, get the record data for audit log
+    $recordData = null;
+    $selectStmt = $connection->prepare("SELECT * FROM inquiries WHERE id = ? AND (deleted_at IS NULL OR is_active = 1)");
+    if ($selectStmt) {
+        $selectStmt->bind_param('i', $id);
+        $selectStmt->execute();
+        $result = $selectStmt->get_result();
+        $record = $result->fetch_assoc();
+        if ($record) {
+            $recordData = json_encode($record);
+        }
+        $selectStmt->close();
+    }
+
+    // Perform soft delete
+    $statement = $connection->prepare(
+        "UPDATE inquiries SET is_active = 0, deleted_at = NOW(), deleted_by = ?, delete_reason = ? WHERE id = ?"
+    );
+
+    if (!$statement) {
+        return false;
+    }
+
+    $statement->bind_param('isi', $deletedBy, $reason, $id);
+    $deleted = $statement->execute();
+    $statement->close();
+
+    // Log the deletion
+    if ($deleted && $recordData) {
+        logDeletion('inquiry', $id, $recordData, $deletedBy, $reason, 'soft');
+    }
+
+    return $deleted;
+}
+
+/**
+ * Bulk soft delete inquiries
+ */
+function bulkSoftDeleteInquiries(array $ids, int $deletedBy, ?string $reason = null): array
+{
+    $connection = getDbConnection();
+
+    if (!$connection || empty($ids)) {
+        return ['success' => false, 'deleted_count' => 0, 'message' => 'Invalid request'];
+    }
+
+    $deletedCount = 0;
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $types = str_repeat('i', count($ids));
+
+    // Get records for audit log before deletion
+    $selectSql = "SELECT * FROM inquiries WHERE id IN ($placeholders) AND (deleted_at IS NULL OR is_active = 1)";
+    $selectStmt = $connection->prepare($selectSql);
+    if ($selectStmt) {
+        $selectStmt->bind_param($types, ...$ids);
+        $selectStmt->execute();
+        $result = $selectStmt->get_result();
+        $records = $result->fetch_all(MYSQLI_ASSOC);
+        $selectStmt->close();
+
+        // Perform bulk soft delete
+        $updateSql = "UPDATE inquiries SET is_active = 0, deleted_at = NOW(), deleted_by = ?, delete_reason = ? WHERE id IN ($placeholders) AND (deleted_at IS NULL OR is_active = 1)";
+        $updateStmt = $connection->prepare($updateSql);
+        if ($updateStmt) {
+            $params = array_merge([$deletedBy, $reason], $ids);
+            $typesWithReason = 'si' . $types;
+            $updateStmt->bind_param($typesWithReason, ...$params);
+            $updateStmt->execute();
+            $deletedCount = $updateStmt->affected_rows;
+            $updateStmt->close();
+
+            // Log each deletion
+            if ($deletedCount > 0) {
+                logDeletion('inquiry', 0, json_encode($records), $deletedBy, $reason, 'bulk');
+            }
+        }
+    }
+
+    return [
+        'success' => $deletedCount > 0,
+        'deleted_count' => $deletedCount,
+        'message' => $deletedCount > 0 ? "{$deletedCount} record(s) deleted" : 'No records deleted'
+    ];
+}
+
+/**
+ * Restore a soft-deleted inquiry
+ */
+function restoreInquiry(int $id, int $restoredBy): bool
+{
+    $connection = getDbConnection();
+
+    if (!$connection) {
+        return false;
+    }
+
+    $statement = $connection->prepare(
+        "UPDATE inquiries SET is_active = 1, deleted_at = NULL, deleted_by = NULL, delete_reason = NULL WHERE id = ?"
+    );
+
+    if (!$statement) {
+        return false;
+    }
+
+    $statement->bind_param('i', $id);
+    $restored = $statement->execute();
+    $statement->close();
+
+    // Update deletion log
+    if ($restored) {
+        $logStmt = $connection->prepare("UPDATE deleted_records_log SET restored_at = NOW(), restored_by = ? WHERE record_type = 'inquiry' AND record_id = ? AND restored_at IS NULL");
+        if ($logStmt) {
+            $logStmt->bind_param('ii', $restoredBy, $id);
+            $logStmt->execute();
+            $logStmt->close();
+        }
+    }
+
+    return $restored;
+}
+
+/**
+ * Permanently delete an inquiry (for already soft-deleted records)
+ */
+function permanentlyDeleteInquiry(int $id): bool
+{
+    $connection = getDbConnection();
+
+    if (!$connection) {
+        return false;
+    }
+
+    $statement = $connection->prepare("DELETE FROM inquiries WHERE id = ? AND deleted_at IS NOT NULL");
 
     if (!$statement) {
         return false;
@@ -348,6 +483,46 @@ function deleteInquiry(int $id): bool
     $statement->close();
 
     return $deleted;
+}
+
+/**
+ * Log deletion to audit trail
+ */
+function logDeletion(string $recordType, int $recordId, ?string $recordData, int $deletedBy, ?string $reason, string $deleteType): bool
+{
+    $connection = getDbConnection();
+
+    if (!$connection) {
+        return false;
+    }
+
+    // Get admin name
+    $adminName = 'Unknown';
+    $adminStmt = $connection->prepare("SELECT username FROM admins WHERE id = ?");
+    if ($adminStmt) {
+        $adminStmt->bind_param('i', $deletedBy);
+        $adminStmt->execute();
+        $adminResult = $adminStmt->get_result();
+        if ($adminRow = $adminResult->fetch_assoc()) {
+            $adminName = $adminRow['username'];
+        }
+        $adminStmt->close();
+    }
+
+    $statement = $connection->prepare(
+        "INSERT INTO deleted_records_log (record_type, record_id, record_data, deleted_by, deleted_by_name, delete_reason, delete_type)
+         VALUES (?, ?, ?, ?, ?, ?, ?)"
+    );
+
+    if (!$statement) {
+        return false;
+    }
+
+    $statement->bind_param('sisisss', $recordType, $recordId, $recordData, $deletedBy, $adminName, $reason, $deleteType);
+    $logged = $statement->execute();
+    $statement->close();
+
+    return $logged;
 }
 
 function saveMenuItem(array $data): bool
@@ -1674,6 +1849,156 @@ function updateBookingStatusWithPayment(int $bookingId, string $status, ?float $
 }
 
 /**
+ * Soft delete a booking with reason tracking
+ */
+function softDeleteBooking(int $id, int $deletedBy, ?string $reason = null): bool
+{
+    $connection = getDbConnection();
+
+    if (!$connection) {
+        return false;
+    }
+
+    // Get record data for audit log
+    $recordData = null;
+    $selectStmt = $connection->prepare("SELECT * FROM bookings WHERE id = ? AND (deleted_at IS NULL OR is_active = 1)");
+    if ($selectStmt) {
+        $selectStmt->bind_param('i', $id);
+        $selectStmt->execute();
+        $result = $selectStmt->get_result();
+        $record = $result->fetch_assoc();
+        if ($record) {
+            $recordData = json_encode($record);
+        }
+        $selectStmt->close();
+    }
+
+    $statement = $connection->prepare(
+        "UPDATE bookings SET is_active = 0, deleted_at = NOW(), deleted_by = ?, delete_reason = ? WHERE id = ?"
+    );
+
+    if (!$statement) {
+        return false;
+    }
+
+    $statement->bind_param('isi', $deletedBy, $reason, $id);
+    $deleted = $statement->execute();
+    $statement->close();
+
+    if ($deleted && $recordData) {
+        logDeletion('booking', $id, $recordData, $deletedBy, $reason, 'soft');
+    }
+
+    return $deleted;
+}
+
+/**
+ * Bulk soft delete bookings
+ */
+function bulkSoftDeleteBookings(array $ids, int $deletedBy, ?string $reason = null): array
+{
+    $connection = getDbConnection();
+
+    if (!$connection || empty($ids)) {
+        return ['success' => false, 'deleted_count' => 0, 'message' => 'Invalid request'];
+    }
+
+    $deletedCount = 0;
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $types = str_repeat('i', count($ids));
+
+    $selectSql = "SELECT * FROM bookings WHERE id IN ($placeholders) AND (deleted_at IS NULL OR is_active = 1)";
+    $selectStmt = $connection->prepare($selectSql);
+    if ($selectStmt) {
+        $selectStmt->bind_param($types, ...$ids);
+        $selectStmt->execute();
+        $result = $selectStmt->get_result();
+        $records = $result->fetch_all(MYSQLI_ASSOC);
+        $selectStmt->close();
+
+        $updateSql = "UPDATE bookings SET is_active = 0, deleted_at = NOW(), deleted_by = ?, delete_reason = ? WHERE id IN ($placeholders) AND (deleted_at IS NULL OR is_active = 1)";
+        $updateStmt = $connection->prepare($updateSql);
+        if ($updateStmt) {
+            $params = array_merge([$deletedBy, $reason], $ids);
+            $typesWithReason = 'si' . $types;
+            $updateStmt->bind_param($typesWithReason, ...$params);
+            $updateStmt->execute();
+            $deletedCount = $updateStmt->affected_rows;
+            $updateStmt->close();
+
+            if ($deletedCount > 0) {
+                logDeletion('booking', 0, json_encode($records), $deletedBy, $reason, 'bulk');
+            }
+        }
+    }
+
+    return [
+        'success' => $deletedCount > 0,
+        'deleted_count' => $deletedCount,
+        'message' => $deletedCount > 0 ? "{$deletedCount} record(s) deleted" : 'No records deleted'
+    ];
+}
+
+/**
+ * Restore a soft-deleted booking
+ */
+function restoreBooking(int $id, int $restoredBy): bool
+{
+    $connection = getDbConnection();
+
+    if (!$connection) {
+        return false;
+    }
+
+    $statement = $connection->prepare(
+        "UPDATE bookings SET is_active = 1, deleted_at = NULL, deleted_by = NULL, delete_reason = NULL WHERE id = ?"
+    );
+
+    if (!$statement) {
+        return false;
+    }
+
+    $statement->bind_param('i', $id);
+    $restored = $statement->execute();
+    $statement->close();
+
+    if ($restored) {
+        $logStmt = $connection->prepare("UPDATE deleted_records_log SET restored_at = NOW(), restored_by = ? WHERE record_type = 'booking' AND record_id = ? AND restored_at IS NULL");
+        if ($logStmt) {
+            $logStmt->bind_param('ii', $restoredBy, $id);
+            $logStmt->execute();
+            $logStmt->close();
+        }
+    }
+
+    return $restored;
+}
+
+/**
+ * Permanently delete a booking (for already soft-deleted records)
+ */
+function permanentlyDeleteBooking(int $id): bool
+{
+    $connection = getDbConnection();
+
+    if (!$connection) {
+        return false;
+    }
+
+    $statement = $connection->prepare("DELETE FROM bookings WHERE id = ? AND deleted_at IS NOT NULL");
+
+    if (!$statement) {
+        return false;
+    }
+
+    $statement->bind_param('i', $id);
+    $deleted = $statement->execute();
+    $statement->close();
+
+    return $deleted;
+}
+
+/**
  * Get payment status label and color
  */
 function getPaymentStatusInfo(string $status): array
@@ -1922,7 +2247,23 @@ function generateFinalReceiptEmail(array $data): string {
     $bookingId = $data['booking_id'] ?? 'N/A';
     $eventDate = isset($data['event_date']) ? date('F d, Y', strtotime($data['event_date'])) : 'N/A';
     $eventTime = escape($data['event_time'] ?? 'N/A');
+    $deliveryTime = escape($data['delivery_time'] ?? $eventTime);
     $eventLocation = escape($data['event_location'] ?? 'N/A');
+    
+    // Build structured address
+    $streetAddress = escape($data['street_address'] ?? '');
+    $city = escape($data['city'] ?? '');
+    $province = escape($data['province'] ?? '');
+    $zipCode = escape($data['zip_code'] ?? '');
+    $landmarks = escape($data['landmarks'] ?? '');
+    
+    if ($streetAddress && $city) {
+        $eventLocation = $streetAddress . ', ' . $city;
+        if ($province) $eventLocation .= ', ' . $province;
+        if ($zipCode) $eventLocation .= ' ' . $zipCode;
+        if ($landmarks) $eventLocation .= ' (Near: ' . $landmarks . ')';
+    }
+    
     $totalAmount = number_format((float)($data['total_amount'] ?? 0), 2);
     $totalPaid = number_format((float)($data['total_paid'] ?? 0), 2);
     // Handle items data - could be array or JSON string
@@ -1976,7 +2317,8 @@ ITEM;
     <div style="background: #faf5f0; border-radius: 15px; padding: 1.5rem; margin-bottom: 2rem;">
         <h3 style="color: #4a1414; margin: 0 0 1rem 0; font-size: 1.1rem;">📅 Event Details</h3>
         <p style="margin: 0.25rem 0; color: #333;"><strong>Date:</strong> {$eventDate}</p>
-        <p style="margin: 0.25rem 0; color: #333;"><strong>Time:</strong> {$eventTime}</p>
+        <p style="margin: 0.25rem 0; color: #333;"><strong>Event Time:</strong> {$eventTime}</p>
+        <p style="margin: 0.25rem 0; color: #333;"><strong>Delivery Time:</strong> {$deliveryTime}</p>
         <p style="margin: 0.25rem 0; color: #333;"><strong>Location:</strong> {$eventLocation}</p>
     </div>
     

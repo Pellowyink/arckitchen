@@ -59,14 +59,26 @@ usort($all_cancelled_bookings, function($a, $b) {
                  ACTIVE BOOKINGS (Pending + Confirmed)
                  ======================================== -->
             <div class="admin-card">
-                <div class="card-header">
-                    <h2 class="card-title">🟢 Active Bookings (<?php echo count($active_bookings); ?>)</h2>
-                    <span class="card-subtitle">Pending and Confirmed events</span>
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                    <div>
+                        <h2 class="card-title">🟢 Active Bookings (<?php echo count($active_bookings); ?>)</h2>
+                        <span class="card-subtitle">Pending and Confirmed events</span>
+                    </div>
+                    <div class="bulk-actions" style="display: flex; gap: 0.5rem; align-items: center;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.9rem;">
+                            <input type="checkbox" id="selectAllActive" onchange="toggleSelectAll('active')">
+                            Select All
+                        </label>
+                        <button class="btn-admin btn-danger-admin btn-small" onclick="bulkDeleteBookings('active')" id="bulkDeleteActiveBtn" style="display: none;">
+                            🗑️ Delete Selected
+                        </button>
+                    </div>
                 </div>
                 <div class="table-responsive">
                     <table class="admin-table">
                         <thead>
                             <tr>
+                                <th width="40"><input type="checkbox" id="selectAllActiveHeader" onchange="toggleSelectAll('active')"></th>
                                 <th>Customer</th>
                                 <th>Email</th>
                                 <th>Guests</th>
@@ -82,6 +94,7 @@ usort($all_cancelled_bookings, function($a, $b) {
                                     $status = strtolower($booking['status']);
                                 ?>
                                 <tr id="booking-<?php echo (int)$booking['id']; ?>" class="booking-row" data-booking-id="<?php echo (int)$booking['id']; ?>">
+                                    <td><input type="checkbox" class="booking-checkbox active-checkbox" value="<?php echo (int)$booking['id']; ?>" onchange="updateBulkDeleteButton('active')"></td>
                                     <td><strong><?php echo escape($booking['customer_name']); ?></strong></td>
                                     <td><?php echo escape($booking['customer_email']); ?></td>
                                     <td><?php echo (int)$booking['guest_count']; ?> pax</td>
@@ -124,6 +137,9 @@ usort($all_cancelled_bookings, function($a, $b) {
                                                     <button id="onwayBtn-<?php echo (int)$booking['id']; ?>" class="btn-admin btn-secondary-admin btn-small" onclick="sendQuickNotification(<?php echo (int)$booking['id']; ?>, 'on_the_way')" style="background: #8a2927; color: white;">🚚 On The Way</button>
                                                 </div>
                                             <?php endif; ?>
+                                            <button class="btn-admin btn-danger-admin btn-small" onclick="deleteBookingWithReason(<?php echo (int)$booking['id']; ?>, '<?php echo escape($booking['customer_name']); ?>')" title="Delete">
+                                                🗑️ Delete
+                                            </button>
                                         </div>
                                     </td>
                                 </tr>
@@ -553,6 +569,211 @@ usort($all_cancelled_bookings, function($a, $b) {
                     showArcError('Failed to delete booking. Please try again.');
                 } else {
                     alert('Failed to delete booking. Please try again.');
+                }
+            });
+        }
+        
+        // ============================================
+        // BULK DELETE & SOFT DELETE WITH REASON
+        // ============================================
+        
+        let currentDeleteIds = [];
+        let currentDeleteType = '';
+        
+        /**
+         * Toggle all checkboxes for bulk delete
+         */
+        function toggleSelectAll(type) {
+            const checkboxes = document.querySelectorAll(`.${type}-checkbox`);
+            const selectAllHeader = document.getElementById(`selectAll${type.charAt(0).toUpperCase() + type.slice(1)}Header`);
+            const selectAllMain = document.getElementById(`selectAll${type.charAt(0).toUpperCase() + type.slice(1)}`);
+            
+            const isChecked = selectAllHeader.checked;
+            
+            checkboxes.forEach(cb => {
+                cb.checked = isChecked;
+            });
+            
+            if (selectAllMain) selectAllMain.checked = isChecked;
+            
+            updateBulkDeleteButton(type);
+        }
+        
+        /**
+         * Update bulk delete button visibility
+         */
+        function updateBulkDeleteButton(type) {
+            const checkboxes = document.querySelectorAll(`.${type}-checkbox:checked`);
+            const btn = document.getElementById(`bulkDelete${type.charAt(0).toUpperCase() + type.slice(1)}Btn`);
+            
+            if (btn) {
+                btn.style.display = checkboxes.length > 0 ? 'inline-block' : 'none';
+                btn.textContent = `🗑️ Delete Selected (${checkboxes.length})`;
+            }
+        }
+        
+        /**
+         * Show delete reason modal for single booking
+         */
+        function deleteBookingWithReason(bookingId, customerName) {
+            currentDeleteIds = [bookingId];
+            currentDeleteType = 'single';
+            
+            const message = customerName 
+                ? `You are about to delete <strong>${escapeHtml(customerName)}'s</strong> booking. This will mark it as deleted but keep the record for audit purposes.`
+                : 'You are about to delete this booking. This will mark it as deleted but keep the record for audit purposes.';
+            
+            showDeleteReasonModal(message, function(reason) {
+                if (reason !== null) {
+                    doSoftDeleteBookings([bookingId], reason);
+                }
+            });
+        }
+        
+        /**
+         * Bulk delete bookings with reason
+         */
+        function bulkDeleteBookings(type) {
+            const checkboxes = document.querySelectorAll(`.${type}-checkbox:checked`);
+            const ids = Array.from(checkboxes).map(cb => parseInt(cb.value));
+            
+            if (ids.length === 0) {
+                if (typeof showArcError === 'function') {
+                    showArcError('Please select at least one booking to delete.');
+                } else {
+                    alert('Please select at least one booking to delete.');
+                }
+                return;
+            }
+            
+            currentDeleteIds = ids;
+            currentDeleteType = 'bulk';
+            
+            const message = `You are about to delete <strong>${ids.length}</strong> booking(s). This will mark them as deleted but keep the records for audit purposes.`;
+            
+            showDeleteReasonModal(message, function(reason) {
+                if (reason !== null) {
+                    doSoftDeleteBookings(ids, reason);
+                }
+            });
+        }
+        
+        /**
+         * Show custom delete reason modal
+         */
+        function showDeleteReasonModal(message, callback) {
+            // Remove existing modal if any
+            const existingModal = document.getElementById('deleteReasonModal');
+            if (existingModal) existingModal.remove();
+            
+            const modalHtml = `
+                <div id="deleteReasonModalOverlay" style="display: block; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 20000; backdrop-filter: blur(4px);"></div>
+                <div id="deleteReasonModal" style="display: block; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 16px; max-width: 450px; width: 90%; z-index: 20001; box-shadow: 0 25px 50px rgba(0,0,0,0.3); padding: 1.5rem;">
+                    <h3 style="color: #8a2927; margin: 0 0 1rem 0; font-size: 1.2rem;">⚠️ Confirm Deletion</h3>
+                    <p style="margin: 0 0 1rem 0; color: #333; line-height: 1.5;">${message}</p>
+                    <div style="margin-bottom: 1rem;">
+                        <label for="deleteReason" style="display: block; margin-bottom: 0.5rem; color: #4a1414; font-weight: 600;">Reason for deletion (optional):</label>
+                        <textarea id="deleteReason" rows="3" placeholder="e.g., Duplicate booking, Customer request, Invalid data..." style="width: 100%; padding: 0.75rem; border: 2px solid #e5d5c5; border-radius: 8px; font-family: inherit; resize: vertical;"></textarea>
+                    </div>
+                    <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+                        <button onclick="closeDeleteReasonModal(null)" style="padding: 0.75rem 1.5rem; border: 2px solid #ddd; background: #f5f5f5; border-radius: 8px; cursor: pointer; font-family: inherit; font-weight: 500;">Cancel</button>
+                        <button onclick="closeDeleteReasonModal(document.getElementById('deleteReason').value)" style="padding: 0.75rem 1.5rem; border: none; background: #8a2927; color: white; border-radius: 8px; cursor: pointer; font-family: inherit; font-weight: 600;">Delete</button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            document.getElementById('deleteReason').focus();
+            
+            // Store callback for later use
+            window.deleteReasonCallback = callback;
+        }
+        
+        /**
+         * Close delete reason modal and execute callback
+         */
+        function closeDeleteReasonModal(reason) {
+            const modal = document.getElementById('deleteReasonModal');
+            const overlay = document.getElementById('deleteReasonModalOverlay');
+            
+            if (modal) modal.remove();
+            if (overlay) overlay.remove();
+            
+            if (window.deleteReasonCallback) {
+                window.deleteReasonCallback(reason);
+                window.deleteReasonCallback = null;
+            }
+        }
+        
+        /**
+         * Escape HTML for safe display
+         */
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        /**
+         * Perform soft delete API call
+         */
+        function doSoftDeleteBookings(ids, reason) {
+            if (typeof showArcLoading === 'function') {
+                showArcLoading('Deleting...');
+            }
+            
+            const apiUrl = ids.length === 1 
+                ? '../api/soft-delete-booking.php' 
+                : '../api/bulk-delete-bookings.php';
+            
+            const bodyData = ids.length === 1 
+                ? { id: ids[0], reason: reason || 'No reason provided' }
+                : { ids: ids, reason: reason || 'Bulk delete operation' };
+            
+            fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(bodyData)
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (typeof hideArcModal === 'function') hideArcModal();
+                
+                if (result.success) {
+                    // Remove rows from table
+                    ids.forEach(id => {
+                        const row = document.getElementById('booking-' + id) || document.getElementById('cancelled-booking-' + id);
+                        if (row) {
+                            row.style.transition = 'opacity 0.3s';
+                            row.style.opacity = '0';
+                            setTimeout(() => row.remove(), 300);
+                        }
+                    });
+                    
+                    // Reset checkboxes
+                    document.querySelectorAll('.booking-checkbox').forEach(cb => cb.checked = false);
+                    updateBulkDeleteButton('active');
+                    
+                    if (typeof showArcSuccess === 'function') {
+                        showArcSuccess(result.message || 'Booking(s) deleted successfully');
+                    } else {
+                        alert(result.message || 'Booking(s) deleted successfully');
+                    }
+                } else {
+                    if (typeof showArcError === 'function') {
+                        showArcError(result.message || 'Failed to delete booking(s)');
+                    } else {
+                        alert('Error: ' + (result.message || 'Failed to delete booking(s)'));
+                    }
+                }
+            })
+            .catch(err => {
+                console.error('Delete error:', err);
+                if (typeof hideArcModal === 'function') hideArcModal();
+                if (typeof showArcError === 'function') {
+                    showArcError('Failed to delete booking(s). Please try again.');
+                } else {
+                    alert('Failed to delete booking(s). Please try again.');
                 }
             });
         }

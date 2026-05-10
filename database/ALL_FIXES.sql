@@ -139,3 +139,64 @@ MODIFY COLUMN `event_location` TEXT NULL DEFAULT NULL,
 MODIFY COLUMN `guest_count` INT NULL DEFAULT 0,
 MODIFY COLUMN `package_interest` TEXT NULL DEFAULT NULL,
 MODIFY COLUMN `message` TEXT NULL DEFAULT NULL;
+
+-- ============================================================================
+-- FEATURE 2: Scheduling Details - Complete Address & Delivery Time
+-- ============================================================================
+
+-- Add structured address fields to inquiries table
+ALTER TABLE `inquiries`
+ADD COLUMN IF NOT EXISTS `street_address` TEXT NULL AFTER `event_location`,
+ADD COLUMN IF NOT EXISTS `city` VARCHAR(100) NULL AFTER `street_address`,
+ADD COLUMN IF NOT EXISTS `province` VARCHAR(100) NULL AFTER `city`,
+ADD COLUMN IF NOT EXISTS `zip_code` VARCHAR(20) NULL AFTER `province`,
+ADD COLUMN IF NOT EXISTS `landmarks` TEXT NULL AFTER `zip_code`,
+ADD COLUMN IF NOT EXISTS `delivery_time` TIME NULL AFTER `event_time`;
+
+-- Add same fields to bookings table for consistency
+ALTER TABLE `bookings`
+ADD COLUMN IF NOT EXISTS `street_address` TEXT NULL AFTER `event_location`,
+ADD COLUMN IF NOT EXISTS `city` VARCHAR(100) NULL AFTER `street_address`,
+ADD COLUMN IF NOT EXISTS `province` VARCHAR(100) NULL AFTER `city`,
+ADD COLUMN IF NOT EXISTS `zip_code` VARCHAR(20) NULL AFTER `province`,
+ADD COLUMN IF NOT EXISTS `landmarks` TEXT NULL AFTER `zip_code`,
+ADD COLUMN IF NOT EXISTS `delivery_time` TIME NULL AFTER `event_time`;
+
+-- ============================================================================
+-- FEATURE 3: Admin Deletion - Soft Delete, Bulk Delete, Delete Reasons
+-- ============================================================================
+
+-- Add soft delete columns to inquiries table
+ALTER TABLE `inquiries`
+ADD COLUMN IF NOT EXISTS `deleted_at` DATETIME NULL DEFAULT NULL,
+ADD COLUMN IF NOT EXISTS `deleted_by` INT NULL DEFAULT NULL,
+ADD COLUMN IF NOT EXISTS `delete_reason` TEXT NULL DEFAULT NULL,
+ADD COLUMN IF NOT EXISTS `is_active` TINYINT(1) NOT NULL DEFAULT 1;
+
+-- Add soft delete columns to bookings table
+ALTER TABLE `bookings`
+ADD COLUMN IF NOT EXISTS `deleted_at` DATETIME NULL DEFAULT NULL,
+ADD COLUMN IF NOT EXISTS `deleted_by` INT NULL DEFAULT NULL,
+ADD COLUMN IF NOT EXISTS `delete_reason` TEXT NULL DEFAULT NULL,
+ADD COLUMN IF NOT EXISTS `is_active` TINYINT(1) NOT NULL DEFAULT 1;
+
+-- Create index for efficient soft delete queries
+CREATE INDEX IF NOT EXISTS idx_inquiries_is_active ON inquiries(is_active, deleted_at);
+CREATE INDEX IF NOT EXISTS idx_bookings_is_active ON bookings(is_active, deleted_at);
+
+-- Create deleted_records_log table for audit trail
+CREATE TABLE IF NOT EXISTS `deleted_records_log` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `record_type` VARCHAR(50) NOT NULL COMMENT 'inquiry, booking, package, menu',
+    `record_id` INT NOT NULL,
+    `record_data` JSON NULL COMMENT 'Snapshot of deleted record',
+    `deleted_by` INT NOT NULL,
+    `deleted_by_name` VARCHAR(255) NULL,
+    `delete_reason` TEXT NULL,
+    `delete_type` VARCHAR(20) NOT NULL DEFAULT 'soft' COMMENT 'soft, permanent, bulk',
+    `deleted_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `restored_at` DATETIME NULL DEFAULT NULL,
+    `restored_by` INT NULL DEFAULT NULL,
+    INDEX idx_record_type (record_type),
+    INDEX idx_deleted_at (deleted_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

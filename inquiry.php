@@ -27,7 +27,11 @@ if (isPostRequest()) {
         'phone' => 'Phone number',
         'event_date' => 'Event date',
         'event_time' => 'Event time',
-        'event_location' => 'Event location',
+        'delivery_time' => 'Delivery time',
+        'street_address' => 'Street address',
+        'city' => 'City',
+        'province' => 'Province',
+        'zip_code' => 'ZIP code',
     ]);
 
     if (!filter_var($_POST['email'] ?? '', FILTER_VALIDATE_EMAIL)) {
@@ -44,23 +48,32 @@ if (isPostRequest()) {
         $connection = getDbConnection();
         if ($connection) {
             $stmt = $connection->prepare(
-                "INSERT INTO inquiries (full_name, email, phone, event_date, event_time, event_location, event_type, guest_count, package_interest, message, status)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')"
+                "INSERT INTO inquiries (full_name, email, phone, event_date, event_time, delivery_time, street_address, city, province, zip_code, landmarks, event_location, event_type, guest_count, package_interest, message, status)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')"
             );
             
             if ($stmt) {
+                // Build full event location from structured address
+                $fullLocation = $_POST['street_address'] . ', ' . $_POST['city'] . ', ' . $_POST['province'] . ' ' . $_POST['zip_code'];
+                
                 $stmt->bind_param(
-                    'ssssssisss',
+                    'sssssssssssssiiss',
                     $_POST['full_name'],
                     $_POST['email'],
                     $_POST['phone'],
                     $_POST['event_date'],
                     $_POST['event_time'],
-                    $_POST['event_location'],
+                    $_POST['delivery_time'],
+                    $_POST['street_address'],
+                    $_POST['city'],
+                    $_POST['province'],
+                    $_POST['zip_code'],
+                    $_POST['landmarks'] ?? '',
+                    $fullLocation,
                     $_POST['event_type'],
                     $_POST['guest_count'],
-                    $_POST['package_interest'],
-                    $_POST['message']
+                    $_POST['package_interest'] ?? '',
+                    $_POST['message'] ?? ''
                 );
                 
                 if ($stmt->execute()) {
@@ -125,9 +138,15 @@ if (isPostRequest()) {
                         'event_type' => $_POST['event_type'],
                         'event_date' => $_POST['event_date'],
                         'event_time' => $_POST['event_time'],
-                        'event_location' => $_POST['event_location'],
+                        'delivery_time' => $_POST['delivery_time'],
+                        'street_address' => $_POST['street_address'],
+                        'city' => $_POST['city'],
+                        'province' => $_POST['province'],
+                        'zip_code' => $_POST['zip_code'],
+                        'landmarks' => $_POST['landmarks'] ?? '',
+                        'event_location' => $fullLocation,
                         'guest_count' => $_POST['guest_count'],
-                        'message' => $_POST['message'],
+                        'message' => $_POST['message'] ?? '',
                         'items' => $cartItems
                     ];
                     
@@ -339,17 +358,51 @@ require_once __DIR__ . '/includes/sidebar.php';
                     </div>
                 </div>
                 
-                <!-- Event Logistics Row -->
-                <div class="form-grid" style="margin-top: 1rem;">
-                    <div class="field">
-                        <label for="event_time">Event Time *</label>
-                        <input id="event_time" name="event_time" type="time" required value="<?php echo escape($_POST['event_time'] ?? '12:00'); ?>" style="background: #fffdf8; border: 2px solid #e5d5c5; border-radius: 25px; padding: 0.75rem 1rem; color: #4a1414;">
+                <!-- Complete Address Section -->
+                <div class="field-full" style="margin-top: 1rem; background: #fffdf8; padding: 1rem; border-radius: 12px; border: 2px solid #e5d5c5;">
+                    <h4 style="color: #4a1414; margin: 0 0 1rem 0; font-size: 1rem;">📍 Complete Delivery Address</h4>
+                    
+                    <div style="display: grid; gap: 0.75rem;">
+                        <div>
+                            <label for="street_address">Street Address *</label>
+                            <textarea id="street_address" name="street_address" required rows="2" placeholder="House/Building number, Street name, Barangay..." style="background: #fff; border: 2px solid #e5d5c5; border-radius: 25px; padding: 0.75rem 1rem; color: #4a1414; width: 100%; resize: vertical;"><?php echo escape($_POST['street_address'] ?? ''); ?></textarea>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                            <div>
+                                <label for="city">City/Municipality *</label>
+                                <input id="city" name="city" type="text" required placeholder="e.g., Makati, Quezon City..." value="<?php echo escape($_POST['city'] ?? ''); ?>" style="background: #fff; border: 2px solid #e5d5c5; border-radius: 25px; padding: 0.75rem 1rem; color: #4a1414; width: 100%;">
+                            </div>
+                            <div>
+                                <label for="province">Province *</label>
+                                <input id="province" name="province" type="text" required placeholder="e.g., Metro Manila, Cavite..." value="<?php echo escape($_POST['province'] ?? ''); ?>" style="background: #fff; border: 2px solid #e5d5c5; border-radius: 25px; padding: 0.75rem 1rem; color: #4a1414; width: 100%;">
+                            </div>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 0.75rem;">
+                            <div>
+                                <label for="zip_code">ZIP Code *</label>
+                                <input id="zip_code" name="zip_code" type="text" required placeholder="1200" maxlength="10" value="<?php echo escape($_POST['zip_code'] ?? ''); ?>" style="background: #fff; border: 2px solid #e5d5c5; border-radius: 25px; padding: 0.75rem 1rem; color: #4a1414; width: 100%;">
+                            </div>
+                            <div>
+                                <label for="landmarks">Nearby Landmarks</label>
+                                <input id="landmarks" name="landmarks" type="text" placeholder="e.g., Near SM Mall, beside Shell gas station..." value="<?php echo escape($_POST['landmarks'] ?? ''); ?>" style="background: #fff; border: 2px solid #e5d5c5; border-radius: 25px; padding: 0.75rem 1rem; color: #4a1414; width: 100%;">
+                            </div>
+                        </div>
                     </div>
                 </div>
                 
-                <div class="field-full" style="margin-top: 1rem;">
-                    <label for="event_location">Event Location *</label>
-                    <input id="event_location" name="event_location" type="text" required placeholder="Enter venue address or specific location details..." value="<?php echo escape($_POST['event_location'] ?? ''); ?>" style="background: #fffdf8; border: 2px solid #e5d5c5; border-radius: 25px; padding: 0.75rem 1rem; color: #4a1414; width: 100%;">
+                <!-- Preferred Delivery Time -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                    <div class="field">
+                        <label for="event_time">Event Start Time *</label>
+                        <input id="event_time" name="event_time" type="time" required value="<?php echo escape($_POST['event_time'] ?? '12:00'); ?>" style="background: #fffdf8; border: 2px solid #e5d5c5; border-radius: 25px; padding: 0.75rem 1rem; color: #4a1414;">
+                    </div>
+                    <div class="field">
+                        <label for="delivery_time">Preferred Delivery Time *</label>
+                        <input id="delivery_time" name="delivery_time" type="time" required value="<?php echo escape($_POST['delivery_time'] ?? '11:00'); ?>" style="background: #fffdf8; border: 2px solid #e5d5c5; border-radius: 25px; padding: 0.75rem 1rem; color: #4a1414;">
+                        <small style="color: #8a2927; display: block; margin-top: 0.25rem;">What time to pick up/deliver your order?</small>
+                    </div>
                 </div>
                 
                 <div class="field-full">
@@ -1523,14 +1576,31 @@ function showOrderSummary() {
     const message = document.getElementById('message').value;
 
     const eventTime = document.getElementById('event_time').value;
-    const eventLocation = document.getElementById('event_location').value;
+    const deliveryTime = document.getElementById('delivery_time').value;
+    const streetAddress = document.getElementById('street_address').value.trim();
+    const city = document.getElementById('city').value.trim();
+    const province = document.getElementById('province').value.trim();
+    const zipCode = document.getElementById('zip_code').value.trim();
+    const landmarks = document.getElementById('landmarks')?.value?.trim() || '';
 
     // Validate required fields
-    if (!fullName || !email || !phone || !eventDate || !eventTime || !eventLocation) {
+    if (!fullName || !email || !phone || !eventDate || !eventTime || !deliveryTime || !streetAddress || !city || !province || !zipCode) {
+        let missingFields = [];
+        if (!fullName) missingFields.push('Full Name');
+        if (!email) missingFields.push('Email');
+        if (!phone) missingFields.push('Phone');
+        if (!eventDate) missingFields.push('Event Date');
+        if (!eventTime) missingFields.push('Event Start Time');
+        if (!deliveryTime) missingFields.push('Delivery Time');
+        if (!streetAddress) missingFields.push('Street Address');
+        if (!city) missingFields.push('City');
+        if (!province) missingFields.push('Province');
+        if (!zipCode) missingFields.push('ZIP Code');
+        
         if (typeof showArcError === 'function') {
-            showArcError('Please fill in all required fields: Full Name, Email, Phone, Event Date, Event Time, and Event Location.');
+            showArcError('Please fill in all required fields: ' + missingFields.join(', ') + '.');
         } else {
-            alert('Please fill in all required fields: Full Name, Email, Phone, Event Date, Event Time, and Event Location.');
+            alert('Please fill in all required fields: ' + missingFields.join(', ') + '.');
         }
         return;
     }
@@ -1600,10 +1670,21 @@ function showOrderSummary() {
             <h4 style="color: #8a2927; margin: 0 0 1rem 0; font-size: 1.1rem;">📅 Event Details</h4>
             <div style="background: #fafafa; padding: 1rem; border-radius: 8px;">
                 <p style="margin: 0.25rem 0;"><strong>Date:</strong> ${formattedDate}</p>
-                <p style="margin: 0.25rem 0;"><strong>Time:</strong> ${eventTime}</p>
-                <p style="margin: 0.25rem 0;"><strong>Location:</strong> ${eventLocation}</p>
+                <p style="margin: 0.25rem 0;"><strong>Event Time:</strong> ${eventTime}</p>
+                <p style="margin: 0.25rem 0;"><strong>Delivery Time:</strong> ${deliveryTime}</p>
                 <p style="margin: 0.25rem 0;"><strong>Type:</strong> ${eventType || 'Not specified'}</p>
                 <p style="margin: 0.25rem 0;"><strong>Guests:</strong> ${guestCount} pax</p>
+            </div>
+        </div>
+
+        <div style="margin-bottom: 1.5rem;">
+            <h4 style="color: #8a2927; margin: 0 0 1rem 0; font-size: 1.1rem;">📍 Delivery Address</h4>
+            <div style="background: #fafafa; padding: 1rem; border-radius: 8px;">
+                <p style="margin: 0.25rem 0;"><strong>Street:</strong> ${streetAddress}</p>
+                <p style="margin: 0.25rem 0;"><strong>City:</strong> ${city}</p>
+                <p style="margin: 0.25rem 0;"><strong>Province:</strong> ${province}</p>
+                <p style="margin: 0.25rem 0;"><strong>ZIP:</strong> ${zipCode}</p>
+                ${landmarks ? `<p style="margin: 0.25rem 0;"><strong>Landmarks:</strong> ${landmarks}</p>` : ''}
             </div>
         </div>
 
@@ -1689,7 +1770,12 @@ function sendOtp() {
     formData.append('guest_count', form.querySelector('[name="guest_count"]')?.value || '');
     formData.append('event_date', form.querySelector('[name="event_date"]')?.value || '');
     formData.append('event_time', form.querySelector('[name="event_time"]')?.value || '');
-    formData.append('event_location', form.querySelector('[name="event_location"]')?.value || '');
+    formData.append('delivery_time', form.querySelector('[name="delivery_time"]')?.value || '');
+    formData.append('street_address', form.querySelector('[name="street_address"]')?.value || '');
+    formData.append('city', form.querySelector('[name="city"]')?.value || '');
+    formData.append('province', form.querySelector('[name="province"]')?.value || '');
+    formData.append('zip_code', form.querySelector('[name="zip_code"]')?.value || '');
+    formData.append('landmarks', form.querySelector('[name="landmarks"]')?.value || '');
     formData.append('special_requests', form.querySelector('[name="message"]')?.value || '');
     formData.append('total_amount', document.getElementById('cartTotalDisplay')?.textContent?.replace(/[^\d.-]/g, '') || '0');
 
