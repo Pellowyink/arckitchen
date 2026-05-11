@@ -43,6 +43,16 @@ if (isPostRequest()) {
         $errors[] = 'Please add at least one menu item or package to your order.';
     }
 
+    $eventDate = $_POST['event_date'] ?? '';
+    if ($eventDate && preg_match('/^\d{4}-\d{2}-\d{2}$/', $eventDate)) {
+        $availability = checkDateAvailability($eventDate);
+        if (!$availability['can_select']) {
+            $errors[] = 'The selected event date is fully booked. Please choose another date.';
+        }
+    } elseif ($eventDate) {
+        $errors[] = 'Please select a valid event date.';
+    }
+
     if (!$errors) {
         // Save inquiry first
         $connection = getDbConnection();
@@ -289,10 +299,9 @@ require_once __DIR__ . '/includes/sidebar.php';
                     <?php require_once __DIR__ . '/includes/calendar.php'; ?>
                     
                     <div class="calendar-legend" style="margin-top: 1rem; display: flex; gap: 1rem; justify-content: center; font-size: 0.8rem; flex-wrap: wrap;">
-                        <span><span style="display: inline-block; width: 12px; height: 12px; background: #f44336; border-radius: 2px; margin-right: 4px;"></span>Booked</span>
-                        <span><span style="display: inline-block; width: 12px; height: 12px; background: linear-gradient(135deg, #FFC107 0%, #FFB300 100%); border-radius: 2px; margin-right: 4px;"></span>Limited Slots</span>
-                        <span><span style="display: inline-block; width: 12px; height: 12px; background: #9e9e9e; border-radius: 2px; margin-right: 4px;"></span>Blocked</span>
-                        <span><span style="display: inline-block; width: 12px; height: 12px; background: #d5a437; border-radius: 2px; margin-right: 4px;"></span>Selected</span>
+                        <span><span style="display: inline-block; width: 12px; height: 12px; background: #4CAF50; border-radius: 50%; margin-right: 4px;"></span>Available</span>
+                        <span><span style="display: inline-block; width: 12px; height: 12px; background: linear-gradient(135deg, #FFC107 0%, #FFB300 100%); border-radius: 50%; margin-right: 4px;"></span>Limited Slots</span>
+                        <span><span style="display: inline-block; width: 12px; height: 12px; background: #f44336; border-radius: 50%; margin-right: 4px;"></span>Fully Booked</span>
                     </div>
                 </div>
             </div>
@@ -1281,6 +1290,16 @@ document.addEventListener('DOMContentLoaded', function() {
 <script>
 // Override calendar component's selectDate
 function selectDate(dateStr) {
+    const selectedCell = document.querySelector(`.calendar-table td[data-date="${dateStr}"]`);
+    if (selectedCell && (
+        selectedCell.classList.contains('fully_booked') ||
+        selectedCell.classList.contains('booked') ||
+        selectedCell.classList.contains('blocked') ||
+        selectedCell.classList.contains('past')
+    )) {
+        return;
+    }
+
     document.getElementById('selectedDate').value = dateStr;
     document.getElementById('selectedDateValue').textContent = new Date(dateStr).toLocaleDateString('en-US', {
         weekday: 'long',
@@ -1685,6 +1704,21 @@ function showOrderSummary() {
             showArcError('Please fill in all required fields: ' + missingFields.join(', ') + '.');
         } else {
             alert('Please fill in all required fields: ' + missingFields.join(', ') + '.');
+        }
+        return;
+    }
+
+    const selectedCell = document.querySelector(`.calendar-table td[data-date="${eventDate}"]`);
+    if (selectedCell && (
+        selectedCell.classList.contains('fully_booked') ||
+        selectedCell.classList.contains('booked') ||
+        selectedCell.classList.contains('blocked') ||
+        selectedCell.classList.contains('past')
+    )) {
+        if (typeof showArcError === 'function') {
+            showArcError('That date is fully booked. Please choose another available date.');
+        } else {
+            alert('That date is fully booked. Please choose another available date.');
         }
         return;
     }

@@ -20,31 +20,30 @@ if ($year < 2020 || $year > 2030 || $month < 1 || $month > 12) {
     exit;
 }
 
-$unavailable = getUnavailableDates($month, $year);
-$booked = getBookedDates($month, $year);
-
-// Merge data
 $dates = [];
+$calendarSettings = getCalendarSettings($month, (string)$year);
+$startDate = sprintf('%04d-%02d-01', $year, (int)$month);
+$daysInMonth = (int)date('t', strtotime($startDate));
 
-// Add unavailable dates
-foreach ($unavailable as $u) {
-    $dates[$u['date']] = [
-        'date' => $u['date'],
-        'status' => $u['status'], // 'blocked' or 'fully_booked'
-        'reason' => $u['reason'],
-        'class' => $u['status'] === 'fully_booked' ? 'fully-booked' : 'blocked'
-    ];
-}
+for ($day = 1; $day <= $daysInMonth; $day++) {
+    $date = sprintf('%04d-%02d-%02d', $year, (int)$month, $day);
+    $availability = checkDateAvailability($date, $calendarSettings[$date] ?? [
+        'slot_date' => $date,
+        'max_slots' => 3,
+        'current_slots' => 0,
+        'admin_note' => '',
+        'status' => 'open',
+    ]);
 
-// Add booked dates
-foreach ($booked as $b) {
-    $date = $b['date'];
-    if (!isset($dates[$date])) {
+    if ($availability['status'] !== 'available') {
         $dates[$date] = [
             'date' => $date,
-            'status' => 'booked',
-            'count' => $b['booking_count'],
-            'class' => 'booked'
+            'status' => $availability['status'],
+            'count' => $availability['current_slots'],
+            'max_slots' => $availability['max_slots'],
+            'note' => $availability['note'],
+            'class' => $availability['customer_class'],
+            'can_select' => $availability['can_select'],
         ];
     }
 }

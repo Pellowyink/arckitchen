@@ -1456,6 +1456,251 @@ function getPackageItems(int $packageId): array
    CALENDAR & UNAVAILABLE DATES
    ===================================================== */
 
+function ensureCalendarSettingsTable(): bool
+{
+    $connection = getDbConnection();
+    if (!$connection) return false;
+
+    $sql = "CREATE TABLE IF NOT EXISTS calendar_settings (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        slot_date DATE NOT NULL UNIQUE,
+        max_slots INT NOT NULL DEFAULT 3,
+        current_slots INT NOT NULL DEFAULT 0,
+        admin_note TEXT NULL,
+        status ENUM('open', 'limited', 'closed') NOT NULL DEFAULT 'open',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_slot_date (slot_date),
+        INDEX idx_status (status)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+
+    return (bool)$connection->query($sql);
+}
+
+function getBookingCountForDate(string $date): int
+{
+    $connection = getDbConnection();
+    if (!$connection) return 0;
+
+    $stmt = $connection->prepare(
+        "SELECT COUNT(*) AS current_slots
+         FROM bookings
+         WHERE event_date = ?
+         AND status IN ('confirmed', 'pending', 'completed')"
+    );
+    if (!$stmt) return 0;
+
+    $stmt->bind_param('s', $date);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $row = $result ? $result->fetch_assoc() : null;
+    $stmt->close();
+
+    return (int)($row['current_slots'] ?? 0);
+}
+
+function getCalendarSettings(string $month, string $year): array
+{
+    ensureCalendarSettingsTable();
+
+    $connection = getDbConnection();
+    if (!$connection) return [];
+
+    $startDate = sprintf('%04d-%02d-01', (int)$year, (int)$month);
+    $endDate = date('Y-m-t', strtotime($startDate));
+
+    $settings = [];
+
+    $stmt = $connection->prepare(
+        "SELECT slot_date, max_slots, current_slots, admin_note, status
+         FROM calendar_settings
+         WHERE slot_date BETWEEN ? AND ?"
+    );
+    if ($stmt) {
+        $stmt->bind_param('ss', $startDate, $endDate);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        while ($row = $result->fetch_assoc()) {
+            $settings[$row['slot_date']] = $row;
+        }
+        $stmt->close();
+    }
+
+    $bookingStmt = $connection->prepare(
+        "SELECT event_date AS slot_date, COUNT(*) AS current_slots
+         FROM bookings
+         WHERE status IN ('confirmed', 'pending', 'completed')
+         AND event_date BETWEEN ? AND ?
+         GROUP BY event_date"
+    );
+    if ($bookingStmt) {
+        $bookingStmt->bind_param('ss', $startDate, $endDate);
+        $bookingStmt->execute();
+        $result = $bookingStmt->get_result();
+        while ($row = $result->fetch_assoc()) {
+            $date = $row['slot_date'];
+            if (!isset($settings[$date])) {
+                $settings[$date] = [
+                    'slot_date' => $date,
+                    'max_slots' => 3,
+                    'current_slots' => 0,
+                    'admin_note' => null,
+                    'status' => 'open',
+                ];
+            }
+            $settings[$date]['current_slots'] = (int)$row['current_slots'];
+        }
+        $bookingStmt->close();
+    }
+
+    return $settings;
+}
+
+function getCalendarSettingByDate(string $date): array
+{
+    ensureCalendarSettingsTable();
+
+    $connection = getDbConnection();
+    $default = [
+        'slot_date' => $date,
+        'max_slots' => 3,
+        'current_slots' => getBookingCountForDate($date),
+        'admin_note' => '',
+        'status' => 'open',
+    ];
+
+    if (!$connection) return $default;
+
+    $stmt = $connection->prepare(
+        "SELECT slot_date, max_slots, current_slots, admin_note, status
+         FROM calendar_settings
+         WHERE slot_date = ?
+         LIMIT 1"
+    );
+    if (!$stmt) return $default;
+
+    $stmt->bind_param('s', $date);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $setting = $result ? $result->fetch_assoc() : null;
+    $stmt->close();
+
+    if (!$setting) {
+        return $default;
+    }
+
+    $setting['current_slots'] = getBookingCountForDate($date);
+    return array_merge($default, $setting);
+}
+
+function checkDateAvailability(string $date, ?array $setting = null): array
+{
+    $setting = $setting ?? getCalendarSettingByDate($date);
+    $setting = array_merge([
+        'slot_date' => $date,
+        'max_slots' => 3,
+        'current_slots' => 0,
+        'admin_note' => '',
+        'status' => 'open',
+    ], $setting);
+    $maxSlots = max(0, (int)($setting['max_slots'] ?? 3));
+    $currentSlots = (int)($setting['current_slots'] ?? getBookingCountForDate($date));
+    $adminStatus = strtolower((string)($setting['status'] ?? 'open'));
+    $adminNote = trim((string)($setting['admin_note'] ?? ''));
+
+    $availability = [
+        'date' => $date,
+        'status' => 'available',
+        'availability_class' => 'high-availability',
+        'customer_class' => 'available',
+        'can_select' => true,
+        'current_slots' => $currentSlots,
+        'max_slots' => $maxSlots,
+        'note' => $adminNote,
+        'admin_status' => $adminStatus,
+    ];
+
+    if (strtotime($date) < strtotime(date('Y-m-d'))) {
+        $availability['status'] = 'past';
+        $availability['availability_class'] = 'past';
+        $availability['customer_class'] = 'past';
+        $availability['can_select'] = false;
+        return $availability;
+    }
+
+    if ($adminStatus === 'closed' || $maxSlots <= 0 || $currentSlots >= $maxSlots) {
+        $availability['status'] = 'fully_booked';
+        $availability['availability_class'] = 'fully_booked';
+        $availability['customer_class'] = 'fully_booked';
+        $availability['can_select'] = false;
+        return $availability;
+    }
+
+    if ($adminStatus === 'limited' || ($currentSlots > 0 && ($maxSlots - $currentSlots) === 1)) {
+        $availability['status'] = 'limited';
+        $availability['availability_class'] = 'limited';
+        $availability['customer_class'] = 'limited';
+        return $availability;
+    }
+
+    return $availability;
+}
+
+function saveCalendarSetting(string $date, int $maxSlots, string $adminNote, string $status): bool
+{
+    ensureCalendarSettingsTable();
+
+    $connection = getDbConnection();
+    if (!$connection) return false;
+
+    $maxSlots = max(0, $maxSlots);
+    $currentSlots = getBookingCountForDate($date);
+    $allowedStatuses = ['open', 'limited', 'closed'];
+    if (!in_array($status, $allowedStatuses, true)) {
+        $status = 'open';
+    }
+
+    $stmt = $connection->prepare(
+        "INSERT INTO calendar_settings (slot_date, max_slots, current_slots, admin_note, status)
+         VALUES (?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+            max_slots = VALUES(max_slots),
+            current_slots = VALUES(current_slots),
+            admin_note = VALUES(admin_note),
+            status = VALUES(status),
+            updated_at = NOW()"
+    );
+    if (!$stmt) return false;
+
+    $stmt->bind_param('siiss', $date, $maxSlots, $currentSlots, $adminNote, $status);
+    $saved = $stmt->execute();
+    $stmt->close();
+
+    return $saved;
+}
+
+function getCalendarAvailabilityClass(array $setting): string
+{
+    $date = (string)($setting['slot_date'] ?? $setting['date'] ?? '');
+    if ($date !== '') {
+        return checkDateAvailability($date, $setting)['availability_class'];
+    }
+
+    $maxSlots = max(0, (int)($setting['max_slots'] ?? 3));
+    $currentSlots = (int)($setting['current_slots'] ?? 0);
+    $status = strtolower((string)($setting['status'] ?? 'open'));
+
+    if ($status === 'closed' || $maxSlots <= 0 || $currentSlots >= $maxSlots) {
+        return 'fully_booked';
+    }
+
+    if ($status === 'limited' || ($currentSlots > 0 && ($maxSlots - $currentSlots) === 1)) {
+        return 'limited';
+    }
+
+    return 'high-availability';
+}
+
 /**
  * Get unavailable dates for calendar
  */
@@ -1487,24 +1732,7 @@ function getUnavailableDates(string $month, string $year): array
  */
 function isDateAvailable(string $date): bool
 {
-    // Check if date is in the past
-    if (strtotime($date) < strtotime(date('Y-m-d'))) {
-        return false;
-    }
-    
-    $connection = getDbConnection();
-    if (!$connection) return true;
-    
-    $statement = $connection->prepare("SELECT id FROM unavailable_dates WHERE date = ?");
-    if (!$statement) return true;
-    
-    $statement->bind_param('s', $date);
-    $statement->execute();
-    $result = $statement->get_result();
-    $unavailable = $result->num_rows > 0;
-    $statement->close();
-    
-    return !$unavailable;
+    return checkDateAvailability($date)['can_select'];
 }
 
 /**

@@ -80,32 +80,17 @@ while ($row = $result->fetch_assoc()) {
 
 $stmt->close();
 
-// Check for limited availability note for this date
-$capacityNote = null;
-$dateStatus = 'available';
-
-$noteSql = "SELECT status, capacity_note FROM blocked_dates WHERE date = ? AND status IN ('limited', 'blocked')";
-$noteStmt = $conn->prepare($noteSql);
-$noteStmt->bind_param("s", $date);
-$noteStmt->execute();
-$noteResult = $noteStmt->get_result();
-if ($noteRow = $noteResult->fetch_assoc()) {
-    $dateStatus = $noteRow['status'];
-    $capacityNote = $noteRow['capacity_note'];
-}
-$noteStmt->close();
-
-// Determine overall date status
-$overallStatus = count($bookings) > 0 ? 'booked' : $dateStatus;
-if ($dateStatus === 'limited') {
-    $overallStatus = 'limited';
-}
+$dateSetting = getCalendarSettingByDate($date);
+$capacityNote = $dateSetting['admin_note'] ?? null;
+$overallStatus = getCalendarAvailabilityClass($dateSetting);
 
 echo json_encode([
     'success' => true,
     'date' => $date,
     'status' => $overallStatus,
     'capacity_note' => $capacityNote,
+    'max_slots' => (int)($dateSetting['max_slots'] ?? 3),
+    'current_slots' => (int)($dateSetting['current_slots'] ?? count($bookings)),
     'booking_count' => count($bookings),
     'bookings' => $bookings
 ]);

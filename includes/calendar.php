@@ -8,24 +8,7 @@
 // Get current month data
 $currentMonth = $_GET['month'] ?? date('m');
 $currentYear = $_GET['year'] ?? date('Y');
-
-// Get unavailable dates for this month
-$unavailableDates = getUnavailableDates($currentMonth, $currentYear);
-$bookedDates = getBookedDates($currentMonth, $currentYear);
-
-// Create lookup array
-$dateStatus = [];
-foreach ($unavailableDates as $u) {
-    $dateStatus[$u['date']] = $u['status']; // 'blocked' or 'fully_booked'
-}
-foreach ($bookedDates as $b) {
-    if (!isset($dateStatus[$b['date']])) {
-        $dateStatus[$b['date']] = 'booked';
-    }
-}
-
-// Always block today's date (cannot book same day)
-$dateStatus[$today] = 'blocked';
+$calendarSettings = getCalendarSettings((string)$currentMonth, (string)$currentYear);
 
 // Calendar generation
 $firstDay = strtotime("$currentYear-$currentMonth-01");
@@ -56,9 +39,8 @@ $monthName = date('F Y', $firstDay);
     
     <div class="calendar-legend">
         <span class="legend-item"><span class="legend-dot available"></span> Available</span>
-        <span class="legend-item"><span class="legend-dot booked"></span> Booked</span>
         <span class="legend-item"><span class="legend-dot limited"></span> Limited Slots</span>
-        <span class="legend-item"><span class="legend-dot blocked"></span> Unavailable</span>
+        <span class="legend-item"><span class="legend-dot fully-booked"></span> Fully Booked</span>
     </div>
     
     <table class="calendar-table">
@@ -89,29 +71,17 @@ $monthName = date('F Y', $firstDay);
                     else:
                         $dateStr = sprintf('%04d-%02d-%02d', $currentYear, $currentMonth, $cellDay);
                         $isToday = ($dateStr === $today);
-                        $isPast = ($dateStr < $today);
-                        
-                        $class = 'available';
-                        $canSelect = true;
-                        
-                        $capacityNote = null;
-                        if ($isPast) {
-                            $class = 'past';
-                            $canSelect = false;
-                        } elseif (isset($dateStatus[$dateStr])) {
-                            $status = $dateStatus[$dateStr];
-                            if ($status === 'blocked') {
-                                $class = 'blocked';
-                                $canSelect = false;
-                            } elseif ($status === 'fully_booked' || $status === 'booked') {
-                                $class = 'booked';
-                                $canSelect = false;
-                            } elseif ($status === 'limited') {
-                                $class = 'limited';
-                                $capacityNote = getCapacityNote($dateStr);
-                                // Limited dates remain clickable for "one last order"
-                            }
-                        }
+                        $availability = checkDateAvailability($dateStr, $calendarSettings[$dateStr] ?? [
+                            'slot_date' => $dateStr,
+                            'max_slots' => 3,
+                            'current_slots' => 0,
+                            'admin_note' => '',
+                            'status' => 'open',
+                        ]);
+                        $class = $availability['customer_class'];
+                        $canSelect = (bool)$availability['can_select'];
+                        $capacityNote = $availability['status'] === 'limited' ? $availability['note'] : '';
+                        $status = $availability['status'];
                         
                         if ($isToday) $class .= ' today';
                 ?>
@@ -120,7 +90,7 @@ $monthName = date('F Y', $firstDay);
                     <?php if ($canSelect): ?>onclick="selectDate('<?php echo $dateStr; ?>')"<?php endif; ?>
                     <?php if ($capacityNote): ?>title="<?php echo escape($capacityNote); ?>" data-tooltip="<?php echo escape($capacityNote); ?>"<?php endif; ?>>
                     <?php echo $cellDay; ?>
-                    <?php if (isset($dateStatus[$dateStr]) && ($dateStatus[$dateStr] === 'booked' || $dateStatus[$dateStr] === 'limited')): ?>
+                    <?php if ($status === 'limited'): ?>
                     <span class="booking-indicator">●</span>
                     <?php endif; ?>
                 </td>
@@ -197,7 +167,8 @@ $monthName = date('F Y', $firstDay);
 }
 
 .legend-dot.available { background: #4CAF50; }
-.legend-dot.booked { background: #f44336; }
+.legend-dot.booked,
+.legend-dot.fully-booked { background: #f44336; }
 .legend-dot.blocked { background: #9e9e9e; }
 .legend-dot.limited { background: linear-gradient(135deg, #FFC107 0%, #FFB300 100%); }
 
@@ -239,7 +210,8 @@ $monthName = date('F Y', $firstDay);
     color: white;
 }
 
-.calendar-table td.booked {
+.calendar-table td.booked,
+.calendar-table td.fully_booked {
     background: rgba(244, 67, 54, 0.1);
     color: #c62828;
     cursor: not-allowed;
@@ -348,7 +320,7 @@ function changeMonth(month, year) {
                     const savedDate = document.getElementById('eventDateInput')?.value;
                     if (savedDate) {
                         const cell = document.querySelector(`td[data-date="${savedDate}"]`);
-                        if (cell && cell.classList.contains('available')) {
+                        if (cell && (cell.classList.contains('available') || cell.classList.contains('limited'))) {
                             cell.classList.add('selected');
                         }
                     }
@@ -372,15 +344,25 @@ function changeMonth(month, year) {
 
 function attachCalendarListeners() {
     // Re-attach click handlers to available dates
-    document.querySelectorAll('.calendar-table td.available, .calendar-table td.today').forEach(td => {
+    document.querySelectorAll('.calendar-table td.available, .calendar-table td.limited, .calendar-table td.today').forEach(td => {
         const date = td.dataset.date;
-        if (date) {
+        if (date && !td.classList.contains('past') && !td.classList.contains('fully_booked')) {
             td.onclick = () => selectDate(date);
         }
     });
 }
 
 function selectDate(date) {
+    const selectedCell = document.querySelector(`.calendar-table td[data-date="${date}"]`);
+    if (selectedCell && (
+        selectedCell.classList.contains('fully_booked') ||
+        selectedCell.classList.contains('booked') ||
+        selectedCell.classList.contains('blocked') ||
+        selectedCell.classList.contains('past')
+    )) {
+        return;
+    }
+
     // Update display
     const display = document.getElementById('selectedDateDisplay');
     const text = document.getElementById('selectedDateText');

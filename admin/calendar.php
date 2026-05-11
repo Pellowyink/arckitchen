@@ -56,22 +56,8 @@ $blockedDates = getUnavailableDates($currentMonth, $currentYear);
 // Get booked dates
 $bookedDates = getBookedDates($currentMonth, $currentYear);
 
-// Merge for display
-$dateStatuses = [];
-foreach ($blockedDates as $b) {
-    $dateStatuses[$b['date']] = [
-        'type' => $b['status'],
-        'reason' => $b['reason']
-    ];
-}
-foreach ($bookedDates as $b) {
-    if (!isset($dateStatuses[$b['date']])) {
-        $dateStatuses[$b['date']] = [
-            'type' => 'booked',
-            'count' => $b['booking_count']
-        ];
-    }
-}
+// Slot settings drive admin calendar availability colors.
+$calendarSettings = getCalendarSettings($currentMonth, $currentYear);
 
 // Get upcoming bookings for list
 $bookings = getInquiries();
@@ -125,6 +111,16 @@ $bookings = getInquiries();
             border-color: rgba(138, 41, 39, 0.1);
             color: #333;
         }
+        .calendar-day.high-availability {
+            background: #e8f5e9;
+            border-color: #4caf50;
+            color: #1b5e20;
+            cursor: pointer;
+        }
+        .calendar-day.high-availability:hover {
+            transform: scale(1.03);
+            box-shadow: 0 3px 10px rgba(76, 175, 80, 0.25);
+        }
         .calendar-day.blocked {
             background: #9e9e9e;
             color: white;
@@ -132,6 +128,11 @@ $bookings = getInquiries();
         .calendar-day.fully_booked {
             background: #f44336;
             color: white;
+            cursor: pointer;
+        }
+        .calendar-day.fully_booked:hover {
+            transform: scale(1.03);
+            box-shadow: 0 3px 10px rgba(244, 67, 54, 0.25);
         }
         .calendar-day.booked {
             background: #ff9800;
@@ -161,6 +162,107 @@ $bookings = getInquiries();
         .calendar-day.booked:hover {
             transform: scale(1.02);
             box-shadow: 0 2px 8px rgba(255, 152, 0, 0.3);
+        }
+        .slot-count {
+            font-size: 0.62rem;
+            margin-top: 0.1rem;
+            font-weight: 700;
+            opacity: 0.9;
+        }
+        .date-management-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.55);
+            z-index: 1100;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+        .date-management-modal.active {
+            display: flex;
+        }
+        .date-management-card {
+            width: min(520px, 100%);
+            background: #fff;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+        }
+        .date-management-header {
+            background: #8a2927;
+            color: #fff;
+            padding: 1rem 1.25rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .date-management-header h2 {
+            margin: 0;
+            font-size: 1.1rem;
+        }
+        .date-management-close {
+            border: 0;
+            background: transparent;
+            color: #fff;
+            font-size: 1.8rem;
+            line-height: 1;
+            cursor: pointer;
+        }
+        .date-management-body {
+            padding: 1.25rem;
+        }
+        .date-management-body label {
+            display: block;
+            margin-bottom: 0.35rem;
+            color: #4a1414;
+            font-weight: 700;
+            font-size: 0.88rem;
+        }
+        .date-management-body input,
+        .date-management-body textarea {
+            width: 100%;
+            padding: 0.7rem;
+            border: 1px solid #dbc7b9;
+            border-radius: 8px;
+            font: inherit;
+        }
+        .date-management-body textarea {
+            min-height: 90px;
+            resize: vertical;
+        }
+        .date-management-field {
+            margin-bottom: 1rem;
+        }
+        .date-toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: 0.85rem;
+            border: 1px solid #eadbd1;
+            border-radius: 8px;
+            background: #fffaf7;
+        }
+        .date-toggle-row input {
+            width: auto;
+        }
+        .slot-summary {
+            background: #f8f1ec;
+            border-left: 4px solid #8a2927;
+            padding: 0.75rem 1rem;
+            border-radius: 0 8px 8px 0;
+            margin-bottom: 1rem;
+            color: #4a1414;
+            font-weight: 600;
+        }
+        .date-management-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.75rem;
+            padding: 1rem 1.25rem;
+            border-top: 1px solid #eee;
+            background: #faf7f4;
         }
         /* Receipt Modal Styles */
         .order-receipt-modal {
@@ -354,24 +456,16 @@ $bookings = getInquiries();
                     
                     <div class="legend">
                         <div class="legend-item">
-                            <div class="legend-color" style="background: #fff; border: 2px solid rgba(138, 41, 39, 0.15);"></div>
-                            <span>Available</span>
-                        </div>
-                        <div class="legend-item">
-                            <div class="legend-color" style="background: #ff9800;"></div>
-                            <span>Has Bookings</span>
+                            <div class="legend-color" style="background: #e8f5e9; border: 2px solid #4caf50;"></div>
+                            <span>High Availability</span>
                         </div>
                         <div class="legend-item">
                             <div class="legend-color" style="background: linear-gradient(135deg, #FFC107 0%, #FFB300 100%);"></div>
-                            <span>Limited Slots Available</span>
+                            <span>Limited Slots</span>
                         </div>
                         <div class="legend-item">
                             <div class="legend-color" style="background: #f44336;"></div>
-                            <span>Fully Booked</span>
-                        </div>
-                        <div class="legend-item">
-                            <div class="legend-color" style="background: #9e9e9e;"></div>
-                            <span>Blocked</span>
+                            <span>Fully Booked / Closed</span>
                         </div>
                     </div>
                     
@@ -399,37 +493,34 @@ $bookings = getInquiries();
                                 $isToday = ($dateStr === $today);
                                 $isPast = ($dateStr < $today);
                                 
-                                $class = 'available';
-                                $statusText = '';
+                                $setting = $calendarSettings[$dateStr] ?? [
+                                    'slot_date' => $dateStr,
+                                    'max_slots' => 3,
+                                    'current_slots' => 0,
+                                    'admin_note' => null,
+                                    'status' => 'open',
+                                ];
+                                $currentSlots = (int)($setting['current_slots'] ?? 0);
+                                $maxSlots = (int)($setting['max_slots'] ?? 3);
+                                $availabilityClass = getCalendarAvailabilityClass($setting);
                                 
-                                $isClickable = false;
+                                $class = $availabilityClass;
+                                $statusText = '';
                                 $clickHandler = '';
                                 
                                 if ($isPast) {
                                     $class = 'past';
-                                } elseif (isset($dateStatuses[$dateStr])) {
-                                    $status = $dateStatuses[$dateStr]['type'];
-                                    $class = $status;
-                                    if ($status === 'booked') {
-                                        $statusText = $dateStatuses[$dateStr]['count'];
-                                        $isClickable = true;
-                                    } elseif ($status === 'blocked') {
-                                        $statusText = 'X';
-                                    } elseif ($status === 'fully_booked') {
-                                        $statusText = 'F';
-                                    } elseif ($status === 'limited') {
-                                        $statusText = 'L';
-                                        $isClickable = true;
-                                    }
+                                } else {
+                                    $statusText = $currentSlots . '/' . $maxSlots;
+                                    $clickHandler = " onclick='openDateManagementModal(\"$dateStr\")'";
                                 }
                                 
                                 if ($isToday) $class .= ' today';
-                                if ($isClickable) $clickHandler = " onclick='showOrderReceipt(\"$dateStr\")'";
                                 
-                                echo "<div class='calendar-day $class'$clickHandler>";
+                                echo "<div class='calendar-day $class'$clickHandler data-date='" . escape($dateStr) . "'>";
                                 echo "<span>$day</span>";
                                 if ($statusText) {
-                                    echo "<span class='date-status-badge'>$statusText</span>";
+                                    echo "<span class='slot-count'>$statusText</span>";
                                 }
                                 echo "</div>";
                             }
@@ -569,6 +660,43 @@ $bookings = getInquiries();
         </main>
     </div>
     
+    <!-- Date Management Modal -->
+    <div id="dateManagementModal" class="date-management-modal">
+        <div class="date-management-card">
+            <div class="date-management-header">
+                <h2 id="dateManagementTitle">Manage Date</h2>
+                <button type="button" class="date-management-close" onclick="closeDateManagementModal()">&times;</button>
+            </div>
+            <div class="date-management-body">
+                <input type="hidden" id="managedDate">
+                <div class="slot-summary" id="slotSummary">Loading slot details...</div>
+
+                <div class="date-management-field">
+                    <label for="maxSlots">Max Order Capacity</label>
+                    <input type="number" id="maxSlots" min="0" step="1" value="3">
+                </div>
+
+                <div class="date-management-field">
+                    <label for="adminNote">Admin Comment</label>
+                    <textarea id="adminNote" placeholder="Add internal notes or availability comments for this date"></textarea>
+                </div>
+
+                <div class="date-toggle-row">
+                    <div>
+                        <strong style="color: #4a1414;">Date is open for orders</strong>
+                        <div style="color: #777; font-size: 0.85rem;">Turn off to mark this date closed.</div>
+                    </div>
+                    <input type="checkbox" id="dateOpenToggle" checked>
+                </div>
+            </div>
+            <div class="date-management-actions">
+                <button type="button" class="btn-admin btn-secondary-admin" onclick="viewManagedDateOrders()">View Orders</button>
+                <button type="button" class="btn-admin btn-secondary-admin" onclick="closeDateManagementModal()">Cancel</button>
+                <button type="button" class="btn-admin btn-primary-admin" onclick="saveDateSettings()">Save Settings</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Order Receipt Modal -->
     <div id="orderReceiptModal" class="order-receipt-modal">
         <div class="receipt-container">
@@ -589,6 +717,97 @@ $bookings = getInquiries();
     
     <script>
         let currentReceiptData = null;
+        let currentManagedDate = null;
+
+        function formatDisplayDate(dateStr) {
+            return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+        }
+
+        function openDateManagementModal(dateStr) {
+            currentManagedDate = dateStr;
+            const modal = document.getElementById('dateManagementModal');
+            const title = document.getElementById('dateManagementTitle');
+            const summary = document.getElementById('slotSummary');
+
+            document.getElementById('managedDate').value = dateStr;
+            title.textContent = `Manage ${formatDisplayDate(dateStr)}`;
+            summary.textContent = 'Loading slot details...';
+            modal.classList.add('active');
+
+            fetch(`../api/get-date-settings.php?date=${encodeURIComponent(dateStr)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success) {
+                        throw new Error(data.message || 'Failed to load date settings');
+                    }
+
+                    const setting = data.setting;
+                    document.getElementById('maxSlots').value = parseInt(setting.max_slots !== undefined ? setting.max_slots : 3, 10);
+                    document.getElementById('adminNote').value = setting.admin_note || '';
+                    document.getElementById('dateOpenToggle').checked = setting.status !== 'closed';
+
+                    const current = parseInt(setting.current_slots !== undefined ? setting.current_slots : 0, 10);
+                    const max = parseInt(setting.max_slots !== undefined ? setting.max_slots : 3, 10);
+                    const label = setting.availability_class === 'fully_booked'
+                        ? 'Fully booked / closed'
+                        : (setting.availability_class === 'limited' ? 'Limited slots' : 'High availability');
+                    summary.textContent = `${current}/${max} slots booked - ${label}`;
+                })
+                .catch(error => {
+                    console.error('Date settings error:', error);
+                    summary.textContent = 'Unable to load date settings.';
+                });
+        }
+
+        function closeDateManagementModal() {
+            document.getElementById('dateManagementModal').classList.remove('active');
+            currentManagedDate = null;
+        }
+
+        function viewManagedDateOrders() {
+            const dateStr = document.getElementById('managedDate').value;
+            closeDateManagementModal();
+            showOrderReceipt(dateStr);
+        }
+
+        function saveDateSettings() {
+            const dateStr = document.getElementById('managedDate').value;
+            const maxSlots = parseInt(document.getElementById('maxSlots').value, 10);
+            const adminNote = document.getElementById('adminNote').value;
+            const isOpen = document.getElementById('dateOpenToggle').checked;
+
+            if (!dateStr || Number.isNaN(maxSlots) || maxSlots < 0) {
+                alert('Please enter a valid max slot capacity.');
+                return;
+            }
+
+            fetch('../api/manage-date.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    slot_date: dateStr,
+                    max_slots: maxSlots,
+                    admin_note: adminNote,
+                    status: isOpen ? 'open' : 'closed'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (!data.success) {
+                    throw new Error(data.message || 'Failed to save date settings');
+                }
+                window.location.reload();
+            })
+            .catch(error => {
+                console.error('Save date settings error:', error);
+                alert(error.message || 'Failed to save date settings.');
+            });
+        }
         
         /**
          * Show order receipt modal for a specific date
@@ -799,11 +1018,18 @@ $bookings = getInquiries();
                 closeOrderReceipt();
             }
         });
+
+        document.getElementById('dateManagementModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeDateManagementModal();
+            }
+        });
         
         // Close modal on Escape key
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') {
                 closeOrderReceipt();
+                closeDateManagementModal();
             }
         });
         
