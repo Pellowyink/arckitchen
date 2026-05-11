@@ -2174,6 +2174,8 @@ function generateEmailContent(string $type, array $data): string {
             return generateInProgressEmail($data);
         case 'completed':
             return generateCompletedEmail($data);
+        case 'final_receipt':
+            return generateFinalReceiptEmail($data);
         case 'ready_pickup':
             return generateReadyPickupEmail($data);
         case 'on_the_way':
@@ -2364,10 +2366,124 @@ function generateCompletedEmail(array $data): string {
 HTML;
 }
 
+function tableHasColumn(mysqli $connection, string $table, string $column): bool
+{
+    $stmt = $connection->prepare("
+        SELECT COUNT(*) AS column_count
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = ?
+          AND COLUMN_NAME = ?
+    ");
+
+    if (!$stmt) {
+        return false;
+    }
+
+    $stmt->bind_param('ss', $table, $column);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $row = $result ? $result->fetch_assoc() : null;
+    $stmt->close();
+
+    return (int)($row['column_count'] ?? 0) > 0;
+}
+
+function getBookingPaymentReceiptData(int $bookingId, float $amountPaidNow = 0): ?array
+{
+    $connection = getDbConnection();
+    if (!$connection) {
+        return null;
+    }
+
+    $bookingEventTime = tableHasColumn($connection, 'bookings', 'event_time') ? "b.event_time" : "NULL";
+    $inquiryEventTime = tableHasColumn($connection, 'inquiries', 'event_time') ? "i.event_time" : "NULL";
+    $bookingEventLocation = tableHasColumn($connection, 'bookings', 'event_location') ? "NULLIF(b.event_location, '')" : "NULL";
+    $inquiryEventLocation = tableHasColumn($connection, 'inquiries', 'event_location') ? "NULLIF(i.event_location, '')" : "NULL";
+    $bookingZip = tableHasColumn($connection, 'bookings', 'zip_code') ? "NULLIF(b.zip_code, '')" : "NULL";
+    $inquiryZip = tableHasColumn($connection, 'inquiries', 'zip_code') ? "NULLIF(i.zip_code, '')" : "NULL";
+    $bookingStreet = tableHasColumn($connection, 'bookings', 'street_address') ? "NULLIF(b.street_address, '')" : "NULL";
+    $inquiryStreet = tableHasColumn($connection, 'inquiries', 'street_address') ? "NULLIF(i.street_address, '')" : "NULL";
+    $bookingCity = tableHasColumn($connection, 'bookings', 'city') ? "NULLIF(b.city, '')" : "NULL";
+    $inquiryCity = tableHasColumn($connection, 'inquiries', 'city') ? "NULLIF(i.city, '')" : "NULL";
+    $bookingProvince = tableHasColumn($connection, 'bookings', 'province') ? "NULLIF(b.province, '')" : "NULL";
+    $inquiryProvince = tableHasColumn($connection, 'inquiries', 'province') ? "NULLIF(i.province, '')" : "NULL";
+    $bookingLandmarks = tableHasColumn($connection, 'bookings', 'landmarks') ? "NULLIF(b.landmarks, '')" : "NULL";
+    $inquiryLandmarks = tableHasColumn($connection, 'inquiries', 'landmarks') ? "NULLIF(i.landmarks, '')" : "NULL";
+    $bookingDeliveryTime = tableHasColumn($connection, 'bookings', 'delivery_time') ? "b.delivery_time" : "NULL";
+    $inquiryDeliveryTime = tableHasColumn($connection, 'inquiries', 'delivery_time') ? "i.delivery_time" : "NULL";
+
+    $sql = "
+        SELECT
+            b.id AS booking_id,
+            b.inquiry_id,
+            COALESCE(NULLIF(b.customer_name, ''), i.full_name) AS customer_name,
+            b.customer_email,
+            COALESCE(b.event_date, i.event_date) AS event_date,
+            COALESCE({$bookingEventTime}, {$inquiryEventTime}) AS event_time,
+            COALESCE({$bookingDeliveryTime}, {$inquiryDeliveryTime}) AS delivery_time,
+            COALESCE({$bookingEventLocation}, {$inquiryEventLocation}) AS event_location,
+            COALESCE({$bookingStreet}, {$inquiryStreet}) AS street_address,
+            COALESCE({$bookingCity}, {$inquiryCity}) AS city,
+            COALESCE({$bookingProvince}, {$inquiryProvince}) AS province,
+            COALESCE({$bookingZip}, {$inquiryZip}) AS zip_code,
+            COALESCE({$bookingLandmarks}, {$inquiryLandmarks}) AS landmarks,
+            COALESCE(NULLIF(b.total_amount, 0), i.total_amount, 0) AS total_price,
+            COALESCE(b.down_payment, 0) AS down_payment,
+            COALESCE(b.full_payment, 0) AS full_payment,
+            COALESCE(NULLIF(b.items_json, ''), i.items_json) AS items_json
+        FROM bookings b
+        LEFT JOIN inquiries i ON i.id = b.inquiry_id
+        WHERE b.id = ?
+        LIMIT 1
+    ";
+
+    $stmt = $connection->prepare($sql);
+    if (!$stmt) {
+        error_log("getBookingPaymentReceiptData: Prepare failed: " . $connection->error);
+        return null;
+    }
+
+    $stmt->bind_param('i', $bookingId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $receipt = $result ? $result->fetch_assoc() : null;
+    $stmt->close();
+
+    if (!$receipt) {
+        return null;
+    }
+
+    $items = [];
+    if (!empty($receipt['items_json'])) {
+        $decoded = json_decode($receipt['items_json'], true);
+        $items = is_array($decoded) ? $decoded : [];
+    }
+
+    if (!$items && !empty($receipt['inquiry_id'])) {
+        $items = getInquiryItems((int)$receipt['inquiry_id']);
+    }
+
+    $totalPrice = (float)($receipt['total_price'] ?? 0);
+    $downPayment = (float)($receipt['down_payment'] ?? 0);
+    $fullPayment = (float)($receipt['full_payment'] ?? 0);
+    $totalPaid = $downPayment + $fullPayment;
+    $remainingBalance = max(0, $totalPrice - $totalPaid);
+
+    $receipt['items'] = $items;
+    $receipt['total_amount'] = $totalPrice;
+    $receipt['total_paid'] = $totalPaid;
+    $receipt['amount_paid_now'] = $amountPaidNow > 0 ? $amountPaidNow : $totalPaid;
+    $receipt['remaining_balance'] = $remainingBalance;
+    $receipt['payment_type'] = $remainingBalance > 0 ? 'Downpayment' : 'Full Payment';
+
+    return $receipt;
+}
+
 /**
  * Generate Final Receipt email content
  */
-function generateFinalReceiptEmail(array $data): string {
+function generateLegacyFinalReceiptEmail(array $data): string {
     $name = escape($data['customer_name'] ?? 'Valued Customer');
     $bookingId = $data['booking_id'] ?? 'N/A';
     $eventDate = isset($data['event_date']) ? date('F d, Y', strtotime($data['event_date'])) : 'N/A';
@@ -2491,6 +2607,136 @@ ITEM;
         <p style="color: #666; margin: 0; font-size: 0.9rem;">
             The ARC Kitchen Family
         </p>
+    </div>
+</div>
+HTML;
+}
+
+function generateFinalReceiptEmail(array $data): string {
+    $name = escape($data['customer_name'] ?? 'Valued Customer');
+    $bookingId = $data['booking_id'] ?? 'N/A';
+    $eventDate = isset($data['event_date']) ? date('F d, Y', strtotime($data['event_date'])) : 'N/A';
+    $eventTimeRaw = $data['event_time'] ?? '';
+    $eventTime = $eventTimeRaw ? date('g:i A', strtotime($eventTimeRaw)) : 'N/A';
+    $eventLocation = escape($data['event_location'] ?? 'N/A');
+
+    $streetAddress = escape($data['street_address'] ?? '');
+    $city = escape($data['city'] ?? '');
+    $province = escape($data['province'] ?? '');
+    $zipCode = escape($data['zip_code'] ?? '');
+    $landmarks = escape($data['landmarks'] ?? '');
+
+    if ($streetAddress && $city) {
+        $eventLocation = $streetAddress . ', ' . $city;
+        if ($province) $eventLocation .= ', ' . $province;
+        if ($zipCode) $eventLocation .= ' ' . $zipCode;
+        if ($landmarks) $eventLocation .= ' (Near: ' . $landmarks . ')';
+    } elseif ($zipCode && strpos($eventLocation, $zipCode) === false) {
+        $eventLocation .= ' ' . $zipCode;
+    }
+
+    $totalAmountValue = (float)($data['total_amount'] ?? $data['total_price'] ?? 0);
+    $amountPaidNowValue = (float)($data['amount_paid_now'] ?? $data['total_paid'] ?? 0);
+    $remainingBalanceValue = (float)($data['remaining_balance'] ?? max(0, $totalAmountValue - (float)($data['total_paid'] ?? 0)));
+    $paymentType = escape($data['payment_type'] ?? ($remainingBalanceValue > 0 ? 'Downpayment' : 'Full Payment'));
+
+    $totalAmount = number_format($totalAmountValue, 2);
+    $amountPaidNow = number_format($amountPaidNowValue, 2);
+    $remainingBalance = number_format($remainingBalanceValue, 2);
+    $remainingStyle = $remainingBalanceValue > 0 ? 'font-weight: 700; color: #8a2927;' : 'font-weight: 600; color: #2f6f3e;';
+
+    $items = $data['items'] ?? [];
+    if (is_string($items)) {
+        $decoded = json_decode($items, true);
+        $items = json_last_error() === JSON_ERROR_NONE && is_array($decoded) ? $decoded : [];
+    }
+    if (!is_array($items)) {
+        $items = [];
+    }
+
+    $itemsHtml = '';
+    foreach ($items as $item) {
+        $itemName = escape($item['name'] ?? $item['product_name'] ?? 'Unknown Item');
+        $qty = (int)($item['quantity'] ?? 1);
+        $unitPriceValue = (float)($item['unit_price'] ?? $item['product_price'] ?? $item['price'] ?? 0);
+        $subtotalValue = (float)($item['subtotal'] ?? $item['total_price'] ?? ($qty * $unitPriceValue));
+        $price = number_format($unitPriceValue, 2);
+        $subtotal = number_format($subtotalValue, 2);
+        $itemsHtml .= <<<ITEM
+        <tr>
+            <td style="padding: 10px 8px; border-bottom: 1px solid #eeeeee; color: #333333;">{$itemName}</td>
+            <td style="padding: 10px 8px; border-bottom: 1px solid #eeeeee; color: #333333; text-align: center;">{$qty}</td>
+            <td style="padding: 10px 8px; border-bottom: 1px solid #eeeeee; color: #333333; text-align: right;">&#8369;{$price}</td>
+            <td style="padding: 10px 8px; border-bottom: 1px solid #eeeeee; color: #333333; text-align: right;">&#8369;{$subtotal}</td>
+        </tr>
+ITEM;
+    }
+
+    if ($itemsHtml === '') {
+        $itemsHtml = '<tr><td colspan="4" style="padding: 10px 8px; color: #666666; text-align: center;">No order items found for this booking.</td></tr>';
+    }
+
+    return <<<HTML
+<div style="max-width: 620px; margin: 0 auto; background: #ffffff; border: 1px solid #dddddd; border-top: 5px solid #8a2927; font-family: Arial, Helvetica, sans-serif;">
+    <div style="padding: 24px 24px 12px 24px;">
+        <h1 style="margin: 0; color: #4a1414; font-size: 24px; line-height: 1.3;">Payment Receipt - ARC Kitchen</h1>
+        <p style="margin: 8px 0 0 0; color: #555555; font-size: 14px;">Booking #{$bookingId} | {$paymentType}</p>
+    </div>
+
+    <div style="padding: 12px 24px;">
+        <p style="margin: 0 0 12px 0; color: #333333; font-size: 15px;">Dear {$name},</p>
+        <table style="width: 100%; border-collapse: collapse; background: #fafafa; border: 1px solid #eeeeee;">
+            <tr>
+                <td colspan="2" style="padding: 12px; color: #4a1414; font-weight: 700; border-bottom: 1px solid #eeeeee;">Event Details</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px 12px; color: #666666; width: 110px;">Date</td>
+                <td style="padding: 8px 12px; color: #333333;">{$eventDate}</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px 12px; color: #666666;">Time</td>
+                <td style="padding: 8px 12px; color: #333333;">{$eventTime}</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px 12px; color: #666666;">Address</td>
+                <td style="padding: 8px 12px; color: #333333;">{$eventLocation}</td>
+            </tr>
+        </table>
+    </div>
+
+    <div style="padding: 12px 24px;">
+        <h2 style="margin: 0 0 10px 0; color: #4a1414; font-size: 18px;">Order Summary</h2>
+        <table style="width: 100%; border-collapse: collapse; font-size: 14px; border: 1px solid #eeeeee;">
+            <thead>
+                <tr style="background: #8a2927;">
+                    <th style="padding: 10px 8px; text-align: left; color: #ffffff;">Item</th>
+                    <th style="padding: 10px 8px; text-align: center; color: #ffffff;">Qty</th>
+                    <th style="padding: 10px 8px; text-align: right; color: #ffffff;">Price</th>
+                    <th style="padding: 10px 8px; text-align: right; color: #ffffff;">Subtotal</th>
+                </tr>
+            </thead>
+            <tbody>
+                {$itemsHtml}
+            </tbody>
+        </table>
+    </div>
+
+    <div style="padding: 12px 24px 24px 24px;">
+        <h2 style="margin: 0 0 10px 0; color: #4a1414; font-size: 18px;">Payment Summary</h2>
+        <table style="width: 100%; border-collapse: collapse; font-size: 15px; border: 1px solid #eeeeee;">
+            <tr>
+                <td style="padding: 10px 12px; color: #555555; border-bottom: 1px solid #eeeeee;">Total Order Value</td>
+                <td style="padding: 10px 12px; color: #333333; text-align: right; border-bottom: 1px solid #eeeeee;">&#8369;{$totalAmount}</td>
+            </tr>
+            <tr>
+                <td style="padding: 10px 12px; color: #555555; border-bottom: 1px solid #eeeeee;"><strong>Amount Paid Now</strong></td>
+                <td style="padding: 10px 12px; color: #333333; text-align: right; border-bottom: 1px solid #eeeeee;"><strong>&#8369;{$amountPaidNow}</strong></td>
+            </tr>
+            <tr>
+                <td style="padding: 10px 12px; color: #555555;">Remaining Balance</td>
+                <td style="padding: 10px 12px; text-align: right; {$remainingStyle}">&#8369;{$remainingBalance}</td>
+            </tr>
+        </table>
     </div>
 </div>
 HTML;
@@ -2621,12 +2867,21 @@ function sendCustomerNotification(string $type, int $bookingId, array $extraData
         return ['success' => false, 'message' => 'Customer email not found'];
     }
     
+    $amountPaidNow = (float)($extraData['amount_paid_now'] ?? 0);
     $data = [
         'customer_name' => $booking['customer_name'],
         'booking_id' => $bookingId,
         'event_date' => $booking['event_date'],
         'venue' => $booking['venue'] ?? '',
     ];
+
+    if ($type === 'final_receipt') {
+        $receiptData = getBookingPaymentReceiptData($bookingId, $amountPaidNow);
+        if (!$receiptData) {
+            return ['success' => false, 'message' => 'Unable to fetch receipt details'];
+        }
+        $data = $receiptData;
+    }
     
     // Merge with extra data
     $data = array_merge($data, $extraData);
@@ -2637,7 +2892,7 @@ function sendCustomerNotification(string $type, int $bookingId, array $extraData
         'inquiry_confirmed' => 'Your Order is Confirmed! - Arc Kitchen',
         'in_progress' => 'Your Order is Almost Done! - Arc Kitchen',
         'completed' => 'Order Complete! - Arc Kitchen',
-        'final_receipt' => 'Your ARC Kitchen Order Receipt – Thank You!',
+        'final_receipt' => 'Payment Receipt - ARC Kitchen',
         'ready_pickup' => 'Ready for Pickup! - Arc Kitchen',
         'on_the_way' => "We're On The Way! - Arc Kitchen",
     ];
