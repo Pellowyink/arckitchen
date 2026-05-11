@@ -2758,8 +2758,27 @@ function generateEmailContent(string $type, array $data): string {
         case 'on_the_way':
             return generateOnTheWayEmail($data);
         default:
-            return '<p>Thank you for choosing Arc Kitchen!</p>';
+            return '<p>Note: Once your order is confirmed, all payments made are strictly non-refundable.</p>';
     }
+}
+
+function generateNonRefundablePolicyNote(): string
+{
+    return <<<HTML
+<hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+<p style="font-size: 12px; font-style: italic; text-align: center; color: #666; margin: 0;">
+    Note: All payments made (Down Payment or Full Payment) are strictly non-refundable.
+</p>
+HTML;
+}
+
+function generateDeliveryPaymentInstruction(): string
+{
+    return <<<HTML
+<p style="font-weight: 700; color: #4a1414; margin: 12px 0 0 0; font-size: 14px; line-height: 1.6;">
+    Please settle any remaining balance when the order is delivered or handed over upfront.
+</p>
+HTML;
 }
 
 /**
@@ -2826,6 +2845,8 @@ HTML;
 <p style="margin-top: 20px;"><strong>Reference Number:</strong> #{$inquiryId}</p>
 HTML;
 
+    $html .= generateNonRefundablePolicyNote();
+
     return $html;
 }
 
@@ -2866,6 +2887,7 @@ HTML;
     $downPayment = (float)($data['down_payment'] ?? 0);
     $fullPayment = (float)($data['full_payment'] ?? 0);
     $html .= generatePaymentSummaryHTML($totalAmount, $downPayment, $fullPayment);
+    $html .= generateDeliveryPaymentInstruction();
 
     $html .= <<<HTML
 
@@ -2874,6 +2896,8 @@ HTML;
 <div class="divider"></div>
 <p>If you need to make any changes to your booking, please contact us as soon as possible.</p>
 HTML;
+
+    $html .= generateNonRefundablePolicyNote();
 
     return $html;
 }
@@ -3221,6 +3245,8 @@ function generateFinalReceiptEmail(array $data): string {
     $amountPaidNow = number_format($amountPaidNowValue, 2);
     $remainingBalance = number_format($remainingBalanceValue, 2);
     $remainingStyle = $remainingBalanceValue > 0 ? 'font-weight: 700; color: #8a2927;' : 'font-weight: 600; color: #2f6f3e;';
+    $deliveryPaymentInstruction = generateDeliveryPaymentInstruction();
+    $nonRefundablePolicyNote = generateNonRefundablePolicyNote();
 
     $items = $data['items'] ?? [];
     if (is_string($items)) {
@@ -3314,6 +3340,8 @@ ITEM;
                 <td style="padding: 10px 12px; text-align: right; {$remainingStyle}">&#8369;{$remainingBalance}</td>
             </tr>
         </table>
+        {$deliveryPaymentInstruction}
+        {$nonRefundablePolicyNote}
     </div>
 </div>
 HTML;
