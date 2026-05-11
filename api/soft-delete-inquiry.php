@@ -1,7 +1,7 @@
 <?php
 /**
- * Soft Delete Inquiry API
- * Marks an inquiry as deleted with reason tracking
+ * Hard Delete Inquiry API
+ * Permanently deletes an inquiry regardless of status.
  */
 
 require_once __DIR__ . '/../includes/functions.php';
@@ -16,55 +16,56 @@ ini_set('log_errors', 1);
 ob_start();
 header('Content-Type: application/json');
 
+function respondJson(array $payload, int $statusCode = 200): void
+{
+    http_response_code($statusCode);
+    if (ob_get_length() !== false) {
+        ob_clean();
+    }
+    echo json_encode($payload);
+    exit;
+}
+
 try {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        http_response_code(405);
-        echo json_encode(['success' => false, 'message' => 'Method not allowed']);
-        exit;
+        respondJson(['success' => false, 'message' => 'Method not allowed'], 405);
     }
 
     $data = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($data)) {
+        respondJson(['success' => false, 'message' => 'Invalid JSON request'], 400);
+    }
+
     $inquiryId = (int)($data['id'] ?? 0);
-    $reason = sanitize($data['reason'] ?? 'No reason provided');
     $adminId = (int)($_SESSION['admin_id'] ?? 0);
 
     if ($inquiryId <= 0) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'message' => 'Invalid inquiry ID']);
-        exit;
+        respondJson(['success' => false, 'message' => 'Invalid inquiry ID'], 400);
     }
 
     if ($adminId <= 0) {
-        http_response_code(401);
-        echo json_encode(['success' => false, 'message' => 'Admin not authenticated']);
-        exit;
+        respondJson(['success' => false, 'message' => 'Admin not authenticated'], 401);
     }
 
-    // Perform soft delete
-    $result = softDeleteInquiry($inquiryId, $adminId, $reason);
+    // Perform hard delete
+    $result = hardDeleteInquiry($inquiryId);
 
     if ($result) {
-        echo json_encode([
+        respondJson([
             'success' => true,
-            'message' => 'Inquiry deleted successfully'
+            'message' => 'Inquiry permanently deleted'
         ]);
     } else {
-        http_response_code(500);
-        echo json_encode([
+        respondJson([
             'success' => false,
             'message' => 'Failed to delete inquiry'
-        ]);
+        ], 500);
     }
 
-} catch (Exception $e) {
+} catch (Throwable $e) {
     error_log("Soft delete inquiry exception: " . $e->getMessage());
-    ob_clean();
-    http_response_code(500);
-    echo json_encode([
+    respondJson([
         'success' => false,
         'message' => 'An error occurred while deleting the inquiry'
-    ]);
+    ], 500);
 }
-
-ob_end_flush();
-exit;

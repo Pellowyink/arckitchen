@@ -466,31 +466,127 @@ function restoreInquiry(int $id, int $restoredBy): bool
  */
 function permanentlyDeleteInquiry(int $id): bool
 {
-    $connection = getDbConnection();
+    return hardDeleteInquiry($id);
+}
 
+function dbTableExists(mysqli $connection, string $table): bool
+{
+    $stmt = $connection->prepare("
+        SELECT COUNT(*) AS table_count
+        FROM INFORMATION_SCHEMA.TABLES
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = ?
+    ");
+
+    if (!$stmt) {
+        return false;
+    }
+
+    $stmt->bind_param('s', $table);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $row = $result ? $result->fetch_assoc() : null;
+    $stmt->close();
+
+    return (int)($row['table_count'] ?? 0) > 0;
+}
+
+function hardDeleteInquiry(int $id): bool
+{
+    $connection = getDbConnection();
     if (!$connection) {
         return false;
     }
 
-    // First delete any associated payment records
-    $paymentStmt = $connection->prepare("DELETE FROM payments WHERE inquiry_id = ?");
-    if ($paymentStmt) {
-        $paymentStmt->bind_param('i', $id);
-        $paymentStmt->execute();
-        $paymentStmt->close();
-    }
+    $connection->begin_transaction();
 
-    $statement = $connection->prepare("DELETE FROM inquiries WHERE id = ? AND deleted_at IS NOT NULL");
+    try {
+        if (dbTableExists($connection, 'payments')) {
+            $stmt = $connection->prepare("
+                DELETE p FROM payments p
+                INNER JOIN bookings b ON b.id = p.booking_id
+                WHERE b.inquiry_id = ?
+            ");
+            if ($stmt) {
+                $stmt->bind_param('i', $id);
+                $stmt->execute();
+                $stmt->close();
+            }
 
-    if (!$statement) {
+            $stmt = $connection->prepare("DELETE FROM payments WHERE inquiry_id = ?");
+            if ($stmt) {
+                $stmt->bind_param('i', $id);
+                $stmt->execute();
+                $stmt->close();
+            }
+        }
+
+        if (dbTableExists($connection, 'order_items')) {
+            $stmt = $connection->prepare("
+                DELETE oi FROM order_items oi
+                INNER JOIN bookings b ON b.id = oi.booking_id
+                WHERE b.inquiry_id = ?
+            ");
+            if ($stmt) {
+                $stmt->bind_param('i', $id);
+                $stmt->execute();
+                $stmt->close();
+            }
+        }
+
+        $stmt = $connection->prepare("DELETE FROM inquiry_items WHERE inquiry_id = ?");
+        if (!$stmt) {
+            throw new Exception('Failed to prepare inquiry item delete: ' . $connection->error);
+        }
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $stmt->close();
+
+        $stmt = $connection->prepare("DELETE FROM bookings WHERE inquiry_id = ?");
+        if (!$stmt) {
+            throw new Exception('Failed to prepare related booking delete: ' . $connection->error);
+        }
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $stmt->close();
+
+        $stmt = $connection->prepare("DELETE FROM inquiries WHERE id = ?");
+        if (!$stmt) {
+            throw new Exception('Failed to prepare inquiry delete: ' . $connection->error);
+        }
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $deleted = $stmt->affected_rows > 0;
+        $stmt->close();
+
+        if (!$deleted) {
+            $connection->rollback();
+            return false;
+        }
+
+        $connection->commit();
+        return true;
+    } catch (Throwable $e) {
+        $connection->rollback();
+        error_log("hardDeleteInquiry failed for ID {$id}: " . $e->getMessage());
         return false;
     }
+}
 
-    $statement->bind_param('i', $id);
-    $deleted = $statement->execute();
-    $statement->close();
+function bulkHardDeleteInquiries(array $ids): array
+{
+    $deletedCount = 0;
+    foreach ($ids as $id) {
+        if (hardDeleteInquiry((int)$id)) {
+            $deletedCount++;
+        }
+    }
 
-    return $deleted;
+    return [
+        'success' => $deletedCount > 0,
+        'deleted_count' => $deletedCount,
+        'message' => $deletedCount > 0 ? "{$deletedCount} inquiry record(s) permanently deleted" : 'No inquiry records deleted'
+    ];
 }
 
 /**
@@ -2073,31 +2169,74 @@ function restoreBooking(int $id, int $restoredBy): bool
  */
 function permanentlyDeleteBooking(int $id): bool
 {
-    $connection = getDbConnection();
+    return hardDeleteBooking($id);
+}
 
+function hardDeleteBooking(int $id): bool
+{
+    $connection = getDbConnection();
     if (!$connection) {
         return false;
     }
 
-    // First delete any associated payment records
-    $paymentStmt = $connection->prepare("DELETE FROM payments WHERE booking_id = ?");
-    if ($paymentStmt) {
-        $paymentStmt->bind_param('i', $id);
-        $paymentStmt->execute();
-        $paymentStmt->close();
-    }
+    $connection->begin_transaction();
 
-    $statement = $connection->prepare("DELETE FROM bookings WHERE id = ? AND deleted_at IS NOT NULL");
+    try {
+        if (dbTableExists($connection, 'order_items')) {
+            $stmt = $connection->prepare("DELETE FROM order_items WHERE booking_id = ?");
+            if ($stmt) {
+                $stmt->bind_param('i', $id);
+                $stmt->execute();
+                $stmt->close();
+            }
+        }
 
-    if (!$statement) {
+        if (dbTableExists($connection, 'payments')) {
+            $stmt = $connection->prepare("DELETE FROM payments WHERE booking_id = ?");
+            if ($stmt) {
+                $stmt->bind_param('i', $id);
+                $stmt->execute();
+                $stmt->close();
+            }
+        }
+
+        $stmt = $connection->prepare("DELETE FROM bookings WHERE id = ?");
+        if (!$stmt) {
+            throw new Exception('Failed to prepare booking delete: ' . $connection->error);
+        }
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $deleted = $stmt->affected_rows > 0;
+        $stmt->close();
+
+        if (!$deleted) {
+            $connection->rollback();
+            return false;
+        }
+
+        $connection->commit();
+        return true;
+    } catch (Throwable $e) {
+        $connection->rollback();
+        error_log("hardDeleteBooking failed for ID {$id}: " . $e->getMessage());
         return false;
     }
+}
 
-    $statement->bind_param('i', $id);
-    $deleted = $statement->execute();
-    $statement->close();
+function bulkHardDeleteBookings(array $ids): array
+{
+    $deletedCount = 0;
+    foreach ($ids as $id) {
+        if (hardDeleteBooking((int)$id)) {
+            $deletedCount++;
+        }
+    }
 
-    return $deleted;
+    return [
+        'success' => $deletedCount > 0,
+        'deleted_count' => $deletedCount,
+        'message' => $deletedCount > 0 ? "{$deletedCount} booking record(s) permanently deleted" : 'No booking records deleted'
+    ];
 }
 
 /**

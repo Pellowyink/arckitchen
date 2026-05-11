@@ -472,21 +472,14 @@ usort($all_rejected_inquiries, function($a, $b) {
          */
         function deleteInquiryRecord(inquiryId, customerName) {
             const message = customerName 
-                ? `Warning: This will permanently remove ${customerName}'s record from the database. Continue?`
-                : 'Warning: This will permanently remove this record from the database. Continue?';
+                ? `Are you sure you want to permanently delete ${customerName}'s inquiry?`
+                : 'Are you sure you want to permanently delete this inquiry?';
                 
-            if (typeof showArcConfirm === 'function') {
-                showArcConfirm(message, function(confirmed) {
-                    if (confirmed) {
-                        doDeleteInquiryRecord(inquiryId);
-                    }
-                });
-            } else {
-                if (!confirm(message)) {
-                    return;
-                }
-                doDeleteInquiryRecord(inquiryId);
+            if (!confirm(message)) {
+                return;
             }
+
+            doDeleteInquiryRecord(inquiryId);
         }
         
         function doDeleteInquiryRecord(inquiryId) {
@@ -498,7 +491,7 @@ usort($all_rejected_inquiries, function($a, $b) {
             .then(response => response.json())
             .then(result => {
                 if (result.success) {
-                    const row = document.getElementById('rejected-inquiry-' + inquiryId);
+                    const row = document.getElementById('inquiry-' + inquiryId) || document.getElementById('rejected-inquiry-' + inquiryId);
                     if (row) {
                         row.style.transition = 'opacity 0.3s';
                         row.style.opacity = '0';
@@ -573,15 +566,15 @@ usort($all_rejected_inquiries, function($a, $b) {
             currentInquiryDeleteIds = [inquiryId];
             currentInquiryDeleteType = 'single';
             
-            const message = customerName 
-                ? `You are about to delete <strong>${escapeHtml(customerName)}'s</strong> inquiry. This will mark it as deleted but keep the record for audit purposes.`
-                : 'You are about to delete this inquiry. This will mark it as deleted but keep the record for audit purposes.';
-            
-            showDeleteReasonModal(message, function(reason) {
-                if (reason !== null) {
-                    doSoftDeleteInquiries([inquiryId], reason);
-                }
-            });
+            const message = customerName
+                ? `Are you sure you want to permanently delete ${customerName}'s inquiry?`
+                : 'Are you sure you want to permanently delete this inquiry?';
+
+            if (!confirm(message)) {
+                return;
+            }
+
+            doDeleteInquiryRecord(inquiryId);
         }
         
         /**
@@ -603,13 +596,11 @@ usort($all_rejected_inquiries, function($a, $b) {
             currentInquiryDeleteIds = ids;
             currentInquiryDeleteType = 'bulk';
             
-            const message = `You are about to delete <strong>${ids.length}</strong> inquiry(s). This will mark them as deleted but keep the records for audit purposes.`;
-            
-            showDeleteReasonModal(message, function(reason) {
-                if (reason !== null) {
-                    doSoftDeleteInquiries(ids, reason);
-                }
-            });
+            if (!confirm(`Are you sure you want to permanently delete ${ids.length} inquiry(s)?`)) {
+                return;
+            }
+
+            doSoftDeleteInquiries(ids, 'Permanent delete');
         }
         
         /**

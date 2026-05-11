@@ -507,21 +507,14 @@ usort($all_cancelled_bookings, function($a, $b) {
          */
         function deleteBookingRecord(bookingId, customerName) {
             const message = customerName 
-                ? `Warning: This will permanently remove ${customerName}'s record from the database. Continue?`
-                : 'Warning: This will permanently remove this record from the database. Continue?';
+                ? `Are you sure you want to permanently delete ${customerName}'s booking?`
+                : 'Are you sure you want to permanently delete this booking?';
                 
-            if (typeof showArcConfirm === 'function') {
-                showArcConfirm(message, function(confirmed) {
-                    if (confirmed) {
-                        doDeleteBookingRecord(bookingId);
-                    }
-                });
-            } else {
-                if (!confirm(message)) {
-                    return;
-                }
-                doDeleteBookingRecord(bookingId);
+            if (!confirm(message)) {
+                return;
             }
+
+            doDeleteBookingRecord(bookingId);
         }
         
         function doDeleteBookingRecord(bookingId) {
@@ -533,7 +526,7 @@ usort($all_cancelled_bookings, function($a, $b) {
             .then(response => response.json())
             .then(result => {
                 if (result.success) {
-                    const row = document.getElementById('cancelled-booking-' + bookingId);
+                    const row = document.getElementById('booking-' + bookingId) || document.getElementById('cancelled-booking-' + bookingId);
                     if (row) {
                         row.style.transition = 'opacity 0.3s';
                         row.style.opacity = '0';
@@ -608,15 +601,15 @@ usort($all_cancelled_bookings, function($a, $b) {
             currentDeleteIds = [bookingId];
             currentDeleteType = 'single';
             
-            const message = customerName 
-                ? `You are about to delete <strong>${escapeHtml(customerName)}'s</strong> booking. This will mark it as deleted but keep the record for audit purposes.`
-                : 'You are about to delete this booking. This will mark it as deleted but keep the record for audit purposes.';
-            
-            showDeleteReasonModal(message, function(reason) {
-                if (reason !== null) {
-                    doSoftDeleteBookings([bookingId], reason);
-                }
-            });
+            const message = customerName
+                ? `Are you sure you want to permanently delete ${customerName}'s booking?`
+                : 'Are you sure you want to permanently delete this booking?';
+
+            if (!confirm(message)) {
+                return;
+            }
+
+            doDeleteBookingRecord(bookingId);
         }
         
         /**
@@ -638,13 +631,11 @@ usort($all_cancelled_bookings, function($a, $b) {
             currentDeleteIds = ids;
             currentDeleteType = 'bulk';
             
-            const message = `You are about to delete <strong>${ids.length}</strong> booking(s). This will mark them as deleted but keep the records for audit purposes.`;
-            
-            showDeleteReasonModal(message, function(reason) {
-                if (reason !== null) {
-                    doSoftDeleteBookings(ids, reason);
-                }
-            });
+            if (!confirm(`Are you sure you want to permanently delete ${ids.length} booking(s)?`)) {
+                return;
+            }
+
+            doSoftDeleteBookings(ids, 'Permanent delete');
         }
         
         /**
