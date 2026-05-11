@@ -8,7 +8,7 @@
 // Get current month data
 $currentMonth = $_GET['month'] ?? date('m');
 $currentYear = $_GET['year'] ?? date('Y');
-$calendarSettings = getCalendarSettings((string)$currentMonth, (string)$currentYear);
+$calendarStatusMap = getCalendarStatusMap((string)$currentMonth, (string)$currentYear);
 
 // Calendar generation
 $firstDay = strtotime("$currentYear-$currentMonth-01");
@@ -39,8 +39,9 @@ $monthName = date('F Y', $firstDay);
     
     <div class="calendar-legend">
         <span class="legend-item"><span class="legend-dot available"></span> Available</span>
-        <span class="legend-item"><span class="legend-dot limited"></span> Limited Slots</span>
-        <span class="legend-item"><span class="legend-dot fully-booked"></span> Fully Booked</span>
+        <span class="legend-item"><span class="legend-dot limited"></span> Limited</span>
+        <span class="legend-item"><span class="legend-dot full"></span> Full</span>
+        <span class="legend-item"><span class="legend-dot blocked"></span> Blocked</span>
     </div>
     
     <table class="calendar-table">
@@ -71,16 +72,10 @@ $monthName = date('F Y', $firstDay);
                     else:
                         $dateStr = sprintf('%04d-%02d-%02d', $currentYear, $currentMonth, $cellDay);
                         $isToday = ($dateStr === $today);
-                        $availability = checkDateAvailability($dateStr, $calendarSettings[$dateStr] ?? [
-                            'slot_date' => $dateStr,
-                            'max_slots' => 3,
-                            'current_slots' => 0,
-                            'admin_note' => '',
-                            'status' => 'open',
-                        ]);
+                        $availability = $calendarStatusMap[$dateStr] ?? checkDateAvailability($dateStr);
                         $class = $availability['customer_class'];
                         $canSelect = (bool)$availability['can_select'];
-                        $capacityNote = $availability['status'] === 'limited' ? $availability['note'] : '';
+                        $capacityNote = $availability['note'];
                         $status = $availability['status'];
                         
                         if ($isToday) $class .= ' today';
@@ -90,7 +85,7 @@ $monthName = date('F Y', $firstDay);
                     <?php if ($canSelect): ?>onclick="selectDate('<?php echo $dateStr; ?>')"<?php endif; ?>
                     <?php if ($capacityNote): ?>title="<?php echo escape($capacityNote); ?>" data-tooltip="<?php echo escape($capacityNote); ?>"<?php endif; ?>>
                     <?php echo $cellDay; ?>
-                    <?php if ($status === 'limited'): ?>
+                    <?php if (in_array($status, ['blocked', 'full', 'limited'], true)): ?>
                     <span class="booking-indicator">●</span>
                     <?php endif; ?>
                 </td>
@@ -99,8 +94,6 @@ $monthName = date('F Y', $firstDay);
             <?php endfor; ?>
         </tbody>
     </table>
-    
-    <!-- Debug: Show detected limited dates (remove in production) -->
     
     <div class="calendar-selected" id="selectedDateDisplay" style="display: none;">
         <p>Selected Date: <strong id="selectedDateText"></strong></p>
@@ -167,10 +160,11 @@ $monthName = date('F Y', $firstDay);
 }
 
 .legend-dot.available { background: #4CAF50; }
+.legend-dot.limited { background: #ffa500; }
+.legend-dot.full { background: #ff4d4d; }
 .legend-dot.booked,
 .legend-dot.fully-booked { background: #f44336; }
 .legend-dot.blocked { background: #9e9e9e; }
-.legend-dot.limited { background: linear-gradient(135deg, #FFC107 0%, #FFB300 100%); }
 
 .calendar-table {
     width: 100%;
@@ -205,7 +199,16 @@ $monthName = date('F Y', $firstDay);
     color: #2e7d32;
 }
 
-.calendar-table td.available:hover {
+.calendar-table td.state-available {
+    color: #fff;
+}
+
+.calendar-table td.state-limited {
+    color: #4a1414;
+}
+
+.calendar-table td.available:hover,
+.calendar-table td.state-limited:hover {
     background: #4CAF50;
     color: white;
 }
@@ -218,48 +221,24 @@ $monthName = date('F Y', $firstDay);
 }
 
 .calendar-table td.blocked,
+.calendar-table td.date-blocked,
 .calendar-table td.past {
     background: rgba(158, 158, 158, 0.15);
     color: #999;
     cursor: not-allowed;
 }
 
-.calendar-table td.limited {
-    background: linear-gradient(135deg, #FFC107 0%, #FFB300 100%);
-    color: #4a1414;
-    border: 2px solid #FF8F00;
-    cursor: pointer;
-    position: relative;
+.calendar-table td.date-blocked {
+    background-color: #d3d3d3 !important;
+    color: #888;
+    cursor: not-allowed;
+    pointer-events: none;
 }
 
-.calendar-table td.limited:hover {
-    transform: scale(1.05);
-    box-shadow: 0 4px 12px rgba(255, 193, 7, 0.4);
+.calendar-table td.date-blocked .booking-indicator {
+    display: none;
 }
 
-.calendar-table td.limited::after {
-    content: attr(data-tooltip);
-    position: absolute;
-    bottom: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    background: #4a1414;
-    color: white;
-    padding: 0.5rem 0.75rem;
-    border-radius: 8px;
-    font-size: 0.75rem;
-    white-space: nowrap;
-    opacity: 0;
-    visibility: hidden;
-    transition: all 0.2s;
-    z-index: 100;
-    margin-bottom: 5px;
-}
-
-.calendar-table td.limited:hover::after {
-    opacity: 1;
-    visibility: visible;
-}
 
 .calendar-table td.today {
     border: 2px solid #8a2927;
@@ -296,33 +275,27 @@ function changeMonth(month, year) {
     // Save form data before loading new month
     saveFormData();
     
-    // Fetch new calendar via AJAX
-    const url = `includes/calendar-ajax.php?month=${month}&year=${year}`;
+    // Fetch canonical calendar state via AJAX
+    const url = `api/get-calendar.php?month=${month}&year=${year}`;
     
     fetch(url)
-        .then(r => r.text())
-        .then(html => {
-            // Update calendar container
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(data.message || 'Failed to load calendar');
+            }
+
             const container = document.getElementById('calendarComponent');
             if (container) {
-                // Extract just the calendar table and header from the response
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(html, 'text/html');
-                const newCalendar = doc.getElementById('calendarComponent');
-                
-                if (newCalendar) {
-                    container.innerHTML = newCalendar.innerHTML;
-                    
-                    // Re-attach event listeners to new calendar cells
-                    attachCalendarListeners();
-                    
-                    // Restore selected date if exists
-                    const savedDate = document.getElementById('eventDateInput')?.value;
-                    if (savedDate) {
-                        const cell = document.querySelector(`td[data-date="${savedDate}"]`);
-                        if (cell && (cell.classList.contains('available') || cell.classList.contains('limited'))) {
-                            cell.classList.add('selected');
-                        }
+                container.innerHTML = renderCalendarMarkup(month, year, data.dates || []);
+
+                attachCalendarListeners();
+
+                const savedDate = document.getElementById('eventDateInput')?.value || document.getElementById('selectedDate')?.value;
+                if (savedDate) {
+                    const cell = document.querySelector(`td[data-date="${savedDate}"]`);
+                    if (cell && (cell.classList.contains('available') || cell.classList.contains('state-limited'))) {
+                        cell.classList.add('selected');
                     }
                 }
             }
@@ -342,11 +315,86 @@ function changeMonth(month, year) {
         });
 }
 
+function renderCalendarMarkup(month, year, dates) {
+    const dateMap = {};
+    dates.forEach(item => {
+        dateMap[item.date] = item;
+    });
+
+    const firstDay = new Date(year, month - 1, 1);
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const startWeekday = firstDay.getDay();
+    const prev = new Date(year, month - 2, 1);
+    const next = new Date(year, month, 1);
+    const monthName = firstDay.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = Math.ceil((daysInMonth + startWeekday) / 7);
+    let body = '';
+
+    for (let row = 0; row < rows; row++) {
+        body += '<tr>';
+        for (let col = 0; col < 7; col++) {
+            const cellDay = row * 7 + col - startWeekday + 1;
+            if (cellDay < 1 || cellDay > daysInMonth) {
+                body += '<td class="empty"></td>';
+                continue;
+            }
+
+            const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(cellDay).padStart(2, '0')}`;
+            const state = dateMap[dateStr] || {
+                class: 'state-available available',
+                status: 'available',
+                can_select: true,
+                note: ''
+            };
+            const classes = `${state.class || 'state-available available'}${dateStr === today ? ' today' : ''}`;
+            const title = state.note ? ` title="${escapeHtml(state.note)}" data-tooltip="${escapeHtml(state.note)}"` : '';
+            const click = state.can_select ? ` onclick="selectDate('${dateStr}')"` : '';
+            const marker = ['blocked', 'full', 'limited'].includes(state.status) ? '<span class="booking-indicator">&bull;</span>' : '';
+            body += `<td class="${classes}" data-date="${dateStr}"${click}${title}>${cellDay}${marker}</td>`;
+        }
+        body += '</tr>';
+    }
+
+    return `
+        <div class="calendar-header">
+            <button type="button" class="calendar-nav" onclick="changeMonth(${prev.getMonth() + 1}, ${prev.getFullYear()})">Prev</button>
+            <h3 class="calendar-title">${monthName}</h3>
+            <button type="button" class="calendar-nav" onclick="changeMonth(${next.getMonth() + 1}, ${next.getFullYear()})">Next</button>
+        </div>
+        <div class="calendar-legend">
+            <span class="legend-item"><span class="legend-dot available"></span> Available</span>
+            <span class="legend-item"><span class="legend-dot limited"></span> Limited</span>
+            <span class="legend-item"><span class="legend-dot full"></span> Full</span>
+            <span class="legend-item"><span class="legend-dot blocked"></span> Blocked</span>
+        </div>
+        <table class="calendar-table">
+            <thead>
+                <tr><th>Sun</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th></tr>
+            </thead>
+            <tbody>${body}</tbody>
+        </table>
+        <div class="calendar-selected" id="selectedDateDisplay" style="display: none;">
+            <p>Selected Date: <strong id="selectedDateText"></strong></p>
+            <input type="hidden" name="event_date" id="eventDateInput" required>
+        </div>
+    `;
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 function attachCalendarListeners() {
     // Re-attach click handlers to available dates
-    document.querySelectorAll('.calendar-table td.available, .calendar-table td.limited, .calendar-table td.today').forEach(td => {
+    document.querySelectorAll('.calendar-table td.available, .calendar-table td.state-available, .calendar-table td.state-limited, .calendar-table td.today').forEach(td => {
         const date = td.dataset.date;
-        if (date && !td.classList.contains('past') && !td.classList.contains('fully_booked')) {
+        if (date && !td.classList.contains('past') && !td.classList.contains('date-blocked') && !td.classList.contains('state-full') && !td.classList.contains('state-blocked')) {
             td.onclick = () => selectDate(date);
         }
     });
@@ -355,9 +403,12 @@ function attachCalendarListeners() {
 function selectDate(date) {
     const selectedCell = document.querySelector(`.calendar-table td[data-date="${date}"]`);
     if (selectedCell && (
+        selectedCell.classList.contains('state-full') ||
+        selectedCell.classList.contains('state-blocked') ||
         selectedCell.classList.contains('fully_booked') ||
         selectedCell.classList.contains('booked') ||
         selectedCell.classList.contains('blocked') ||
+        selectedCell.classList.contains('date-blocked') ||
         selectedCell.classList.contains('past')
     )) {
         return;

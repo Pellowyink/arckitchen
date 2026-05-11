@@ -21,36 +21,37 @@ if ($year < 2020 || $year > 2030 || $month < 1 || $month > 12) {
 }
 
 $dates = [];
-$calendarSettings = getCalendarSettings($month, (string)$year);
+$calendarStatusMap = getCalendarStatusMap($month, (string)$year);
 $startDate = sprintf('%04d-%02d-01', $year, (int)$month);
 $daysInMonth = (int)date('t', strtotime($startDate));
 
 for ($day = 1; $day <= $daysInMonth; $day++) {
     $date = sprintf('%04d-%02d-%02d', $year, (int)$month, $day);
-    $availability = checkDateAvailability($date, $calendarSettings[$date] ?? [
-        'slot_date' => $date,
-        'max_slots' => 3,
-        'current_slots' => 0,
-        'admin_note' => '',
-        'status' => 'open',
-    ]);
+    $availability = $calendarStatusMap[$date] ?? checkDateAvailability($date);
 
-    if ($availability['status'] !== 'available') {
-        $dates[$date] = [
-            'date' => $date,
-            'status' => $availability['status'],
-            'count' => $availability['current_slots'],
-            'max_slots' => $availability['max_slots'],
-            'note' => $availability['note'],
-            'class' => $availability['customer_class'],
-            'can_select' => $availability['can_select'],
-        ];
-    }
+    $dates[$date] = [
+        'date' => $date,
+        'status' => $availability['status'],
+        'manual_status' => $availability['manual_status'],
+        'admin_override_exists' => $availability['admin_override_exists'],
+        'admin_override' => $availability['admin_override_exists'] ? 1 : 0,
+        'is_auto_full' => $availability['is_auto_full'],
+        'color_state' => $availability['color_state'],
+        'is_blocked' => $availability['is_blocked'],
+        'max_capacity' => $availability['max_capacity'],
+        'current_bookings' => $availability['current_bookings'],
+        'booking_ids' => $availability['booking_ids'],
+        'booking_names' => $availability['booking_names'],
+        'note' => $availability['note'],
+        'class' => $availability['customer_class'],
+        'can_select' => $availability['can_select'],
+    ];
 }
 
 echo json_encode([
     'success' => true,
     'month' => $month,
     'year' => $year,
+    'date_map' => $dates,
     'dates' => array_values($dates)
 ]);

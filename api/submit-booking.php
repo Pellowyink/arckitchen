@@ -70,6 +70,13 @@ $event_location = $connection->real_escape_string($bookingData['event_location']
 $message = $connection->real_escape_string($bookingData['special_requests']);
 $package_interest = $connection->real_escape_string($bookingData['items']);
 
+$availability = checkDateAvailability($bookingData['event_date']);
+if (!$availability['can_select']) {
+    ob_clean();
+    echo json_encode(['status' => 'error', 'message' => 'The selected event date is unavailable. Please choose another date.']);
+    exit;
+}
+
 // Insert into inquiries table using correct column names
 $sql = "INSERT INTO inquiries (
     full_name, 

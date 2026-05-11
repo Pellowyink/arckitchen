@@ -1464,39 +1464,99 @@ function ensureCalendarSettingsTable(): bool
     $sql = "CREATE TABLE IF NOT EXISTS calendar_settings (
         id INT AUTO_INCREMENT PRIMARY KEY,
         slot_date DATE NOT NULL UNIQUE,
-        max_slots INT NOT NULL DEFAULT 3,
-        current_slots INT NOT NULL DEFAULT 0,
+        is_blocked TINYINT(1) NOT NULL DEFAULT 0,
+        status VARCHAR(20) NOT NULL DEFAULT 'available',
+        admin_override TINYINT(1) NOT NULL DEFAULT 0,
+        max_capacity INT NOT NULL DEFAULT 3,
         admin_note TEXT NULL,
-        status ENUM('open', 'limited', 'closed') NOT NULL DEFAULT 'open',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         INDEX idx_slot_date (slot_date),
+        INDEX idx_is_blocked (is_blocked),
         INDEX idx_status (status)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
 
-    return (bool)$connection->query($sql);
+    if (!$connection->query($sql)) {
+        return false;
+    }
+
+    $columnCheck = $connection->query("SHOW COLUMNS FROM calendar_settings LIKE 'is_blocked'");
+    if ($columnCheck && $columnCheck->num_rows === 0) {
+        if (!$connection->query("ALTER TABLE calendar_settings ADD COLUMN is_blocked TINYINT(1) NOT NULL DEFAULT 0 AFTER slot_date")) {
+            return false;
+        }
+    }
+
+    $statusCheck = $connection->query("SHOW COLUMNS FROM calendar_settings LIKE 'status'");
+    if ($statusCheck && $statusCheck->num_rows === 0) {
+        if (!$connection->query("ALTER TABLE calendar_settings ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'available' AFTER is_blocked")) {
+            return false;
+        }
+    } elseif ($statusCheck && $statusCheck->num_rows > 0) {
+        $connection->query("ALTER TABLE calendar_settings MODIFY status VARCHAR(20) NOT NULL DEFAULT 'available'");
+        $connection->query("UPDATE calendar_settings SET is_blocked = 1 WHERE status = 'closed'");
+        $connection->query("UPDATE calendar_settings SET status = 'available' WHERE status = 'open'");
+        $connection->query("UPDATE calendar_settings SET status = 'full' WHERE status = 'fully_booked'");
+    }
+
+    $capacityCheck = $connection->query("SHOW COLUMNS FROM calendar_settings LIKE 'max_capacity'");
+    if ($capacityCheck && $capacityCheck->num_rows === 0) {
+        if (!$connection->query("ALTER TABLE calendar_settings ADD COLUMN max_capacity INT NOT NULL DEFAULT 3 AFTER status")) {
+            return false;
+        }
+    }
+
+    $overrideCheck = $connection->query("SHOW COLUMNS FROM calendar_settings LIKE 'admin_override'");
+    if ($overrideCheck && $overrideCheck->num_rows === 0) {
+        if (!$connection->query("ALTER TABLE calendar_settings ADD COLUMN admin_override TINYINT(1) NOT NULL DEFAULT 0 AFTER status")) {
+            return false;
+        }
+        $connection->query("UPDATE calendar_settings SET admin_override = 1 WHERE is_blocked = 1 OR status IN ('limited', 'full', 'fully_booked', 'open')");
+    }
+
+    if (tableHasColumn($connection, 'calendar_settings', 'max_slots')) {
+        $connection->query("UPDATE calendar_settings SET max_capacity = GREATEST(1, max_slots)");
+    }
+
+    return true;
 }
 
-function getBookingCountForDate(string $date): int
+function getDefaultCalendarCapacity(): int
+{
+    return 3;
+}
+
+function getConfirmedBookingCountForDate(string $date): int
 {
     $connection = getDbConnection();
     if (!$connection) return 0;
 
     $stmt = $connection->prepare(
-        "SELECT COUNT(*) AS current_slots
-         FROM bookings
-         WHERE event_date = ?
-         AND status IN ('confirmed', 'pending', 'completed')"
+        "SELECT COUNT(*) AS current_bookings
+         FROM (
+            SELECT b.event_date
+            FROM bookings b
+            WHERE b.event_date = ?
+              AND b.status IN ('pending', 'confirmed', 'approved')
+            UNION ALL
+            SELECT i.event_date
+            FROM inquiries i
+            WHERE i.event_date = ?
+              AND i.status = 'approved'
+              AND NOT EXISTS (
+                SELECT 1
+                FROM bookings b2
+                WHERE b2.inquiry_id = i.id
+              )
+         ) calendar_commitments"
     );
     if (!$stmt) return 0;
 
-    $stmt->bind_param('s', $date);
+    $stmt->bind_param('ss', $date, $date);
     $stmt->execute();
     $result = $stmt->get_result();
     $row = $result ? $result->fetch_assoc() : null;
     $stmt->close();
 
-    return (int)($row['current_slots'] ?? 0);
+    return (int)($row['current_bookings'] ?? 0);
 }
 
 function getCalendarSettings(string $month, string $year): array
@@ -1512,7 +1572,7 @@ function getCalendarSettings(string $month, string $year): array
     $settings = [];
 
     $stmt = $connection->prepare(
-        "SELECT slot_date, max_slots, current_slots, admin_note, status
+        "SELECT slot_date, is_blocked, status, max_capacity, admin_note
          FROM calendar_settings
          WHERE slot_date BETWEEN ? AND ?"
     );
@@ -1526,33 +1586,6 @@ function getCalendarSettings(string $month, string $year): array
         $stmt->close();
     }
 
-    $bookingStmt = $connection->prepare(
-        "SELECT event_date AS slot_date, COUNT(*) AS current_slots
-         FROM bookings
-         WHERE status IN ('confirmed', 'pending', 'completed')
-         AND event_date BETWEEN ? AND ?
-         GROUP BY event_date"
-    );
-    if ($bookingStmt) {
-        $bookingStmt->bind_param('ss', $startDate, $endDate);
-        $bookingStmt->execute();
-        $result = $bookingStmt->get_result();
-        while ($row = $result->fetch_assoc()) {
-            $date = $row['slot_date'];
-            if (!isset($settings[$date])) {
-                $settings[$date] = [
-                    'slot_date' => $date,
-                    'max_slots' => 3,
-                    'current_slots' => 0,
-                    'admin_note' => null,
-                    'status' => 'open',
-                ];
-            }
-            $settings[$date]['current_slots'] = (int)$row['current_slots'];
-        }
-        $bookingStmt->close();
-    }
-
     return $settings;
 }
 
@@ -1563,16 +1596,18 @@ function getCalendarSettingByDate(string $date): array
     $connection = getDbConnection();
     $default = [
         'slot_date' => $date,
-        'max_slots' => 3,
-        'current_slots' => getBookingCountForDate($date),
+        'is_blocked' => 0,
+        'status' => 'available',
+        'admin_override' => 0,
+        'max_capacity' => getDefaultCalendarCapacity(),
+        'current_bookings' => getConfirmedBookingCountForDate($date),
         'admin_note' => '',
-        'status' => 'open',
     ];
 
     if (!$connection) return $default;
 
     $stmt = $connection->prepare(
-        "SELECT slot_date, max_slots, current_slots, admin_note, status
+        "SELECT slot_date, is_blocked, status, admin_override, max_capacity, admin_note
          FROM calendar_settings
          WHERE slot_date = ?
          LIMIT 1"
@@ -1589,7 +1624,7 @@ function getCalendarSettingByDate(string $date): array
         return $default;
     }
 
-    $setting['current_slots'] = getBookingCountForDate($date);
+    $setting['current_bookings'] = getConfirmedBookingCountForDate($date);
     return array_merge($default, $setting);
 }
 
@@ -1598,26 +1633,72 @@ function checkDateAvailability(string $date, ?array $setting = null): array
     $setting = $setting ?? getCalendarSettingByDate($date);
     $setting = array_merge([
         'slot_date' => $date,
-        'max_slots' => 3,
-        'current_slots' => 0,
+        'is_blocked' => 0,
+        'status' => 'available',
+        'admin_override' => 0,
+        'admin_override_exists' => false,
+        'max_capacity' => getDefaultCalendarCapacity(),
+        'current_bookings' => 0,
+        'booking_ids' => '',
+        'booking_names' => '',
         'admin_note' => '',
-        'status' => 'open',
     ], $setting);
-    $maxSlots = max(0, (int)($setting['max_slots'] ?? 3));
-    $currentSlots = (int)($setting['current_slots'] ?? getBookingCountForDate($date));
-    $adminStatus = strtolower((string)($setting['status'] ?? 'open'));
+    $isBlocked = (int)($setting['is_blocked'] ?? 0) === 1;
+    $manualStatus = strtolower(trim((string)($setting['status'] ?? 'available')));
+    $adminOverrideExists = !empty($setting['admin_override_exists']) || !empty($setting['admin_override']);
+    $maxCapacity = max(1, (int)($setting['max_capacity'] ?? getDefaultCalendarCapacity()));
+    $currentBookings = max(0, (int)($setting['current_bookings'] ?? 0));
+    $bookingIds = trim((string)($setting['booking_ids'] ?? ''));
+    $bookingNames = trim((string)($setting['booking_names'] ?? ''));
     $adminNote = trim((string)($setting['admin_note'] ?? ''));
+    $colorState = 'green';
+    $status = 'available';
+    $class = 'state-available available';
+    $canSelect = true;
+
+    if ($isBlocked) {
+        $colorState = 'gray';
+        $status = 'blocked';
+        $class = 'state-blocked date-blocked';
+        $canSelect = false;
+    } elseif ($adminOverrideExists && $manualStatus === 'limited') {
+        $colorState = 'orange';
+        $status = 'limited';
+        $class = 'state-limited limited';
+    } elseif ($adminOverrideExists && in_array($manualStatus, ['open', 'available'], true)) {
+        $colorState = 'green';
+        $status = 'available';
+        $class = 'state-available available';
+    } elseif ($adminOverrideExists && in_array($manualStatus, ['full', 'fully_booked'], true)) {
+        $colorState = 'red';
+        $status = 'full';
+        $class = 'state-full fully_booked';
+        $canSelect = false;
+    } elseif ($currentBookings > 0) {
+        $colorState = 'red';
+        $status = 'full';
+        $class = 'state-full fully_booked';
+        $canSelect = false;
+    }
 
     $availability = [
+        'slot_date' => $date,
         'date' => $date,
-        'status' => 'available',
-        'availability_class' => 'high-availability',
-        'customer_class' => 'available',
-        'can_select' => true,
-        'current_slots' => $currentSlots,
-        'max_slots' => $maxSlots,
+        'status' => $status,
+        'manual_status' => $manualStatus ?: 'available',
+        'admin_override_exists' => $adminOverrideExists,
+        'is_auto_full' => !$isBlocked && !$adminOverrideExists && $currentBookings > 0,
+        'color_state' => $colorState,
+        'availability_class' => $class,
+        'customer_class' => $class,
+        'can_select' => $canSelect,
+        'is_blocked' => $isBlocked,
+        'max_capacity' => $maxCapacity,
+        'current_bookings' => $currentBookings,
+        'booking_ids' => $bookingIds,
+        'booking_names' => $bookingNames,
+        'admin_note' => $adminNote,
         'note' => $adminNote,
-        'admin_status' => $adminStatus,
     ];
 
     if (strtotime($date) < strtotime(date('Y-m-d'))) {
@@ -1628,51 +1709,192 @@ function checkDateAvailability(string $date, ?array $setting = null): array
         return $availability;
     }
 
-    if ($adminStatus === 'closed' || $maxSlots <= 0 || $currentSlots >= $maxSlots) {
-        $availability['status'] = 'fully_booked';
-        $availability['availability_class'] = 'fully_booked';
-        $availability['customer_class'] = 'fully_booked';
-        $availability['can_select'] = false;
-        return $availability;
+    return $availability;
+}
+
+function getCalendarStatusMap(string $month, string $year): array
+{
+    ensureCalendarSettingsTable();
+
+    $connection = getDbConnection();
+    if (!$connection) return [];
+
+    $startDate = sprintf('%04d-%02d-01', (int)$year, (int)$month);
+    $endDate = date('Y-m-t', strtotime($startDate));
+    $defaultCapacity = getDefaultCalendarCapacity();
+    $settings = [];
+
+    $stmt = $connection->prepare(
+        "SELECT
+            cs.slot_date,
+            cs.is_blocked,
+            cs.status,
+            cs.admin_override,
+            cs.admin_override AS admin_override_exists,
+            COALESCE(cs.max_capacity, ?) AS max_capacity,
+            cs.admin_note,
+            COALESCE(bc.current_bookings, 0) AS current_bookings,
+            COALESCE(bc.booking_ids, '') AS booking_ids,
+            COALESCE(bc.booking_names, '') AS booking_names
+         FROM calendar_settings cs
+         LEFT JOIN (
+            SELECT
+                slot_date,
+                COUNT(*) AS current_bookings,
+                GROUP_CONCAT(record_id ORDER BY sort_id SEPARATOR ', ') AS booking_ids,
+                GROUP_CONCAT(customer_name ORDER BY sort_id SEPARATOR ', ') AS booking_names
+            FROM (
+                SELECT
+                    b.event_date AS slot_date,
+                    CONCAT('B', b.id) AS record_id,
+                    b.id AS sort_id,
+                    b.customer_name
+                FROM bookings b
+                WHERE b.status IN ('pending', 'confirmed', 'approved')
+                  AND b.event_date BETWEEN ? AND ?
+                UNION ALL
+                SELECT
+                    i.event_date AS slot_date,
+                    CONCAT('I', i.id) AS record_id,
+                    i.id AS sort_id,
+                    i.full_name AS customer_name
+                FROM inquiries i
+                WHERE i.status = 'approved'
+                  AND i.event_date BETWEEN ? AND ?
+                  AND NOT EXISTS (
+                    SELECT 1
+                    FROM bookings b2
+                    WHERE b2.inquiry_id = i.id
+                  )
+            ) calendar_commitments
+            GROUP BY slot_date
+         ) bc ON bc.slot_date = cs.slot_date
+         WHERE cs.slot_date BETWEEN ? AND ?"
+    );
+    if ($stmt) {
+        $stmt->bind_param('issssss', $defaultCapacity, $startDate, $endDate, $startDate, $endDate, $startDate, $endDate);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        while ($row = $result->fetch_assoc()) {
+            $settings[$row['slot_date']] = $row;
+        }
+        $stmt->close();
     }
 
-    if ($adminStatus === 'limited' || ($currentSlots > 0 && ($maxSlots - $currentSlots) === 1)) {
-        $availability['status'] = 'limited';
-        $availability['availability_class'] = 'limited';
-        $availability['customer_class'] = 'limited';
-        return $availability;
+    $bookingStmt = $connection->prepare(
+        "SELECT
+            slot_date,
+            COUNT(*) AS current_bookings,
+            GROUP_CONCAT(record_id ORDER BY sort_id SEPARATOR ', ') AS booking_ids,
+            GROUP_CONCAT(customer_name ORDER BY sort_id SEPARATOR ', ') AS booking_names
+         FROM (
+            SELECT
+                b.event_date AS slot_date,
+                CONCAT('B', b.id) AS record_id,
+                b.id AS sort_id,
+                b.customer_name
+            FROM bookings b
+            WHERE b.status IN ('pending', 'confirmed', 'approved')
+              AND b.event_date BETWEEN ? AND ?
+            UNION ALL
+            SELECT
+                i.event_date AS slot_date,
+                CONCAT('I', i.id) AS record_id,
+                i.id AS sort_id,
+                i.full_name AS customer_name
+            FROM inquiries i
+            WHERE i.status = 'approved'
+              AND i.event_date BETWEEN ? AND ?
+              AND NOT EXISTS (
+                SELECT 1
+                FROM bookings b2
+                WHERE b2.inquiry_id = i.id
+              )
+         ) calendar_commitments
+         GROUP BY slot_date"
+    );
+    if ($bookingStmt) {
+        $bookingStmt->bind_param('ssss', $startDate, $endDate, $startDate, $endDate);
+        $bookingStmt->execute();
+        $result = $bookingStmt->get_result();
+        while ($row = $result->fetch_assoc()) {
+            $date = $row['slot_date'];
+            if (!isset($settings[$date])) {
+                $settings[$date] = [
+                    'slot_date' => $date,
+                    'is_blocked' => 0,
+                    'status' => 'available',
+                    'admin_override' => 0,
+                    'admin_override_exists' => false,
+                    'max_capacity' => $defaultCapacity,
+                    'admin_note' => '',
+                ];
+            }
+            $settings[$date]['current_bookings'] = (int)$row['current_bookings'];
+            $settings[$date]['booking_ids'] = (string)($row['booking_ids'] ?? '');
+            $settings[$date]['booking_names'] = (string)($row['booking_names'] ?? '');
+        }
+        $bookingStmt->close();
+    }
+
+    $daysInMonth = (int)date('t', strtotime($startDate));
+    $availability = [];
+    for ($day = 1; $day <= $daysInMonth; $day++) {
+        $date = sprintf('%04d-%02d-%02d', (int)$year, (int)$month, $day);
+        $availability[$date] = checkDateAvailability($date, $settings[$date] ?? [
+            'slot_date' => $date,
+            'is_blocked' => 0,
+            'status' => 'available',
+            'admin_override' => 0,
+            'admin_override_exists' => false,
+            'max_capacity' => $defaultCapacity,
+            'current_bookings' => 0,
+            'booking_ids' => '',
+            'booking_names' => '',
+            'admin_note' => '',
+        ]);
     }
 
     return $availability;
 }
 
-function saveCalendarSetting(string $date, int $maxSlots, string $adminNote, string $status): bool
+function saveCalendarSetting(string $date, bool $isBlocked, string $adminNote = '', ?int $maxCapacity = null, string $status = 'available', bool $adminOverride = true): bool
 {
     ensureCalendarSettingsTable();
 
     $connection = getDbConnection();
     if (!$connection) return false;
 
-    $maxSlots = max(0, $maxSlots);
-    $currentSlots = getBookingCountForDate($date);
-    $allowedStatuses = ['open', 'limited', 'closed'];
-    if (!in_array($status, $allowedStatuses, true)) {
-        $status = 'open';
+    $capacity = max(1, $maxCapacity ?? getDefaultCalendarCapacity());
+    $normalizedStatus = strtolower(trim($status));
+    if (!in_array($normalizedStatus, ['open', 'available', 'limited', 'full', 'fully_booked'], true)) {
+        $normalizedStatus = 'available';
+    }
+    if ($isBlocked) {
+        $normalizedStatus = 'blocked';
+        $adminOverride = true;
+    } elseif ($normalizedStatus === 'fully_booked') {
+        $normalizedStatus = 'full';
+    }
+    if ($normalizedStatus === 'open') {
+        $normalizedStatus = 'available';
     }
 
     $stmt = $connection->prepare(
-        "INSERT INTO calendar_settings (slot_date, max_slots, current_slots, admin_note, status)
-         VALUES (?, ?, ?, ?, ?)
+        "INSERT INTO calendar_settings (slot_date, is_blocked, status, admin_override, max_capacity, admin_note)
+         VALUES (?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE
-            max_slots = VALUES(max_slots),
-            current_slots = VALUES(current_slots),
-            admin_note = VALUES(admin_note),
+            is_blocked = VALUES(is_blocked),
             status = VALUES(status),
-            updated_at = NOW()"
+            admin_override = VALUES(admin_override),
+            max_capacity = VALUES(max_capacity),
+            admin_note = VALUES(admin_note)"
     );
     if (!$stmt) return false;
 
-    $stmt->bind_param('siiss', $date, $maxSlots, $currentSlots, $adminNote, $status);
+    $blocked = $isBlocked ? 1 : 0;
+    $override = $adminOverride ? 1 : 0;
+    $stmt->bind_param('sisiis', $date, $blocked, $normalizedStatus, $override, $capacity, $adminNote);
     $saved = $stmt->execute();
     $stmt->close();
 
@@ -1686,19 +1908,7 @@ function getCalendarAvailabilityClass(array $setting): string
         return checkDateAvailability($date, $setting)['availability_class'];
     }
 
-    $maxSlots = max(0, (int)($setting['max_slots'] ?? 3));
-    $currentSlots = (int)($setting['current_slots'] ?? 0);
-    $status = strtolower((string)($setting['status'] ?? 'open'));
-
-    if ($status === 'closed' || $maxSlots <= 0 || $currentSlots >= $maxSlots) {
-        return 'fully_booked';
-    }
-
-    if ($status === 'limited' || ($currentSlots > 0 && ($maxSlots - $currentSlots) === 1)) {
-        return 'limited';
-    }
-
-    return 'high-availability';
+    return !empty($setting['is_blocked']) ? 'date-blocked' : 'available';
 }
 
 /**

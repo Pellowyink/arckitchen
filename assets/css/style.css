@@ -31,6 +31,24 @@ body {
     font-family: 'Inter', sans-serif;
 }
 
+.state-blocked {
+    background-color: #d3d3d3 !important;
+    pointer-events: none;
+}
+
+.state-full {
+    background-color: #ff4d4d !important;
+    pointer-events: none;
+}
+
+.state-limited {
+    background-color: #ffa500 !important;
+}
+
+.state-available {
+    background-color: #2ecc71 !important;
+}
+
 img {
     max-width: 100%;
     display: block;

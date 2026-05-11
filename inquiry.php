@@ -47,7 +47,7 @@ if (isPostRequest()) {
     if ($eventDate && preg_match('/^\d{4}-\d{2}-\d{2}$/', $eventDate)) {
         $availability = checkDateAvailability($eventDate);
         if (!$availability['can_select']) {
-            $errors[] = 'The selected event date is fully booked. Please choose another date.';
+            $errors[] = 'The selected event date is unavailable. Please choose another date.';
         }
     } elseif ($eventDate) {
         $errors[] = 'Please select a valid event date.';
@@ -300,8 +300,9 @@ require_once __DIR__ . '/includes/sidebar.php';
                     
                     <div class="calendar-legend" style="margin-top: 1rem; display: flex; gap: 1rem; justify-content: center; font-size: 0.8rem; flex-wrap: wrap;">
                         <span><span style="display: inline-block; width: 12px; height: 12px; background: #4CAF50; border-radius: 50%; margin-right: 4px;"></span>Available</span>
-                        <span><span style="display: inline-block; width: 12px; height: 12px; background: linear-gradient(135deg, #FFC107 0%, #FFB300 100%); border-radius: 50%; margin-right: 4px;"></span>Limited Slots</span>
-                        <span><span style="display: inline-block; width: 12px; height: 12px; background: #f44336; border-radius: 50%; margin-right: 4px;"></span>Fully Booked</span>
+                        <span><span style="display: inline-block; width: 12px; height: 12px; background: #ffa500; border-radius: 50%; margin-right: 4px;"></span>Limited</span>
+                        <span><span style="display: inline-block; width: 12px; height: 12px; background: #ff4d4d; border-radius: 50%; margin-right: 4px;"></span>Full</span>
+                        <span><span style="display: inline-block; width: 12px; height: 12px; background: #d3d3d3; border-radius: 50%; margin-right: 4px;"></span>Blocked</span>
                     </div>
                 </div>
             </div>
@@ -1292,9 +1293,12 @@ document.addEventListener('DOMContentLoaded', function() {
 function selectDate(dateStr) {
     const selectedCell = document.querySelector(`.calendar-table td[data-date="${dateStr}"]`);
     if (selectedCell && (
+        selectedCell.classList.contains('state-full') ||
+        selectedCell.classList.contains('state-blocked') ||
         selectedCell.classList.contains('fully_booked') ||
         selectedCell.classList.contains('booked') ||
         selectedCell.classList.contains('blocked') ||
+        selectedCell.classList.contains('date-blocked') ||
         selectedCell.classList.contains('past')
     )) {
         return;
@@ -1710,15 +1714,18 @@ function showOrderSummary() {
 
     const selectedCell = document.querySelector(`.calendar-table td[data-date="${eventDate}"]`);
     if (selectedCell && (
+        selectedCell.classList.contains('state-full') ||
+        selectedCell.classList.contains('state-blocked') ||
         selectedCell.classList.contains('fully_booked') ||
         selectedCell.classList.contains('booked') ||
         selectedCell.classList.contains('blocked') ||
+        selectedCell.classList.contains('date-blocked') ||
         selectedCell.classList.contains('past')
     )) {
         if (typeof showArcError === 'function') {
-            showArcError('That date is fully booked. Please choose another available date.');
+            showArcError('That date is unavailable. Please choose another available date.');
         } else {
-            alert('That date is fully booked. Please choose another available date.');
+            alert('That date is unavailable. Please choose another available date.');
         }
         return;
     }

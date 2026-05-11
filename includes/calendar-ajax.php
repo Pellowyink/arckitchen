@@ -15,7 +15,7 @@ if ($currentMonth < 1 || $currentMonth > 12) $currentMonth = date('n');
 if ($currentYear < 2020 || $currentYear > 2030) $currentYear = date('Y');
 
 $today = date('Y-m-d');
-$calendarSettings = getCalendarSettings((string)$currentMonth, (string)$currentYear);
+$calendarStatusMap = getCalendarStatusMap((string)$currentMonth, (string)$currentYear);
 
 // Calendar generation
 $firstDay = strtotime("$currentYear-$currentMonth-01");
@@ -45,8 +45,9 @@ $monthName = date('F Y', $firstDay);
     
     <div class="calendar-legend">
         <span class="legend-item"><span class="legend-dot available"></span> Available</span>
-        <span class="legend-item"><span class="legend-dot limited"></span> Limited Slots</span>
-        <span class="legend-item"><span class="legend-dot fully-booked"></span> Fully Booked</span>
+        <span class="legend-item"><span class="legend-dot limited"></span> Limited</span>
+        <span class="legend-item"><span class="legend-dot full"></span> Full</span>
+        <span class="legend-item"><span class="legend-dot blocked"></span> Blocked</span>
     </div>
     
     <table class="calendar-table">
@@ -77,16 +78,10 @@ $monthName = date('F Y', $firstDay);
                     else:
                         $dateStr = sprintf('%04d-%02d-%02d', $currentYear, $currentMonth, $cellDay);
                         $isToday = ($dateStr === $today);
-                        $availability = checkDateAvailability($dateStr, $calendarSettings[$dateStr] ?? [
-                            'slot_date' => $dateStr,
-                            'max_slots' => 3,
-                            'current_slots' => 0,
-                            'admin_note' => '',
-                            'status' => 'open',
-                        ]);
+                        $availability = $calendarStatusMap[$dateStr] ?? checkDateAvailability($dateStr);
                         $class = $availability['customer_class'];
                         $canSelect = (bool)$availability['can_select'];
-                        $capacityNote = $availability['status'] === 'limited' ? $availability['note'] : '';
+                        $capacityNote = $availability['note'];
                         $status = $availability['status'];
                         
                         if ($isToday) $class .= ' today';
@@ -96,7 +91,7 @@ $monthName = date('F Y', $firstDay);
                     <?php if ($canSelect): ?>onclick="selectDate('<?php echo $dateStr; ?>')"<?php endif; ?>
                     <?php if ($capacityNote): ?>title="<?php echo escape($capacityNote); ?>" data-tooltip="<?php echo escape($capacityNote); ?>"<?php endif; ?>>
                     <?php echo $cellDay; ?>
-                    <?php if ($status === 'limited'): ?>
+                    <?php if (in_array($status, ['blocked', 'full', 'limited'], true)): ?>
                     <span class="booking-indicator">●</span>
                     <?php endif; ?>
                 </td>

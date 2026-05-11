@@ -48,7 +48,7 @@ $sql = "SELECT
     b.created_at
 FROM inquiries b 
 WHERE b.event_date = ? 
-AND (b.status = 'confirmed' OR b.status = 'completed' OR b.status = 'pending')
+AND (b.status = 'approved' OR b.status = 'confirmed' OR b.status = 'completed' OR b.status = 'pending')
 ORDER BY b.created_at DESC";
 
 $stmt = $conn->prepare($sql);
@@ -89,8 +89,7 @@ echo json_encode([
     'date' => $date,
     'status' => $overallStatus,
     'capacity_note' => $capacityNote,
-    'max_slots' => (int)($dateSetting['max_slots'] ?? 3),
-    'current_slots' => (int)($dateSetting['current_slots'] ?? count($bookings)),
+    'is_blocked' => (int)($dateSetting['is_blocked'] ?? 0),
     'booking_count' => count($bookings),
     'bookings' => $bookings
 ]);
